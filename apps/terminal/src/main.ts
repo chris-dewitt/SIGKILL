@@ -1,7 +1,21 @@
 import { path as vpath } from '@sigkill/machine';
+import { WorkerPythonRuntime } from '@sigkill/python';
 import { bootWreck, COLD_OPEN } from './world.js';
 
 const machine = bootWreck();
+
+/**
+ * Python is lazy on purpose.
+ *
+ * Constructing this costs nothing; the worker spawns and Pyodide's twelve
+ * megabytes load on the first `python3` and never before. A player still
+ * learning `ls` should not pay for an interpreter they have not reached.
+ */
+machine.python = new WorkerPythonRuntime({
+  indexURL: new URL('pyodide/', document.baseURI).href,
+  createWorker: () =>
+    new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module' }),
+});
 
 const screen = document.querySelector<HTMLDivElement>('#screen')!;
 const input = document.querySelector<HTMLInputElement>('#input')!;
@@ -20,6 +34,9 @@ let historyIndex = -1;
  * would interleave output and race the machine's state.
  */
 let busy = false;
+
+/** Once Pyodide is loaded, later runs are fast and need no notice. */
+let pythonWarmed = false;
 
 /** Characters a shell needs constantly that Android buries two taps deep. */
 const SYMBOL_KEYS = ['|', '/', '-', '~', '$', '*', '>', '.', "'", '"'];
@@ -59,6 +76,10 @@ async function submit(raw: string): Promise<void> {
 
     busy = true;
     input.disabled = true;
+    // The first python3 loads an interpreter. Say so rather than appearing hung.
+    const slow = command.startsWith('python') && !pythonWarmed
+      ? window.setTimeout(() => write('[loading interpreter...]', 'system'), 350)
+      : undefined;
     try {
       const result = await machine.exec(command);
       if (result.cleared) {
@@ -69,6 +90,8 @@ async function submit(raw: string): Promise<void> {
       }
       machine.tick(1000);
     } finally {
+      if (slow !== undefined) window.clearTimeout(slow);
+      if (command.startsWith('python')) pythonWarmed = true;
       busy = false;
       // Staying disabled is only correct when the session itself ended.
       input.disabled = machine.exited !== null;

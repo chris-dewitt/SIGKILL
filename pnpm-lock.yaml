@@ -23,7 +23,13 @@ importers:
       '@sigkill/machine':
         specifier: workspace:*
         version: link:../../packages/machine
+      '@sigkill/python':
+        specifier: workspace:*
+        version: link:../../packages/python
     devDependencies:
+      pyodide:
+        specifier: ^0.28.3
+        version: 0.28.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -48,6 +54,22 @@ importers:
         version: 5.9.3
 
   packages/machine:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(vite@6.4.3)
+
+  packages/python:
+    dependencies:
+      '@sigkill/machine':
+        specifier: workspace:*
+        version: link:../machine
+      pyodide:
+        specifier: ^0.28.3
+        version: 0.28.3
     devDependencies:
       typescript:
         specifier: ^5.7.2
@@ -499,6 +521,10 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  pyodide@0.28.3:
+    resolution: {integrity: sha512-rtCsyTU55oNGpLzSVuAd55ZvruJDEX8o6keSdWKN9jPeBVSNlynaKFG7eRqkiIgU7i2M6HEgYtm0atCEQX3u4A==}
+    engines: {node: '>=18.0.0'}
+
   rollup@4.63.1:
     resolution: {integrity: sha512-3Df9jsstwhccuEfmAMi9l8XUh/GOkVObmFTU7CCVBysEbcOZLl84jCtaAZMcPiMz2EGKsATzQcU+Xr3n/wU6cg==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
@@ -626,6 +652,18 @@ packages:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
     engines: {node: '>=8'}
     hasBin: true
+
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
 snapshots:
 
@@ -927,6 +965,13 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  pyodide@0.28.3:
+    dependencies:
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   rollup@4.63.1:
     dependencies:
       '@types/estree': 1.0.9
@@ -1029,3 +1074,5 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  ws@8.21.3: {}

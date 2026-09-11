@@ -16,6 +16,9 @@ export { ShellSyntaxError } from './shell/types.js';
 
 export { ALL_COMMANDS, commandRegistry } from './coreutils/index.js';
 
+export { pythonCommands, collectFiles, applyResult, machineRoots } from './lang/python.js';
+export type { PythonRuntime, PythonRequest, PythonResult, FileEntry } from './lang/python.js';
+
 export { Network } from './net/network.js';
 export type { NetHost, HostOptions, HttpResponse, Session } from './net/network.js';
 

@@ -1,4 +1,5 @@
 import { commandRegistry } from './coreutils/index.js';
+import { pythonCommands, type PythonRuntime } from './lang/python.js';
 import type { Network, Session } from './net/network.js';
 import { dueBetween } from './proc/cron.js';
 import { JobTable } from './proc/jobs.js';
@@ -23,6 +24,12 @@ export interface MachineOptions {
   track?: Track;
   /** The internet this machine is attached to, if any. */
   network?: Network;
+  /**
+   * A real Python interpreter, supplied from outside so this package does not
+   * depend on one. Absent means `python3` reports it is not installed, which
+   * is a legitimate state for a machine to be in.
+   */
+  python?: PythonRuntime;
   /**
    * Shared session state. Pass the same object to every machine on a network
    * so that `ssh` from any of them pushes onto one stack.
@@ -63,6 +70,8 @@ export class Machine {
   readonly shell: ShellContext;
   readonly epoch: number;
   readonly session: Session;
+  /** Swappable at runtime so the app can lazy-load the interpreter. */
+  python: PythonRuntime | undefined;
   /** Virtual clock in milliseconds. Advanced explicitly, never by wall time. */
   private clock = 0;
 
@@ -74,6 +83,7 @@ export class Machine {
     const now = (): number => this.clock;
     this.epoch = opts.epoch ?? Date.UTC(2387, 2, 14);
     this.session = opts.session ?? { stack: [] };
+    this.python = opts.python;
 
     this.vfs = opts.snapshot ? Vfs.restore(opts.snapshot, { now }) : new Vfs({ now });
     this.procs = new ProcessTable(now);
@@ -93,7 +103,7 @@ export class Machine {
       session: this.session,
       user,
       hostname: opts.hostname ?? 'localhost',
-      commands: commandRegistry(opts.commands ?? []),
+      commands: commandRegistry([...pythonCommands(() => this.python), ...(opts.commands ?? [])]),
       cwd: opts.cwd,
       env: opts.env,
       track: opts.track,
