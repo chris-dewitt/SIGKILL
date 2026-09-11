@@ -11,6 +11,13 @@ export interface ExpandContext {
   user: User;
   /** Last exit status, for $?. */
   status: number;
+  /**
+   * Runs a command substitution and returns its stdout.
+   *
+   * Injected rather than imported so expansion does not depend on the
+   * executor that depends on it.
+   */
+  run(source: string): string;
 }
 
 /**
@@ -29,6 +36,15 @@ export function expandWord(word: Word, ctx: ExpandContext): string[] {
       pieces.push({ text: part.value, glob: false, split: false });
       continue;
     }
+
+    if (part.kind === 'subst') {
+      // Trailing newlines are stripped, as every shell does — otherwise
+      // `cd $(pwd)` and friends would carry a newline into the argument.
+      const output = ctx.run(part.value).replace(/\n+$/, '');
+      pieces.push({ text: output, glob: !part.quoted, split: !part.quoted });
+      continue;
+    }
+
     let text = part.value;
     if (part.kind === 'bare' && idx === 0) text = expandTilde(text, ctx);
     text = expandParams(text, ctx);

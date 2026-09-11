@@ -1,5 +1,31 @@
-import type { CommandSpec } from '../shell/exec.js';
+import type { CommandSpec, ShellContext } from '../shell/exec.js';
+import { ROOT_USER } from '../vfs/vfs.js';
 import { emit, parseArgs, usage } from './helpers.js';
+
+/**
+ * Is this user allowed to use sudo?
+ *
+ * Reads /etc/sudoers the way the real thing does, matching `name ALL=...`
+ * lines and `%group` entries. A missing sudoers file means nobody but root,
+ * which is the safe direction to fail.
+ */
+function isSudoer(ctx: ShellContext, name: string): boolean {
+  if (ctx.user.uid === 0) return true;
+  let text: string;
+  try {
+    text = ctx.vfs.readText('/etc/sudoers', ROOT_USER);
+  } catch {
+    return false;
+  }
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'))
+    .some((line) => {
+      const subject = line.split(/\s+/)[0];
+      return subject === name || subject === `%${name}`;
+    });
+}
 
 export const sysCommands: CommandSpec[] = [
   {
@@ -120,6 +146,46 @@ export const sysCommands: CommandSpec[] = [
     run: (ctx) => {
       ctx.clearRequested = true;
       return 0;
+    },
+  },
+
+  {
+    name: 'sudo',
+    summary: 'run a command as root',
+    manual:
+      'Execute a command as the superuser.\n' +
+      'Permitted users are listed in /etc/sudoers. There is no password\n' +
+      'prompt on this machine; authorisation is the sudoers file alone.',
+    plain:
+      'Runs one command with full privileges, for things an ordinary user is\n' +
+      "not allowed to do. Put sudo in front of the command:\n" +
+      '  sudo systemctl start scrubber\n' +
+      'You can only do this if /etc/sudoers says you can.',
+    run: (ctx, argv, io) => {
+      const rest = argv.slice(1);
+      if (rest.length === 0) return usage(io, 'usage: sudo command [args]');
+
+      if (!isSudoer(ctx, ctx.user.name)) {
+        io.err(`${ctx.user.name} is not in the sudoers file. This incident has been reported.\n`);
+        return 1;
+      }
+
+      const spec = ctx.commands.get(rest[0]!);
+      if (!spec) {
+        io.err(`sudo: ${rest[0]}: command not found\n`);
+        return 127;
+      }
+
+      // Swap identity for exactly one command, then put it back even if the
+      // command throws. Everything downstream reads ctx.user, so the VFS
+      // permission checks see root without any special-casing.
+      const original = ctx.user;
+      ctx.user = { uid: 0, gid: 0, name: 'root' };
+      try {
+        return spec.run(ctx, rest, io);
+      } finally {
+        ctx.user = original;
+      }
     },
   },
 

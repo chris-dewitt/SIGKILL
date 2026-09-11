@@ -2,7 +2,10 @@
 export type WordPart =
   | { kind: 'bare'; value: string }      // expand vars, then glob + split
   | { kind: 'dquoted'; value: string }   // expand vars, no glob, no split
-  | { kind: 'squoted'; value: string };  // literal, nothing happens
+  | { kind: 'squoted'; value: string }   // literal, nothing happens
+  // $(...) or `...`. `value` is the inner source, run at expansion time.
+  // Quoted substitutions skip splitting and globbing, same as "$var".
+  | { kind: 'subst'; value: string; quoted: boolean };
 
 export interface Word {
   parts: WordPart[];

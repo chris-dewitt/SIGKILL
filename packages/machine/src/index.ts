@@ -15,3 +15,16 @@ export { lex } from './shell/lexer.js';
 export { ShellSyntaxError } from './shell/types.js';
 
 export { ALL_COMMANDS, commandRegistry } from './coreutils/index.js';
+
+export { ProcessTable } from './proc/table.js';
+export { ServiceManager } from './proc/services.js';
+export { parseIni, loadUnit, listUnits, UNIT_DIRS, WANTS_DIR } from './proc/units.js';
+export type {
+  Process,
+  ProcessState,
+  ProcSnapshot,
+  Precondition,
+  ServiceState,
+  ServiceStatus,
+  Unit,
+} from './proc/types.js';

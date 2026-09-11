@@ -71,10 +71,15 @@ What is in and tested today:
   loop detection, `ENOENT`/`EACCES`/`EISDIR`/`ELOOP` and friends. Snapshots
   round-trip exactly, which is what a save file is.
 - **Shell** — quoting, globbing, pipes, `&&`/`||`/`;`, redirection, subshells,
-  variable expansion, `$?`, per-command assignments, real exit codes.
+  variable expansion, `$?`, command substitution (`$(...)` and backticks),
+  per-command assignments, real exit codes.
+- **Processes and services** — a process table, systemd-style unit files read
+  from the filesystem, and `sudo` gated by `/etc/sudoers`. `systemctl enable`
+  creates a real symlink in `multi-user.target.wants`, exactly as on a real
+  system, so `ls -l` shows it and it survives a snapshot for free.
 - **Coreutils** — `ls cat cd pwd echo grep head tail wc sort uniq cut tr sed
-  find mkdir rmdir rm cp mv touch ln chmod stat whoami id env export unset
-  which man help clear exit true false hostname`.
+  find mkdir rmdir rm cp mv touch ln chmod stat ps kill systemctl sudo whoami
+  id env export unset which man help clear exit true false hostname`.
 
 Two properties are load-bearing and never traded away:
 
@@ -86,7 +91,17 @@ replayed headlessly in CI.
 player typed. `sed`, a Python one-liner, or a text editor all pass — including
 routes nobody anticipated.
 
-The whole Machine is 13.7 kB gzipped.
+A unit refuses to start when its configuration is invalid, and the reason
+lands in `systemctl status` — which is how a systems concept becomes a puzzle
+without anything being faked:
+
+```
+$ sudo systemctl start scrubber
+Job for scrubber.service failed: O2_TARGET=16 outside breathable range 19-23
+See 'systemctl status scrubber' for details.
+```
+
+The whole Machine is 18 kB gzipped.
 
 ---
 

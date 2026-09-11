@@ -196,3 +196,63 @@ describe('option parsing', () => {
     expect(m.exec('ls').stdout).not.toContain('.hidden');
   });
 });
+
+describe('command substitution', () => {
+  it('substitutes stdout into a word', () => {
+    const m = boot();
+    expect(m.exec('echo $(echo inner)').stdout).toBe('inner\n');
+    expect(m.exec('echo `echo legacy`').stdout).toBe('legacy\n');
+  });
+
+  it('strips trailing newlines so the value is usable', () => {
+    const m = boot();
+    m.exec('cd /var/log');
+    // Without stripping, this would cd into a path ending in a newline.
+    expect(m.exec('cd $(pwd) && pwd').stdout).toBe('/var/log\n');
+  });
+
+  it('splits an unquoted substitution and keeps a quoted one whole', () => {
+    const m = boot();
+    m.vfs.writeText('/tmp/words', 'alpha beta gamma\n', ROOT_USER);
+    expect(m.exec('wc -w < /tmp/words').stdout.trim()).toBe('3');
+    // Unquoted: three arguments. Quoted: one argument containing spaces.
+    expect(m.exec('echo $(cat /tmp/words)').stdout).toBe('alpha beta gamma\n');
+    expect(m.exec('echo "$(cat /tmp/words)"').stdout).toBe('alpha beta gamma\n');
+  });
+
+  it('nests', () => {
+    const m = boot();
+    expect(m.exec('echo $(echo $(echo deep))').stdout).toBe('deep\n');
+  });
+
+  it('composes with pipes and redirection inside the substitution', () => {
+    const m = boot();
+    expect(m.exec('echo "failures: $(grep -ci fail /var/log/boot.log)"').stdout)
+      .toBe('failures: 2\n');
+  });
+
+  it('leaves a single-quoted substitution completely alone', () => {
+    const m = boot();
+    expect(m.exec("echo '$(echo inner)'").stdout).toBe('$(echo inner)\n');
+  });
+
+  it('surfaces stderr from inside a substitution instead of swallowing it', () => {
+    const m = boot();
+    const r = m.exec('echo "[$(cat /nope)]"');
+    expect(r.stdout).toBe('[]\n');
+    expect(r.stderr).toContain('No such file or directory');
+  });
+
+  it('reports an unterminated substitution as a syntax error', () => {
+    const m = boot();
+    const r = m.exec('echo $(echo oops');
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('syntax error');
+  });
+
+  it('assigns a substitution to a variable', () => {
+    const m = boot();
+    m.exec('export HOST=$(hostname)');
+    expect(m.exec('echo $HOST').stdout).toBe('nav7\n');
+  });
+});

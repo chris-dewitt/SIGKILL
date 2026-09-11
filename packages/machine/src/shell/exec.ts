@@ -1,4 +1,6 @@
 import { isFsError } from '../errors.js';
+import type { ProcessTable } from '../proc/table.js';
+import type { ServiceManager } from '../proc/services.js';
 import * as p from '../vfs/path.js';
 import type { User } from '../vfs/types.js';
 import type { Vfs } from '../vfs/vfs.js';
@@ -6,6 +8,9 @@ import { expandWord, expandWords, type ExpandContext } from './expand.js';
 import { parse } from './parser.js';
 import type { AndOr, Pipeline, Redirect, Script, Simple } from './types.js';
 import { ShellSyntaxError } from './types.js';
+
+/** Deep enough for anything honest, shallow enough to stop a runaway. */
+const MAX_SUBSTITUTION_DEPTH = 16;
 
 export interface ExecIO {
   stdin: string;
@@ -32,6 +37,10 @@ export interface CommandSpec {
 export interface ShellContextOptions {
   vfs: Vfs;
   user: User;
+  procs: ProcessTable;
+  services: ServiceManager;
+  /** Reads the virtual clock. Commands must never reach for wall time. */
+  clock: () => number;
   cwd?: string;
   home?: string;
   env?: Record<string, string>;
@@ -42,6 +51,9 @@ export interface ShellContextOptions {
 
 export class ShellContext {
   readonly vfs: Vfs;
+  readonly procs: ProcessTable;
+  readonly services: ServiceManager;
+  readonly clock: () => number;
   user: User;
   cwd: string;
   home: string;
@@ -55,9 +67,14 @@ export class ShellContext {
   exited: number | null = null;
   /** Raised by `clear`. The renderer decides what clearing means; we do not. */
   clearRequested = false;
+  /** Nesting depth of command substitution, so `x=$(x)` cannot run away. */
+  private substDepth = 0;
 
   constructor(opts: ShellContextOptions) {
     this.vfs = opts.vfs;
+    this.procs = opts.procs;
+    this.services = opts.services;
+    this.clock = opts.clock;
     this.user = opts.user;
     this.home = opts.home ?? `/home/${opts.user.name}`;
     this.cwd = opts.cwd ?? this.home;
@@ -83,8 +100,33 @@ export class ShellContext {
       vfs: this.vfs,
       user: this.user,
       status: this.status,
+      run: (source) => this.runSubstitution(source),
     };
   }
+
+  /**
+   * Run a command substitution and return its stdout.
+   *
+   * Substitutions run in the current shell's environment but their stdout is
+   * captured rather than printed. stderr still goes to the terminal, which is
+   * what makes a failing substitution visible instead of silently empty.
+   */
+  private runSubstitution(source: string): string {
+    if (this.substDepth >= MAX_SUBSTITUTION_DEPTH) {
+      throw new Error('command substitution nested too deeply');
+    }
+    this.substDepth++;
+    try {
+      const result = run(this, source);
+      this.substitutionStderr += result.stderr;
+      return result.stdout;
+    } finally {
+      this.substDepth--;
+    }
+  }
+
+  /** stderr produced inside substitutions, drained by the executor. */
+  substitutionStderr = '';
 
   /** Resolve a user-supplied path against the current directory. */
   resolve(path: string): string {
@@ -117,7 +159,23 @@ export function run(ctx: ShellContext, input: string): RunResult {
     return { stdout: '', stderr: `sh: syntax error: ${message}\n`, code: 2 };
   }
 
-  const code = runScript(ctx, script, io);
+  let code: number;
+  try {
+    code = runScript(ctx, script, io);
+  } catch (e) {
+    // Expansion happens before a command runs, so a failure there (a runaway
+    // substitution, say) would otherwise escape. run() reports; it never throws.
+    err += `sh: ${e instanceof Error ? e.message : String(e)}\n`;
+    code = 1;
+    ctx.status = code;
+  }
+
+  // Substitutions capture their own stdout but their stderr belongs on screen.
+  if (ctx.substitutionStderr.length > 0) {
+    err += ctx.substitutionStderr;
+    ctx.substitutionStderr = '';
+  }
+
   return { stdout: out, stderr: err, code };
 }
 
@@ -172,6 +230,9 @@ function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): number {
     // A subshell gets a copy of the environment; changes do not escape.
     const inner = new ShellContext({
       vfs: ctx.vfs,
+      procs: ctx.procs,
+      services: ctx.services,
+      clock: ctx.clock,
       user: ctx.user,
       cwd: ctx.cwd,
       home: ctx.home,

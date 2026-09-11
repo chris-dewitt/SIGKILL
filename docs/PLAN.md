@@ -160,8 +160,9 @@ push, playable web terminal.
 - [x] 35 coreutils
 - [x] Snapshot/restore round-tripping exactly; virtual clock
 - [x] Determinism harness and solution-agnostic goal tests
-- [ ] Process table, background jobs, cron, systemd units
-- [ ] Command substitution `$(...)`
+- [x] Command substitution `$(...)` and backticks
+- [x] Process table, systemd units, `sudo` backed by /etc/sudoers
+- [ ] Background jobs (`&`), `jobs`, `cron`
 - [ ] Pyodide bound to the VFS
 - [ ] Simulated network — `ssh`/`curl`/`nc` against other Machine instances
 
@@ -215,7 +216,7 @@ before building a third. **This number is the whole thesis.**
 | Real engines break the fiction | Medium | Largely designed out — goals are world-state predicates, so any correct route passes. |
 | On-device LLM is unknown work | Medium | Adventure four, not one. One-weekend spike in Phase 4. License verified before shipping. |
 | Four agents colliding | Medium | Strict package boundaries, TypeScript as the contract, `WORKING_ON.md`, small PRs, CI gates. |
-| Dead Drift contention and burnout | Medium | Not technical, and the most likely to bite. Decide explicitly: pause or timebox. |
+| Dead Drift contention and burnout | Medium | **Resolved:** Dead Drift is still on and gets picked back up soon — not paused, not abandoned, just not now. Watch for the two-project pull rather than pretending it does not exist. |
 | Paid app discovery on Play | Low | The free web demo is the discovery channel; the paid app is the artifact. |
 
 ## Opportunities
@@ -239,6 +240,5 @@ before building a third. **This number is the whole thesis.**
 
 ## Open
 
-- Dead Drift: paused or timeboxed? Ambiguity here costs more than either choice.
 - Whether commits in this repo carry AI co-author trailers. Currently they do;
   one line to change if not wanted.

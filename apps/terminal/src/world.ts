@@ -18,6 +18,7 @@ export function bootWreck(): Machine {
   v.mkdirp('/tmp', ROOT_USER);
   v.chmod('/tmp', 0o777, ROOT_USER);
   v.mkdirp('/mnt/deck-c', ROOT_USER);
+  v.mkdirp('/etc/systemd/system', ROOT_USER);
 
   v.writeText(
     '/etc/life_support.conf',
@@ -45,9 +46,13 @@ export function bootWreck(): Machine {
     [
       "If you are reading this, the ship woke you and not me.",
       '',
-      'The scrubber will not start because someone set the oxygen target',
-      'to a number the controller refuses. Look in /etc. Fix the number.',
-      'Then start the service.',
+      'The scrubber will not start. I set the oxygen target low to stretch',
+      'the reserve and the controller has refused it ever since. It will tell',
+      'you what it wants if you ask it properly:',
+      '',
+      '    systemctl status scrubber',
+      '',
+      'Fix the number in /etc, then start the service. You will need sudo.',
       '',
       '  - Vasquez, engineering',
       '',
@@ -60,6 +65,75 @@ export function bootWreck(): Machine {
 
   v.writeText('/etc/shadow', 'root:!locked:19000:0:99999:7:::\n', ROOT_USER);
   v.chmod('/etc/shadow', 0o600, ROOT_USER);
+
+  v.writeText(
+    '/etc/sudoers',
+    [
+      '# NAV-7 privilege policy',
+      '# Vasquez added the survivor account before the last shift. Lucky you.',
+      'root      ALL=(ALL) ALL',
+      'survivor  ALL=(ALL) ALL',
+      '',
+    ].join('\n'),
+    ROOT_USER,
+  );
+  v.chmod('/etc/sudoers', 0o644, ROOT_USER);
+
+  v.writeText(
+    '/etc/systemd/system/scrubber.service',
+    [
+      '[Unit]',
+      'Description=Atmosphere scrubber',
+      'After=reactor.service',
+      '',
+      '[Service]',
+      'ExecStart=/usr/sbin/scrubber --config /etc/life_support.conf',
+      'Restart=on-failure',
+      '',
+      '[Install]',
+      'WantedBy=multi-user.target',
+      '',
+    ].join('\n'),
+    ROOT_USER,
+  );
+
+  v.writeText(
+    '/etc/systemd/system/reactor.service',
+    [
+      '[Unit]',
+      'Description=Reactor containment monitor',
+      '',
+      '[Service]',
+      'ExecStart=/usr/sbin/reactord',
+      'Restart=always',
+      '',
+      '[Install]',
+      'WantedBy=multi-user.target',
+      '',
+    ].join('\n'),
+    ROOT_USER,
+  );
+
+  // The reactor survived the incident; the scrubber did not. Enabling it here
+  // means `systemctl list-units` opens on one healthy unit and one casualty,
+  // which is a more legible starting picture than everything being dead.
+  m.services.enable('reactor');
+
+  // Authored by the adventure, never by the Machine: a real atmosphere
+  // controller refuses a target outside the breathable band, and says why.
+  m.setPrecondition('scrubber', (vfs) => {
+    const conf = vfs.readText('/etc/life_support.conf', ROOT_USER);
+    const target = Number(/O2_TARGET=(\d+(?:\.\d+)?)/.exec(conf)?.[1] ?? NaN);
+    if (!Number.isFinite(target)) {
+      return { ok: false, reason: 'O2_TARGET missing or unreadable in /etc/life_support.conf' };
+    }
+    if (target < 19 || target > 23) {
+      return { ok: false, reason: `O2_TARGET=${target} outside breathable range 19-23; refusing to run` };
+    }
+    return { ok: true };
+  });
+
+  m.services.startEnabled();
 
   m.shell.cwd = '/home/survivor';
   m.shell.env['PWD'] = '/home/survivor';

@@ -1,9 +1,15 @@
 import type { CommandSpec } from '../shell/exec.js';
 import { fsCommands } from './fs.js';
+import { procCommands } from './proc.js';
 import { sysCommands } from './sys.js';
 import { textCommands } from './text.js';
 
-export const ALL_COMMANDS: CommandSpec[] = [...fsCommands, ...textCommands, ...sysCommands];
+export const ALL_COMMANDS: CommandSpec[] = [
+  ...fsCommands,
+  ...textCommands,
+  ...procCommands,
+  ...sysCommands,
+];
 
 /** Build a name -> command map, optionally with adventure-specific extras. */
 export function commandRegistry(extra: CommandSpec[] = []): Map<string, CommandSpec> {
