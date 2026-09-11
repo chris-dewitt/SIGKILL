@@ -54,7 +54,7 @@ function boot(): Machine {
 }
 
 describe('units', () => {
-  it('reads a unit file off the filesystem', () => {
+  it('reads a unit file off the filesystem', async () => {
     const m = boot();
     const status = m.services.get('scrubber');
     expect(status?.description).toBe('Atmosphere scrubber');
@@ -62,12 +62,12 @@ describe('units', () => {
     expect(status?.enabled).toBe(false);
   });
 
-  it('accepts a name with or without the .service suffix', () => {
+  it('accepts a name with or without the .service suffix', async () => {
     const m = boot();
     expect(m.services.get('scrubber.service')?.name).toBe('scrubber');
   });
 
-  it('sees a unit file the player writes', () => {
+  it('sees a unit file the player writes', async () => {
     const m = boot();
     expect(m.services.get('beacon')).toBeUndefined();
     m.vfs.writeText(
@@ -81,157 +81,157 @@ describe('units', () => {
 
 describe('systemctl', () => {
   let m: Machine;
-  beforeEach(() => { m = boot(); });
+  beforeEach(async () => { m = boot(); });
 
-  it('refuses to start a unit whose precondition fails, and says why', () => {
-    const r = m.exec('sudo systemctl start scrubber');
+  it('refuses to start a unit whose precondition fails, and says why', async () => {
+    const r = await m.exec('sudo systemctl start scrubber');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('outside breathable range');
     expect(m.services.get('scrubber')?.state).toBe('failed');
   });
 
-  it('puts the reason where a player would look: systemctl status', () => {
-    m.exec('sudo systemctl start scrubber');
-    const r = m.exec('systemctl status scrubber');
+  it('puts the reason where a player would look: systemctl status', async () => {
+    await m.exec('sudo systemctl start scrubber');
+    const r = await m.exec('systemctl status scrubber');
     expect(r.stdout).toContain('Active: failed');
     expect(r.stdout).toContain('O2_TARGET=16 outside breathable range');
     // systemd exits non-zero for an inactive unit, and so do we.
     expect(r.code).toBe(3);
   });
 
-  it('starts once the configuration is fixed', () => {
-    m.exec("sudo sed -i 's/O2_TARGET=16/O2_TARGET=21/' /etc/life_support.conf");
-    const r = m.exec('sudo systemctl start scrubber');
+  it('starts once the configuration is fixed', async () => {
+    await m.exec("sudo sed -i 's/O2_TARGET=16/O2_TARGET=21/' /etc/life_support.conf");
+    const r = await m.exec('sudo systemctl start scrubber');
     expect(r.stderr).toBe('');
     expect(r.code).toBe(0);
 
     const status = m.services.get('scrubber');
     expect(status?.state).toBe('active');
     expect(status?.pid).toBeGreaterThan(0);
-    expect(m.exec('systemctl status scrubber').code).toBe(0);
+    expect((await m.exec('systemctl status scrubber')).code).toBe(0);
   });
 
-  it('shows the running service in ps', () => {
-    m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
-    m.exec('sudo systemctl start scrubber');
-    expect(m.exec('ps -ef').stdout).toContain('/usr/sbin/scrubber');
+  it('shows the running service in ps', async () => {
+    await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
+    await m.exec('sudo systemctl start scrubber');
+    expect((await m.exec('ps -ef')).stdout).toContain('/usr/sbin/scrubber');
   });
 
-  it('stops a service and frees its pid', () => {
-    m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
-    m.exec('sudo systemctl start scrubber');
+  it('stops a service and frees its pid', async () => {
+    await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
+    await m.exec('sudo systemctl start scrubber');
     const pid = m.services.get('scrubber')!.pid!;
-    m.exec('sudo systemctl stop scrubber');
+    await m.exec('sudo systemctl stop scrubber');
     expect(m.services.get('scrubber')?.state).toBe('inactive');
     expect(m.procs.get(pid)).toBeUndefined();
   });
 
-  it('reports a unit that does not exist', () => {
-    const r = m.exec('systemctl status nosuch');
+  it('reports a unit that does not exist', async () => {
+    const r = await m.exec('systemctl status nosuch');
     expect(r.code).toBe(4);
     expect(r.stderr).toContain('could not be found');
   });
 
-  it('lists units', () => {
-    const out = m.exec('systemctl list-units').stdout;
+  it('lists units', async () => {
+    const out = (await m.exec('systemctl list-units')).stdout;
     expect(out).toContain('scrubber.service');
     expect(out).toContain('Atmosphere scrubber');
   });
 });
 
 describe('enable is a symlink, not a flag', () => {
-  it('creates a real symlink that ls can see', () => {
+  it('creates a real symlink that ls can see', async () => {
     const m = boot();
-    m.exec('sudo systemctl enable scrubber');
+    await m.exec('sudo systemctl enable scrubber');
 
     const link = '/etc/systemd/system/multi-user.target.wants/scrubber.service';
     expect(m.vfs.lstat(link, ROOT_USER).kind).toBe('symlink');
     expect(m.vfs.readlink(link, ROOT_USER)).toBe('/etc/systemd/system/scrubber.service');
     expect(m.services.get('scrubber')?.enabled).toBe(true);
 
-    const listing = m.exec('ls -l /etc/systemd/system/multi-user.target.wants').stdout;
+    const listing = (await m.exec('ls -l /etc/systemd/system/multi-user.target.wants')).stdout;
     expect(listing).toContain('scrubber.service -> /etc/systemd/system/scrubber.service');
   });
 
-  it('disable removes it', () => {
+  it('disable removes it', async () => {
     const m = boot();
-    m.exec('sudo systemctl enable scrubber');
-    m.exec('sudo systemctl disable scrubber');
+    await m.exec('sudo systemctl enable scrubber');
+    await m.exec('sudo systemctl disable scrubber');
     expect(m.services.get('scrubber')?.enabled).toBe(false);
   });
 
-  it('starts enabled units at boot, and only those', () => {
+  it('starts enabled units at boot, and only those', async () => {
     const m = boot();
-    m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
+    await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
     m.services.startEnabled();
     expect(m.services.get('scrubber')?.state).toBe('inactive');
 
-    m.exec('sudo systemctl enable scrubber');
+    await m.exec('sudo systemctl enable scrubber');
     m.services.startEnabled();
     expect(m.services.get('scrubber')?.state).toBe('active');
   });
 });
 
 describe('privilege', () => {
-  it('refuses systemctl start to an ordinary user', () => {
+  it('refuses systemctl start to an ordinary user', async () => {
     const m = boot();
-    const r = m.exec('systemctl start scrubber');
+    const r = await m.exec('systemctl start scrubber');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('Access denied');
     expect(m.services.get('scrubber')?.state).toBe('inactive');
   });
 
-  it('allows status to anyone', () => {
+  it('allows status to anyone', async () => {
     const m = boot();
-    expect(m.exec('systemctl status scrubber').stdout).toContain('Atmosphere scrubber');
+    expect((await m.exec('systemctl status scrubber')).stdout).toContain('Atmosphere scrubber');
   });
 
-  it('sudo elevates for exactly one command', () => {
+  it('sudo elevates for exactly one command', async () => {
     const m = boot();
-    expect(m.exec('whoami').stdout).toBe('survivor\n');
-    expect(m.exec('sudo whoami').stdout).toBe('root\n');
-    expect(m.exec('whoami').stdout).toBe('survivor\n');
+    expect((await m.exec('whoami')).stdout).toBe('survivor\n');
+    expect((await m.exec('sudo whoami')).stdout).toBe('root\n');
+    expect((await m.exec('whoami')).stdout).toBe('survivor\n');
   });
 
-  it('refuses sudo to a user absent from sudoers', () => {
+  it('refuses sudo to a user absent from sudoers', async () => {
     const m = boot();
     m.vfs.writeText('/etc/sudoers', 'root ALL=(ALL) ALL\n', ROOT_USER);
-    const r = m.exec('sudo systemctl start scrubber');
+    const r = await m.exec('sudo systemctl start scrubber');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('not in the sudoers file');
   });
 
-  it('refuses sudo when there is no sudoers file at all', () => {
+  it('refuses sudo when there is no sudoers file at all', async () => {
     const m = boot();
     m.vfs.unlink('/etc/sudoers', ROOT_USER);
-    expect(m.exec('sudo whoami').stderr).toContain('not in the sudoers file');
+    expect((await m.exec('sudo whoami')).stderr).toContain('not in the sudoers file');
   });
 });
 
 describe('kill', () => {
-  it('marks a unit inactive when its process is killed behind its back', () => {
+  it('marks a unit inactive when its process is killed behind its back', async () => {
     const m = boot();
-    m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
-    m.exec('sudo systemctl start scrubber');
+    await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
+    await m.exec('sudo systemctl start scrubber');
     const pid = m.services.get('scrubber')!.pid!;
 
-    m.exec(`sudo kill -9 ${pid}`);
+    await m.exec(`sudo kill -9 ${pid}`);
 
     // The unit must not be left "active" pointing at a pid that is gone.
     expect(m.services.get('scrubber')?.state).toBe('inactive');
     expect(m.procs.get(pid)).toBeUndefined();
   });
 
-  it('reports a pid that does not exist', () => {
+  it('reports a pid that does not exist', async () => {
     const m = boot();
-    const r = m.exec('kill 9999');
+    const r = await m.exec('kill 9999');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('No such process');
   });
 
-  it('stops an ordinary user killing root-owned processes', () => {
+  it('stops an ordinary user killing root-owned processes', async () => {
     const m = boot();
-    const r = m.exec('kill 1');
+    const r = await m.exec('kill 1');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('Operation not permitted');
     expect(m.procs.get(1)).toBeDefined();
@@ -239,11 +239,11 @@ describe('kill', () => {
 });
 
 describe('service state survives a snapshot', () => {
-  it('restores active units, pids and the clock', () => {
+  it('restores active units, pids and the clock', async () => {
     const m = boot();
-    m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
-    m.exec('sudo systemctl enable scrubber');
-    m.exec('sudo systemctl start scrubber');
+    await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
+    await m.exec('sudo systemctl enable scrubber');
+    await m.exec('sudo systemctl start scrubber');
     m.tick(9000);
     const saved = m.snapshot();
 
@@ -252,15 +252,15 @@ describe('service state survives a snapshot', () => {
     expect(status?.state).toBe('active');
     expect(status?.enabled).toBe(true);
     expect(status?.pid).toBe(m.services.get('scrubber')!.pid);
-    expect(restored.exec('ps -ef').stdout).toContain('/usr/sbin/scrubber');
+    expect((await restored.exec('ps -ef')).stdout).toContain('/usr/sbin/scrubber');
     expect(restored.snapshot()).toEqual(saved);
   });
 
-  it('restores a failed unit together with its reason', () => {
+  it('restores a failed unit together with its reason', async () => {
     const m = boot();
-    m.exec('sudo systemctl start scrubber');
+    await m.exec('sudo systemctl start scrubber');
     const restored = Machine.restore(m.snapshot(), { hostname: 'nav7' });
-    expect(restored.exec('systemctl status scrubber').stdout).toContain('outside breathable range');
+    expect((await restored.exec('systemctl status scrubber')).stdout).toContain('outside breathable range');
   });
 });
 
@@ -286,24 +286,24 @@ describe('Act I, end to end', () => {
   ];
 
   for (const [name, commands] of routes) {
-    it(`accepts: ${name}`, () => {
+    it(`accepts: ${name}`, async () => {
       const m = boot();
       expect(goal(m)).toBe(false);
-      for (const command of commands) m.exec(command);
+      for (const command of commands) await m.exec(command);
       if (name.includes('boot')) m.services.startEnabled();
       expect(goal(m)).toBe(true);
     });
   }
 
-  it('rejects fixing the config without starting the service', () => {
+  it('rejects fixing the config without starting the service', async () => {
     const m = boot();
-    m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
+    await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
     expect(goal(m)).toBe(false);
   });
 
-  it('rejects starting the service without fixing the config', () => {
+  it('rejects starting the service without fixing the config', async () => {
     const m = boot();
-    m.exec('sudo systemctl start scrubber');
+    await m.exec('sudo systemctl start scrubber');
     expect(goal(m)).toBe(false);
   });
 });

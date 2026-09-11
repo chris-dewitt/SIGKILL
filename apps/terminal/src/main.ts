@@ -14,6 +14,13 @@ const tabButton = document.querySelector<HTMLButtonElement>('#tab')!;
 const history: string[] = [];
 let historyIndex = -1;
 
+/**
+ * Commands are async now, and some of them (Python, a remote host) take real
+ * time. One command runs at a time: a second Enter while one is in flight
+ * would interleave output and race the machine's state.
+ */
+let busy = false;
+
 /** Characters a shell needs constantly that Android buries two taps deep. */
 const SYMBOL_KEYS = ['|', '/', '-', '~', '$', '*', '>', '.', "'", '"'];
 
@@ -42,7 +49,7 @@ function refreshPrompt(): void {
   promptEl.textContent = machine.prompt;
 }
 
-function submit(raw: string): void {
+async function submit(raw: string): Promise<void> {
   const command = raw.trim();
   write(machine.prompt + command, 'echo');
 
@@ -50,25 +57,33 @@ function submit(raw: string): void {
     history.push(command);
     historyIndex = history.length;
 
-    const result = machine.exec(command);
-    if (result.cleared) {
-      screen.replaceChildren();
-    } else {
-      writeBlock(result.stdout, 'out');
-      writeBlock(result.stderr, 'err');
+    busy = true;
+    input.disabled = true;
+    try {
+      const result = await machine.exec(command);
+      if (result.cleared) {
+        screen.replaceChildren();
+      } else {
+        writeBlock(result.stdout, 'out');
+        writeBlock(result.stderr, 'err');
+      }
+      machine.tick(1000);
+    } finally {
+      busy = false;
+      // Staying disabled is only correct when the session itself ended.
+      input.disabled = machine.exited !== null;
     }
-    machine.tick(1000);
 
     if (machine.exited !== null) {
       write('', 'system');
       write('[session closed]', 'system');
-      input.disabled = true;
     }
   }
 
   refreshPrompt();
   refreshChips();
   scrollToEnd();
+  if (!input.disabled) input.focus();
 }
 
 // ---------------------------------------------------------------- completion
@@ -222,10 +237,10 @@ function buildSymbolRow(): void {
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (busy) return;
   const value = input.value;
   input.value = '';
-  submit(value);
-  input.focus();
+  void submit(value);
 });
 
 input.addEventListener('input', refreshChips);
@@ -263,7 +278,7 @@ tabButton.addEventListener('click', applyCompletion);
 // Tapping anywhere on the screen focuses the line, the way a terminal should.
 screen.addEventListener('click', () => {
   if (window.getSelection()?.toString()) return;
-  input.focus();
+  if (!input.disabled) input.focus();
 });
 
 for (const line of COLD_OPEN) write(line.length > 0 ? line : ' ', 'system');

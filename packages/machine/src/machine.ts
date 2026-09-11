@@ -72,9 +72,9 @@ export class Machine {
   }
 
   /** Run one command line. Returns captured output; never throws for user error. */
-  exec(input: string): RunResult & { cleared: boolean } {
+  async exec(input: string): Promise<RunResult & { cleared: boolean }> {
     this.shell.clearRequested = false;
-    const result = run(this.shell, input);
+    const result = await run(this.shell, input);
     return { ...result, cleared: this.shell.clearRequested };
   }
 

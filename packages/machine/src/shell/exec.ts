@@ -18,8 +18,18 @@ export interface ExecIO {
   err(text: string): void;
 }
 
-/** A command is a pure-ish function of (context, argv, io) -> exit code. */
-export type CommandFn = (ctx: ShellContext, argv: string[], io: ExecIO) => number;
+/**
+ * A command is a pure-ish function of (context, argv, io) -> exit code.
+ *
+ * Commands may be async. Most are not and should not bother, but the engines
+ * that matter — Python, SQL, git, a remote host — cannot be synchronous, and
+ * one async command forces the whole pipeline to be awaitable.
+ */
+export type CommandFn = (
+  ctx: ShellContext,
+  argv: string[],
+  io: ExecIO,
+) => number | Promise<number>;
 
 export type Track = 'cadet' | 'operator';
 
@@ -111,13 +121,13 @@ export class ShellContext {
    * captured rather than printed. stderr still goes to the terminal, which is
    * what makes a failing substitution visible instead of silently empty.
    */
-  private runSubstitution(source: string): string {
+  private async runSubstitution(source: string): Promise<string> {
     if (this.substDepth >= MAX_SUBSTITUTION_DEPTH) {
       throw new Error('command substitution nested too deeply');
     }
     this.substDepth++;
     try {
-      const result = run(this, source);
+      const result = await run(this, source);
       this.substitutionStderr += result.stderr;
       return result.stdout;
     } finally {
@@ -141,7 +151,7 @@ export interface RunResult {
 }
 
 /** Parse and run a command line. Never throws for user error — it reports. */
-export function run(ctx: ShellContext, input: string): RunResult {
+export async function run(ctx: ShellContext, input: string): Promise<RunResult> {
   let out = '';
   let err = '';
   const io: ExecIO = {
@@ -161,7 +171,7 @@ export function run(ctx: ShellContext, input: string): RunResult {
 
   let code: number;
   try {
-    code = runScript(ctx, script, io);
+    code = await runScript(ctx, script, io);
   } catch (e) {
     // Expansion happens before a command runs, so a failure there (a runaway
     // substitution, say) would otherwise escape. run() reports; it never throws.
@@ -179,30 +189,30 @@ export function run(ctx: ShellContext, input: string): RunResult {
   return { stdout: out, stderr: err, code };
 }
 
-export function runScript(ctx: ShellContext, script: Script, io: ExecIO): number {
+export async function runScript(ctx: ShellContext, script: Script, io: ExecIO): Promise<number> {
   let code = ctx.status;
   for (const statement of script.statements) {
     if (ctx.exited !== null) break;
-    code = runAndOr(ctx, statement, io);
+    code = await runAndOr(ctx, statement, io);
   }
   return code;
 }
 
-function runAndOr(ctx: ShellContext, node: AndOr, io: ExecIO): number {
-  let code = runPipeline(ctx, node.first, io);
+async function runAndOr(ctx: ShellContext, node: AndOr, io: ExecIO): Promise<number> {
+  let code = await runPipeline(ctx, node.first, io);
   ctx.status = code;
 
   for (const link of node.rest) {
     if (ctx.exited !== null) break;
     const shouldRun = link.op === '&&' ? code === 0 : code !== 0;
     if (!shouldRun) continue;
-    code = runPipeline(ctx, link.pipeline, io);
+    code = await runPipeline(ctx, link.pipeline, io);
     ctx.status = code;
   }
   return code;
 }
 
-function runPipeline(ctx: ShellContext, node: Pipeline, io: ExecIO): number {
+async function runPipeline(ctx: ShellContext, node: Pipeline, io: ExecIO): Promise<number> {
   let carried = io.stdin;
   let code = 0;
 
@@ -217,7 +227,7 @@ function runPipeline(ctx: ShellContext, node: Pipeline, io: ExecIO): number {
       err: io.err,
     };
 
-    code = runSimple(ctx, command, stageIo);
+    code = await runSimple(ctx, command, stageIo);
     carried = captured;
     if (ctx.exited !== null) break;
   }
@@ -225,7 +235,7 @@ function runPipeline(ctx: ShellContext, node: Pipeline, io: ExecIO): number {
   return code;
 }
 
-function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): number {
+async function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): Promise<number> {
   if (node.type === 'subshell') {
     // A subshell gets a copy of the environment; changes do not escape.
     const inner = new ShellContext({
@@ -242,16 +252,16 @@ function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): number {
       track: ctx.track,
     });
     inner.status = ctx.status;
-    return withRedirects(ctx, node.redirects, io, (scoped) => runScript(inner, node.body, scoped));
+    return await withRedirects(ctx, node.redirects, io, (scoped) => runScript(inner, node.body, scoped));
   }
 
   const expand = ctx.expandContext();
-  const argv = expandWords(node.words, expand);
+  const argv = await expandWords(node.words, expand);
 
   // `FOO=bar` with no command sets the variable for the rest of the session.
   if (argv.length === 0) {
     for (const assignment of node.assignments) {
-      ctx.env[assignment.name] = expandWord(assignment.value, expand).join(' ');
+      ctx.env[assignment.name] = (await expandWord(assignment.value, expand)).join(' ');
     }
     return 0;
   }
@@ -267,13 +277,13 @@ function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): number {
   const saved: Array<[string, string | undefined]> = [];
   for (const assignment of node.assignments) {
     saved.push([assignment.name, ctx.env[assignment.name]]);
-    ctx.env[assignment.name] = expandWord(assignment.value, expand).join(' ');
+    ctx.env[assignment.name] = (await expandWord(assignment.value, expand)).join(' ');
   }
 
   try {
-    return withRedirects(ctx, node.redirects, io, (scoped) => {
+    return await withRedirects(ctx, node.redirects, io, async (scoped) => {
       try {
-        return spec.run(ctx, argv, scoped);
+        return await spec.run(ctx, argv, scoped);
       } catch (e) {
         if (isFsError(e)) {
           scoped.err(`${name}: ${e.path ?? ''}: ${e.reason}\n`);
@@ -292,13 +302,13 @@ function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): number {
 }
 
 /** Apply redirections around a command, writing captured output to the VFS. */
-function withRedirects(
+async function withRedirects(
   ctx: ShellContext,
   redirects: Redirect[],
   io: ExecIO,
-  body: (io: ExecIO) => number,
-): number {
-  if (redirects.length === 0) return body(io);
+  body: (io: ExecIO) => number | Promise<number>,
+): Promise<number> {
+  if (redirects.length === 0) return await body(io);
 
   const expand = ctx.expandContext();
   let stdin = io.stdin;
@@ -307,7 +317,7 @@ function withRedirects(
   const writes: Array<{ path: string; append: boolean; buffer: { text: string } }> = [];
 
   for (const redirect of redirects) {
-    const targets = expandWord(redirect.target, expand);
+    const targets = await expandWord(redirect.target, expand);
     if (targets.length !== 1) {
       io.err(`sh: ambiguous redirect\n`);
       return 1;
@@ -338,7 +348,7 @@ function withRedirects(
     err: errSink ?? io.err,
   };
 
-  const code = body(scoped);
+  const code = await body(scoped);
 
   for (const write of writes) {
     try {

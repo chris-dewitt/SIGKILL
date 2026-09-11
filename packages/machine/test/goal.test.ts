@@ -42,21 +42,21 @@ describe('solution-agnostic goals', () => {
   ];
 
   for (const [name, commands] of routes) {
-    it(`accepts: ${name}`, () => {
+    it(`accepts: ${name}`, async () => {
       const m = boot();
       expect(goal(m)).toBe(false);
       for (const command of commands) {
-        const r = m.exec(command);
+        const r = await m.exec(command);
         expect(r.stderr, `${command} -> ${r.stderr}`).toBe('');
       }
       expect(goal(m)).toBe(true);
     });
   }
 
-  it('rejects a near miss that does not change the world', () => {
+  it('rejects a near miss that does not change the world', async () => {
     const m = boot();
-    m.exec("echo 'O2_TARGET=21'");
-    m.exec("sed 's/16/21/' /etc/life_support.conf");
+    await m.exec("echo 'O2_TARGET=21'");
+    await m.exec("sed 's/16/21/' /etc/life_support.conf");
     expect(goal(m)).toBe(false);
   });
 });
