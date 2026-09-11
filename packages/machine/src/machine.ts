@@ -1,4 +1,5 @@
 import { commandRegistry } from './coreutils/index.js';
+import type { Network, Session } from './net/network.js';
 import { dueBetween } from './proc/cron.js';
 import { JobTable } from './proc/jobs.js';
 import { ServiceManager } from './proc/services.js';
@@ -20,6 +21,13 @@ export interface MachineOptions {
   cwd?: string;
   env?: Record<string, string>;
   track?: Track;
+  /** The internet this machine is attached to, if any. */
+  network?: Network;
+  /**
+   * Shared session state. Pass the same object to every machine on a network
+   * so that `ssh` from any of them pushes onto one stack.
+   */
+  session?: Session;
   /**
    * Wall-clock instant the virtual clock counts from, in ms since the Unix
    * epoch. Only cron cares, and only so that `0 3 * * *` means three in the
@@ -54,6 +62,7 @@ export class Machine {
   readonly jobs = new JobTable();
   readonly shell: ShellContext;
   readonly epoch: number;
+  readonly session: Session;
   /** Virtual clock in milliseconds. Advanced explicitly, never by wall time. */
   private clock = 0;
 
@@ -64,6 +73,7 @@ export class Machine {
     const user = opts.user ?? DEFAULT_USER;
     const now = (): number => this.clock;
     this.epoch = opts.epoch ?? Date.UTC(2387, 2, 14);
+    this.session = opts.session ?? { stack: [] };
 
     this.vfs = opts.snapshot ? Vfs.restore(opts.snapshot, { now }) : new Vfs({ now });
     this.procs = new ProcessTable(now);
@@ -79,6 +89,8 @@ export class Machine {
       jobs: this.jobs,
       clock: now,
       advance: (ms) => this.tick(ms),
+      network: opts.network,
+      session: this.session,
       user,
       hostname: opts.hostname ?? 'localhost',
       commands: commandRegistry(opts.commands ?? []),
@@ -88,11 +100,23 @@ export class Machine {
     });
   }
 
+  /**
+   * The shell the player is actually typing into.
+   *
+   * Normally this machine's own. After `ssh`, the machine at the top of the
+   * session stack — which is why the prompt and every command follow you
+   * across the hop without anything being special-cased.
+   */
+  get active(): Machine {
+    return this.session.stack[this.session.stack.length - 1] ?? this;
+  }
+
   /** Run one command line. Returns captured output; never throws for user error. */
   async exec(input: string): Promise<RunResult & { cleared: boolean }> {
-    this.shell.clearRequested = false;
-    const result = await run(this.shell, input);
-    return { ...result, cleared: this.shell.clearRequested };
+    const target = this.active;
+    target.shell.clearRequested = false;
+    const result = await run(target.shell, input);
+    return { ...result, cleared: target.shell.clearRequested };
   }
 
   /**
@@ -141,12 +165,15 @@ export class Machine {
   }
 
   get prompt(): string {
-    const cwd = this.shell.cwd === this.shell.home ? '~' : this.shell.cwd;
-    const sigil = this.shell.user.uid === 0 ? '#' : '$';
-    return `${this.shell.user.name}@${this.shell.hostname}:${cwd} ${sigil} `;
+    const shell = this.active.shell;
+    const cwd = shell.cwd === shell.home ? '~' : shell.cwd;
+    const sigil = shell.user.uid === 0 ? '#' : '$';
+    return `${shell.user.name}@${shell.hostname}:${cwd} ${sigil} `;
   }
 
   get exited(): number | null {
+    // Only the machine the player started on can end the session; `exit` on a
+    // remote host pops the stack instead.
     return this.shell.exited;
   }
 

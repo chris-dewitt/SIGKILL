@@ -1,4 +1,5 @@
 import { isFsError } from '../errors.js';
+import type { Network, Session } from '../net/network.js';
 import type { JobTable, Job } from '../proc/jobs.js';
 import type { ProcessTable } from '../proc/table.js';
 import type { ServiceManager } from '../proc/services.js';
@@ -61,6 +62,10 @@ export interface ShellContextOptions {
   commands?: Map<string, CommandSpec>;
   hostname?: string;
   track?: Track;
+  /** Absent on a machine with no interface, which is a real situation. */
+  network?: Network;
+  /** Shared across every machine the player hops through. */
+  session?: Session;
 }
 
 export class ShellContext {
@@ -77,6 +82,8 @@ export class ShellContext {
   status = 0;
   readonly commands: Map<string, CommandSpec>;
   readonly hostname: string;
+  readonly network: Network | undefined;
+  readonly session: Session | undefined;
   /** Which interface the player chose. Cadet and Operator share one Machine. */
   track: Track;
   /** Set by the `exit` builtin so the session can close the terminal. */
@@ -104,6 +111,8 @@ export class ShellContext {
     this.home = opts.home ?? `/home/${opts.user.name}`;
     this.cwd = opts.cwd ?? this.home;
     this.hostname = opts.hostname ?? 'localhost';
+    this.network = opts.network;
+    this.session = opts.session;
     this.track = opts.track ?? 'operator';
     this.commands = opts.commands ?? new Map();
     this.env = {
@@ -317,6 +326,8 @@ async function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): Promise<n
       jobs: ctx.jobs,
       clock: ctx.clock,
       advance: ctx.advance,
+      network: ctx.network,
+      session: ctx.session,
       user: ctx.user,
       cwd: ctx.cwd,
       home: ctx.home,

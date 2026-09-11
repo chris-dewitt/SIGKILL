@@ -16,6 +16,9 @@ export { ShellSyntaxError } from './shell/types.js';
 
 export { ALL_COMMANDS, commandRegistry } from './coreutils/index.js';
 
+export { Network } from './net/network.js';
+export type { NetHost, HostOptions, HttpResponse, Session } from './net/network.js';
+
 export { ProcessTable } from './proc/table.js';
 export { JobTable } from './proc/jobs.js';
 export type { Job, JobState } from './proc/jobs.js';
