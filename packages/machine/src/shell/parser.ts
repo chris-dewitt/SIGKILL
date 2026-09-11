@@ -45,10 +45,13 @@ class Parser {
   script(): Script {
     const statements: AndOr[] = [];
     while (!this.at('EOF')) {
-      if (this.at('SEMI')) { this.next(); continue; }
+      if (this.at('SEMI') || this.at('AMP')) { this.next(); continue; }
       if (this.at('RPAREN')) break;
-      statements.push(this.andOr());
-      if (this.at('SEMI')) this.next();
+      const statement = this.andOr();
+      // `cmd &` backgrounds the whole and-or list, not just the last pipeline.
+      if (this.at('AMP')) { statement.background = true; this.next(); }
+      else if (this.at('SEMI')) this.next();
+      statements.push(statement);
     }
     return { type: 'script', statements };
   }

@@ -143,8 +143,8 @@ describe('determinism', () => {
       "sed -i 's/alpha/ALPHA/' work/a.txt",
       'chmod 640 work/a.txt',
     ];
-    for (const line of script) { await a.exec(line); a.tick(1000); }
-    for (const line of script) { await b.exec(line); b.tick(1000); }
+    for (const line of script) { await a.exec(line); await a.tick(1000); }
+    for (const line of script) { await b.exec(line); await b.tick(1000); }
     expect(a.snapshot()).toEqual(b.snapshot());
   });
 
@@ -152,7 +152,7 @@ describe('determinism', () => {
     const m = boot();
     await m.exec('cd /var/log');
     await m.exec('export RUN=7');
-    m.tick(4200);
+    await m.tick(4200);
     const saved = m.snapshot();
 
     const restored = Machine.restore(saved, { hostname: 'nav7' });

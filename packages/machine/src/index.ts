@@ -17,6 +17,18 @@ export { ShellSyntaxError } from './shell/types.js';
 export { ALL_COMMANDS, commandRegistry } from './coreutils/index.js';
 
 export { ProcessTable } from './proc/table.js';
+export { JobTable } from './proc/jobs.js';
+export type { Job, JobState } from './proc/jobs.js';
+export {
+  CRONTAB,
+  parseCrontab,
+  matchField,
+  matches,
+  fieldsAt,
+  dueBetween,
+  MAX_CATCHUP_MINUTES,
+} from './proc/cron.js';
+export type { CronEntry, CronFields } from './proc/cron.js';
 export { ServiceManager } from './proc/services.js';
 export { parseIni, loadUnit, listUnits, UNIT_DIRS, WANTS_DIR } from './proc/units.js';
 export type {

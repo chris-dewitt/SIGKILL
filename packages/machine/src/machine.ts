@@ -1,4 +1,6 @@
 import { commandRegistry } from './coreutils/index.js';
+import { dueBetween } from './proc/cron.js';
+import { JobTable } from './proc/jobs.js';
 import { ServiceManager } from './proc/services.js';
 import { ProcessTable } from './proc/table.js';
 import type { Precondition, ProcSnapshot } from './proc/types.js';
@@ -18,12 +20,19 @@ export interface MachineOptions {
   cwd?: string;
   env?: Record<string, string>;
   track?: Track;
+  /**
+   * Wall-clock instant the virtual clock counts from, in ms since the Unix
+   * epoch. Only cron cares, and only so that `0 3 * * *` means three in the
+   * morning of the adventure's own calendar rather than of the player's.
+   */
+  epoch?: number;
 }
 
 export interface MachineSnapshot {
   version: 1;
   vfs: VfsSnapshot;
   proc: ProcSnapshot;
+  jobs: ReturnType<JobTable['snapshot']>;
   cwd: string;
   env: Record<string, string>;
   status: number;
@@ -42,13 +51,19 @@ export class Machine {
   readonly vfs: Vfs;
   readonly procs: ProcessTable;
   readonly services: ServiceManager;
+  readonly jobs = new JobTable();
   readonly shell: ShellContext;
+  readonly epoch: number;
   /** Virtual clock in milliseconds. Advanced explicitly, never by wall time. */
   private clock = 0;
+
+  /** Guards cron against re-entering itself through a job that sleeps. */
+  private cronRunning = false;
 
   constructor(opts: MachineOptions = {}) {
     const user = opts.user ?? DEFAULT_USER;
     const now = (): number => this.clock;
+    this.epoch = opts.epoch ?? Date.UTC(2387, 2, 14);
 
     this.vfs = opts.snapshot ? Vfs.restore(opts.snapshot, { now }) : new Vfs({ now });
     this.procs = new ProcessTable(now);
@@ -61,7 +76,9 @@ export class Machine {
       vfs: this.vfs,
       procs: this.procs,
       services: this.services,
+      jobs: this.jobs,
       clock: now,
+      advance: (ms) => this.tick(ms),
       user,
       hostname: opts.hostname ?? 'localhost',
       commands: commandRegistry(opts.commands ?? []),
@@ -78,9 +95,35 @@ export class Machine {
     return { ...result, cleared: this.shell.clearRequested };
   }
 
-  /** Advance the virtual clock. Timestamps and timed events read from here. */
-  tick(ms: number): void {
+  /**
+   * Advance the virtual clock, then let anything time-driven catch up.
+   *
+   * Async because cron runs real commands, and commands are async. Nothing
+   * here consults wall time: a tick is the only way time passes.
+   */
+  async tick(ms: number): Promise<void> {
+    if (ms <= 0) return;
+    const from = this.clock;
     this.clock += ms;
+
+    this.jobs.settle(this.clock);
+
+    // A cron job that sleeps would otherwise advance the clock and re-enter
+    // cron from inside itself.
+    if (this.cronRunning) return;
+    const due = dueBetween(this.vfs, this.epoch, from, this.clock);
+    if (due.length === 0) return;
+
+    this.cronRunning = true;
+    try {
+      for (const job of due) {
+        // Cron output goes to no terminal, exactly like the real thing. A
+        // crontab that wants to be seen redirects to a file.
+        await run(this.shell, job.entry.command);
+      }
+    } finally {
+      this.cronRunning = false;
+    }
   }
 
   /**
@@ -112,6 +155,7 @@ export class Machine {
       version: 1,
       vfs: this.vfs.snapshot(),
       proc: { ...this.procs.snapshot(), services: this.services.snapshot() },
+      jobs: this.jobs.snapshot(),
       cwd: this.shell.cwd,
       env: { ...this.shell.env },
       status: this.shell.status,
@@ -123,6 +167,7 @@ export class Machine {
     const machine = new Machine({ ...opts, snapshot: snap.vfs });
     machine.procs.restore(snap.proc);
     machine.services.restore(snap.proc.services);
+    machine.jobs.restore(snap.jobs);
     machine.shell.cwd = snap.cwd;
     machine.shell.env = { ...snap.env };
     machine.shell.status = snap.status;

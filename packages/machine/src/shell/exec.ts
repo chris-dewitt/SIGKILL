@@ -1,4 +1,5 @@
 import { isFsError } from '../errors.js';
+import type { JobTable, Job } from '../proc/jobs.js';
 import type { ProcessTable } from '../proc/table.js';
 import type { ServiceManager } from '../proc/services.js';
 import * as p from '../vfs/path.js';
@@ -49,8 +50,11 @@ export interface ShellContextOptions {
   user: User;
   procs: ProcessTable;
   services: ServiceManager;
+  jobs: JobTable;
   /** Reads the virtual clock. Commands must never reach for wall time. */
   clock: () => number;
+  /** Advances the virtual clock. `sleep` is the only ordinary caller. */
+  advance: (ms: number) => Promise<void>;
   cwd?: string;
   home?: string;
   env?: Record<string, string>;
@@ -63,7 +67,9 @@ export class ShellContext {
   readonly vfs: Vfs;
   readonly procs: ProcessTable;
   readonly services: ServiceManager;
+  readonly jobs: JobTable;
   readonly clock: () => number;
+  readonly advance: (ms: number) => Promise<void>;
   user: User;
   cwd: string;
   home: string;
@@ -79,12 +85,21 @@ export class ShellContext {
   clearRequested = false;
   /** Nesting depth of command substitution, so `x=$(x)` cannot run away. */
   private substDepth = 0;
+  /**
+   * The job currently being run in the background, if any.
+   *
+   * `sleep` reads this: in the foreground it advances the clock, in the
+   * background it books a completion time instead.
+   */
+  backgroundJob: Job | null = null;
 
   constructor(opts: ShellContextOptions) {
     this.vfs = opts.vfs;
     this.procs = opts.procs;
     this.services = opts.services;
+    this.jobs = opts.jobs;
     this.clock = opts.clock;
+    this.advance = opts.advance;
     this.user = opts.user;
     this.home = opts.home ?? `/home/${opts.user.name}`;
     this.cwd = opts.cwd ?? this.home;
@@ -193,9 +208,66 @@ export async function runScript(ctx: ShellContext, script: Script, io: ExecIO): 
   let code = ctx.status;
   for (const statement of script.statements) {
     if (ctx.exited !== null) break;
-    code = await runAndOr(ctx, statement, io);
+    code = statement.background
+      ? await runBackground(ctx, statement, io)
+      : await runAndOr(ctx, statement, io);
   }
   return code;
+}
+
+/**
+ * Run an and-or list in the background.
+ *
+ * It executes immediately -- everything here is deterministic and instant --
+ * but its output is captured onto the job rather than printed, and a
+ * backgrounded `sleep` books a future completion instead of advancing time.
+ * The shell prints `[id] pid` and returns success, as it should.
+ */
+async function runBackground(ctx: ShellContext, node: AndOr, io: ExecIO): Promise<number> {
+  const command = describe(node);
+  const process = ctx.procs.spawn(command.split(/\s+/), { uid: ctx.user.uid });
+
+  const job = ctx.jobs.add({
+    pid: process.pid,
+    command,
+    state: 'running',
+    exitCode: undefined,
+    completesAt: ctx.clock(),
+    stdout: '',
+    stderr: '',
+  });
+
+  const previous = ctx.backgroundJob;
+  ctx.backgroundJob = job;
+  const captured: ExecIO = {
+    stdin: '',
+    out: (t) => { job.stdout += t; },
+    err: (t) => { job.stderr += t; },
+  };
+
+  try {
+    job.exitCode = await runAndOr(ctx, node, captured);
+  } finally {
+    ctx.backgroundJob = previous;
+  }
+
+  io.out(`[${job.id}] ${process.pid}\n`);
+  return 0;
+}
+
+/** Reconstruct a readable command line for `jobs` to display. */
+function describe(node: AndOr): string {
+  const words = (pipeline: Pipeline): string =>
+    pipeline.commands
+      .map((c) => (c.type === 'command' ? c.words.map(flatten).join(' ') : '(...)'))
+      .join(' | ');
+  const head = words(node.first);
+  const tail = node.rest.map((r) => ` ${r.op} ${words(r.pipeline)}`).join('');
+  return head + tail;
+}
+
+function flatten(word: { parts: Array<{ kind: string; value: string }> }): string {
+  return word.parts.map((p) => p.value).join('');
 }
 
 async function runAndOr(ctx: ShellContext, node: AndOr, io: ExecIO): Promise<number> {
@@ -242,7 +314,9 @@ async function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): Promise<n
       vfs: ctx.vfs,
       procs: ctx.procs,
       services: ctx.services,
+      jobs: ctx.jobs,
       clock: ctx.clock,
+      advance: ctx.advance,
       user: ctx.user,
       cwd: ctx.cwd,
       home: ctx.home,

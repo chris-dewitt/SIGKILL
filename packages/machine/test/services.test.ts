@@ -244,7 +244,7 @@ describe('service state survives a snapshot', () => {
     await m.exec("sudo sed -i 's/16/21/' /etc/life_support.conf");
     await m.exec('sudo systemctl enable scrubber');
     await m.exec('sudo systemctl start scrubber');
-    m.tick(9000);
+    await m.tick(9000);
     const saved = m.snapshot();
 
     const restored = Machine.restore(saved, { hostname: 'nav7' });
