@@ -1,0 +1,236 @@
+/*
+ * SIGKILL terminal — phosphor CRT.
+ *
+ * Deliberately single-theme: this is a screen in a dead ship, not a document.
+ * Everything is painted explicitly so it holds on any host background.
+ */
+
+:root {
+  --void: #050806;
+  --screen: #070d09;
+  --phosphor: #6ee7a0;
+  --phosphor-dim: #3e7f5c;
+  --phosphor-faint: #23503a;
+  --phosphor-hot: #c8f7dd;
+  --alarm: #e0705a;
+  --glow: 0 0 8px rgba(110, 231, 160, 0.45);
+
+  --gutter: 16px;
+  --mono: "SFMono-Regular", ui-monospace, "Cascadia Mono", "Roboto Mono", Menlo,
+    Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--void);
+  color: var(--phosphor);
+  font-family: var(--mono);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#crt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* dvh so the iOS/Android URL bar collapsing does not clip the input. */
+  height: 100dvh;
+  background:
+    radial-gradient(ellipse 120% 100% at 50% 50%, #0b1510 0%, var(--screen) 60%, #030604 100%);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+
+/* Scanlines and a faint vignette. Cheap, and it does most of the work. */
+#crt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.26) 0px,
+    rgba(0, 0, 0, 0.26) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  opacity: 0.55;
+}
+
+#screen {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 18px var(--gutter) 8px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  text-shadow: var(--glow);
+  scrollbar-width: thin;
+  scrollbar-color: var(--phosphor-faint) transparent;
+}
+
+.row {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.row-echo {
+  color: var(--phosphor-hot);
+}
+
+.row-err {
+  color: var(--alarm);
+  text-shadow: 0 0 8px rgba(224, 112, 90, 0.4);
+}
+
+.row-system {
+  color: var(--phosphor-dim);
+}
+
+/* ------------------------------------------------------------------ the dock */
+
+#dock {
+  flex: 0 0 auto;
+  z-index: 2;
+  border-top: 1px solid var(--phosphor-faint);
+  background: rgba(3, 8, 5, 0.92);
+  backdrop-filter: blur(2px);
+}
+
+#chips,
+#symbols {
+  display: flex;
+  gap: 6px;
+  padding: 7px var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#chips::-webkit-scrollbar,
+#symbols::-webkit-scrollbar {
+  display: none;
+}
+
+#symbols {
+  padding-top: 0;
+  padding-bottom: 8px;
+}
+
+.chip,
+.symbol {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  background: rgba(110, 231, 160, 0.07);
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor-faint);
+  border-radius: 3px;
+  padding: 6px 11px;
+  font-size: 12.5px;
+  cursor: pointer;
+  /* Comfortable thumb target without making the bar tall. */
+  min-height: 34px;
+  touch-action: manipulation;
+}
+
+.symbol {
+  min-width: 38px;
+  font-size: 15px;
+  color: var(--phosphor-dim);
+}
+
+.chip:active,
+.symbol:active {
+  background: rgba(110, 231, 160, 0.2);
+  color: var(--phosphor-hot);
+}
+
+/* ----------------------------------------------------------------- the line */
+
+#line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--gutter) 10px;
+}
+
+#prompt {
+  flex: 0 0 auto;
+  color: var(--phosphor-dim);
+  font-size: 13px;
+  text-shadow: var(--glow);
+  white-space: nowrap;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--phosphor-hot);
+  font-family: var(--mono);
+  /* 16px keeps iOS Safari from zooming the viewport on focus. */
+  font-size: 16px;
+  text-shadow: var(--glow);
+  caret-color: var(--phosphor);
+  padding: 6px 0;
+}
+
+#input:disabled {
+  color: var(--phosphor-faint);
+}
+
+#tab {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  background: transparent;
+  color: var(--phosphor-dim);
+  border: 1px solid var(--phosphor-faint);
+  border-radius: 3px;
+  padding: 7px 9px;
+  min-height: 34px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#tab:active {
+  color: var(--phosphor-hot);
+  background: rgba(110, 231, 160, 0.15);
+}
+
+:focus-visible {
+  outline: 1px solid var(--phosphor);
+  outline-offset: 2px;
+}
+
+@media (min-width: 760px) {
+  #screen {
+    font-size: 14.5px;
+  }
+  /* The symbol row is a phone affordance; a real keyboard has these keys. */
+  #symbols {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

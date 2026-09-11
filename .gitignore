@@ -216,3 +216,25 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------- Node / web
+node_modules/
+.turbo/
+*.tsbuildinfo
+.vite/
+.eslintcache
+
+# ------------------------------------------------------------------- Mobile
+# Capacitor generates these; they are reproducible from config.
+/android/
+/ios/
+*.keystore
+*.jks
+*.aab
+*.apk
+google-services.json
+
+# --------------------------------------------------------------------- Local
+.DS_Store
+.idea/
+.vscode/
