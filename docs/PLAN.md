@@ -1,6 +1,6 @@
 # SIGKILL — development plan
 
-**Status:** Phase 1 in progress
+**Status:** Phases 0 and 1 complete. Phase 2 next.
 **Companion:** the illustrated version of this plan lives as a shared artifact;
 this file is the one that gets updated.
 
@@ -153,21 +153,23 @@ push, playable web terminal.
 
 **Gate:** a glowing green prompt that echoes what you type. ✅
 
-### Phase 1 — The Machine (in progress)
+### Phase 1 — The Machine ✅
 
 - [x] VFS — inodes, POSIX permissions, symlinks with loop detection, errno
 - [x] Shell — quoting, globbing, pipes, `&&`/`||`, redirection, subshells, expansion
-- [x] 35 coreutils
+- [x] 50 commands
 - [x] Snapshot/restore round-tripping exactly; virtual clock
 - [x] Determinism harness and solution-agnostic goal tests
 - [x] Command substitution `$(...)` and backticks
 - [x] Process table, systemd units, `sudo` backed by /etc/sudoers
-- [ ] Background jobs (`&`), `jobs`, `cron`
-- [ ] Pyodide bound to the VFS
-- [ ] Simulated network — `ssh`/`curl`/`nc` against other Machine instances
+- [x] Background jobs (`&`), `jobs`, `wait`, `cron`
+- [x] Pyodide bound to the VFS, in a Web Worker
+- [x] Simulated network — `ssh`/`scp`/`curl`/`nc`/`ping` against other Machine instances
+- [x] Async executor (required before any real engine could be bound)
 
 **Gate:** bash → python → bash on a phone. Write a file in the shell, edit it
-with `python3`, `grep` sees the change.
+with `python3`, `grep` sees the change. ✅ — verified in a browser at 400px,
+and Act I now has a fourth solution that goes through Python.
 
 ### Phase 2 — Feel
 

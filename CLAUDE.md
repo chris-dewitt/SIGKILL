@@ -1,12 +1,15 @@
 # SIGKILL — agent pointer
 
-Read this before touching anything.
+Read this, then the architecture doc, then the code.
 
 | Doc | Use for |
 |-----|---------|
-| **[docs/PLAN.md](docs/PLAN.md)** | **North star** — architecture, phases, risks. Phase 1 in progress. |
-| [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four agents share this repo. |
-| [README.md](README.md) | What this is, how to run it |
+| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | **Start here.** The map, and a full trace of one command from keypress to changed filesystem. |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this. Read before reversing anything that looks arbitrary. |
+| [docs/TESTING.md](docs/TESTING.md) | The determinism harness and the goal-predicate pattern. |
+| [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the thirteen adventures. |
+| [packages/machine/README.md](packages/machine/README.md) | The engine's API surface. |
+| [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four of us share this repo. |
 
 ---
 
@@ -17,7 +20,8 @@ infrastructure engineering. Phone-first, offline, paid once per game, no ads,
 no accounts, no telemetry.
 
 Every game runs on one deterministic virtual computer — **the Machine**
-(`packages/machine`). That package is the whole investment. Treat it accordingly.
+(`packages/machine`). That package is the whole investment. Treat it
+accordingly.
 
 ---
 
@@ -34,69 +38,72 @@ Never commit as Claude.
 
 ## Rules that are not negotiable
 
-These exist because breaking them is expensive to undo later, not because
-they are stylistic preferences.
+Breaking these is expensive to undo, and usually silent.
 
 ### 1. The Machine is deterministic
 
 No `Date.now()`, no `Math.random()`, no host I/O anywhere in
-`packages/machine`. Time comes from the virtual clock (`machine.tick(ms)`).
-Randomness, when it arrives, comes from a seeded generator.
+`packages/machine`. Time comes from the virtual clock — `machine.tick(ms)` is
+the only way it moves, and `ctx.clock()` is the only way to read it.
 
-This is what lets every puzzle be replayed headlessly in CI. A single wall-clock
-call silently destroys that property for the whole project.
+This is what lets every puzzle be replayed headlessly in CI. A single
+wall-clock call destroys that property for the whole project.
 
 ### 2. Goals assert on world state, never on input
-
-A puzzle is solved when the world reaches a state. It is never solved by
-matching what the player typed.
 
 ```ts
 // Right — any route that reaches this state wins.
 goal: (m) => m.vfs.readText('/etc/life_support.conf').includes('O2_TARGET=21')
 
-// Wrong — this is the bug that makes a terminal feel fake.
+// Wrong — the bug that makes a terminal feel fake.
 goal: (m) => m.lastCommand.startsWith('sed -i')
 ```
 
-`packages/machine/test/goal.test.ts` enforces this. If that file ever needs a
-special case for a particular command, the design has regressed and the fix
-belongs in the goal, not the test.
+`packages/machine/test/goal.test.ts` enforces it. Act I is already solvable
+with `sed`, with `echo` and redirection, with a pipe into a redirect, and
+from Python — and the goal knows about none of them.
 
 ### 3. Player code never runs in the host context
 
 No `eval`, no `new Function`, no dynamic `import()` of anything a player or a
-content pack supplied. Player Python runs in Pyodide inside a Web Worker, and
-nowhere else.
+content pack supplied. Python runs in Pyodide inside a Web Worker and nowhere
+else. `NodePythonRuntime` is for tests only — never wire it into the app.
 
-Content packs are **data**. Goal predicates compile into the app bundle. A pack
-that can ship executable code is remote code execution wearing a hat.
+Content packs are **data**. Goal predicates and preconditions compile into
+the bundle. A pack that can ship executable code is remote code execution
+wearing a hat.
 
-### 4. No third-party SDKs
+### 4. `packages/machine` depends on nothing
 
-No ads, no analytics, no crash reporter that uploads content. Every dependency
-is a deliberate decision and CI audits the tree. This is a security control,
-not a philosophy — the moment the app can hold a secret, every SDK in it is an
-exfiltration surface.
+Zero runtime dependencies, and it imports nothing outside itself. If you need
+a library, wrap it in its own package behind an interface — the way
+`packages/python` wraps Pyodide — and hand the engine the interface.
 
-### 5. The Machine has no screen
+### 5. No third-party SDKs anywhere
 
-It returns text and raises flags. It does not emit ANSI escapes, colours, or
-layout. Whatever renders it decides what those mean. See `clearRequested`.
+No ads, no analytics, no crash reporter that uploads content. Pinned
+lockfile, audited in CI. This is a security control, not a preference: the
+moment the app can hold a secret, every SDK in it is a way out.
+
+### 6. The Machine has no screen
+
+It returns text and raises flags. No ANSI, no colour, no layout. `clear` sets
+`ctx.clearRequested` and the renderer decides what that means.
 
 ---
 
 ## Layout
 
 ```
-packages/machine/    The Machine — VFS, shell, coreutils. The crown jewel.
-packages/crt/        Renderer (Phase 2)
-apps/terminal/       Playable web terminal; becomes the Capacitor app
-games/wreck/         Adventure 1 content (Phase 3)
+packages/machine/    The Machine — vfs, shell, coreutils, proc, net, lang. The crown jewel.
+packages/python/     Pyodide behind the PythonRuntime interface, in a Worker.
+packages/crt/        Renderer (Phase 2 — placeholder).
+apps/terminal/       Playable web terminal; becomes the Capacitor app.
+games/wreck/         Adventure 1 content (Phase 3 — placeholder).
 ```
 
-Package boundaries are the contract between agents. Import across them through
-the package entrypoint (`@sigkill/machine`), never by reaching into `src/`.
+Dependencies point one way: `apps` → `packages` → nothing. Import across
+packages through the entrypoint (`@sigkill/machine`), never into `src/`.
 
 ---
 
@@ -104,28 +111,43 @@ the package entrypoint (`@sigkill/machine`), never by reaching into `src/`.
 
 ```bash
 pnpm install
-pnpm check         # typecheck + test — run before every push
-pnpm dev           # terminal at http://localhost:5173 (--host is on, so a phone
-                   # on the same wifi can reach it)
-pnpm test          # all packages
+pnpm check         # typecheck + every test — run before every push
+pnpm dev           # terminal at http://localhost:5173
+                   # --host is on, so a phone on the same wifi can reach it
+pnpm test
 pnpm build
 ```
 
+The first `pnpm dev` or `pnpm build` copies Pyodide into
+`apps/terminal/public/pyodide` (~12 MB, gitignored, regenerated not
+committed).
+
 ---
 
-## Adding a command to the shell
+## Adding a command
 
-1. Write it in `packages/machine/src/coreutils/{fs,text,sys}.ts` as a `CommandSpec`.
-2. Give it `manual` (terse, real register) and `plain` (Cadet rewrite). `man`
-   picks by track.
-3. Add a test. Include the failure paths — the error messages are the teaching.
-4. Errors come from `FsError` with a real errno, so the message matches what
-   the player would see on a real machine.
+1. Write it in `packages/machine/src/coreutils/{fs,text,proc,jobs,net,sys}.ts`
+   as a `CommandSpec`.
+2. Give it both `manual` (terse, real register — Operators) and `plain`
+   (rewritten — Cadets). `man` picks by `ctx.track`.
+3. Throw `FsError` with a real errno rather than inventing error text. The
+   error messages are the teaching material.
+4. Add a test, including the failure paths.
 
-## Current phase
+## Adding a subsystem
 
-**Phase 1 — the Machine.** VFS, shell and coreutils are in and green.
-Next: process table and virtual clock scheduler, then Pyodide bound to the VFS.
+Add a determinism test for it. Run the same script twice, compare snapshots.
+`test/jobs.test.ts` and `test/net.test.ts` both have one — copy either.
 
-Do not start Phase 3 content until the Phase 2 input gate passes: twenty
-minutes on a real phone that Chris wants to keep playing.
+---
+
+## Status
+
+**Phase 0 complete. Phase 1 complete** — filesystem, shell, 50 commands,
+processes and services, jobs and cron, the simulated network, and real Python
+sharing the VFS. 159 tests.
+
+**Phase 2 is next, and it gates everything downstream:** the mobile input
+model. Do not start Phase 3 content until Chris has played twenty minutes on
+a real phone and wants to keep going. Content built on unpleasant input is
+content thrown away.

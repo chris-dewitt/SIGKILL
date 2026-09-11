@@ -24,3 +24,17 @@ Add a row when you start. Delete it when you are done.
 `packages/machine` is the foundation everything else depends on. Changes to its
 public API (`src/index.ts`) need a note here even for a quick fix, because four
 callers break at once.
+
+`packages/machine/src/shell/exec.ts` is the hottest file in the repo — the
+context type, the executor and the command interface all live in it. Two
+agents editing it at once will conflict. Claim it explicitly.
+
+## Packages
+
+| Package | What it is |
+|---------|-----------|
+| `packages/machine` | The engine. Zero dependencies. Read `docs/ARCHITECTURE.md` first. |
+| `packages/python` | Pyodide behind the `PythonRuntime` interface. |
+| `packages/crt` | Renderer. Phase 2, currently a placeholder. |
+| `apps/terminal` | The playable terminal; becomes the Capacitor app. |
+| `games/wreck` | Adventure 1 content. Phase 3, currently a placeholder. |

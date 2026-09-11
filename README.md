@@ -77,9 +77,17 @@ What is in and tested today:
   from the filesystem, and `sudo` gated by `/etc/sudoers`. `systemctl enable`
   creates a real symlink in `multi-user.target.wants`, exactly as on a real
   system, so `ls -l` shows it and it survives a snapshot for free.
+- **Jobs and time** — a virtual clock, `sleep` that moves it, `&` background
+  lists, `jobs`, `wait`, and `cron` reading a real `/etc/crontab`.
+- **Network** — `ssh`, `scp`, `curl`, `nc`, `ping`. Every host is another
+  Machine with its own filesystem, so `ssh node01 cat /data/x` is doing
+  exactly what it appears to be doing.
+- **Python** — real Python via Pyodide in a Web Worker, sharing the same
+  filesystem. Edit a config from `python3`, and `grep` sees the change.
 - **Coreutils** — `ls cat cd pwd echo grep head tail wc sort uniq cut tr sed
-  find mkdir rmdir rm cp mv touch ln chmod stat ps kill systemctl sudo whoami
-  id env export unset which man help clear exit true false hostname`.
+  find mkdir rmdir rm cp mv touch ln chmod stat ps kill systemctl sudo sleep
+  jobs wait crontab ssh scp curl nc ping python3 whoami id env export unset
+  which man help clear exit true false hostname`.
 
 Two properties are load-bearing and never traded away:
 
@@ -101,7 +109,7 @@ Job for scrubber.service failed: O2_TARGET=16 outside breathable range 19-23
 See 'systemctl status scrubber' for details.
 ```
 
-The whole Machine is 18 kB gzipped.
+The whole Machine is 21 kB gzipped, with zero runtime dependencies.
 
 ---
 
@@ -114,6 +122,17 @@ are data, never remote modules. No third-party SDKs. Saves are local; nothing
 is collected.
 
 Full detail in [CLAUDE.md](CLAUDE.md) and [docs/PLAN.md](docs/PLAN.md).
+
+---
+
+## Working on this
+
+| Doc | Use for |
+|-----|---------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The map, and a trace of one command end to end |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this |
+| [docs/TESTING.md](docs/TESTING.md) | The determinism harness and goal predicates |
+| [CLAUDE.md](CLAUDE.md) | The rules that are not negotiable |
 
 ---
 
