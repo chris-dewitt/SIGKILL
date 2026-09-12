@@ -20,7 +20,8 @@
     "@capacitor/android": "^7.6.9",
     "@capacitor/core": "^7.6.9",
     "@sigkill/machine": "workspace:*",
-    "@sigkill/python": "workspace:*"
+    "@sigkill/python": "workspace:*",
+    "@sigkill/crt": "workspace:*"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",

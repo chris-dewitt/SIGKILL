@@ -1,9 +1,27 @@
-/**
- * Phosphor CRT renderer — Phase 2.
- *
- * For now the terminal app styles itself with CSS. This package exists to stake
- * the boundary: when the glyph-atlas canvas renderer and the WebGL post-pass
- * land, they land here, and `apps/terminal` consumes them through this entry
- * point rather than growing its own renderer.
- */
-export const PHASE = 2 as const;
+export { TerminalBuffer, wrap } from './buffer.js';
+export type { Line, LineKind, Row, BufferOptions } from './buffer.js';
+
+export { TerminalRenderer, PHOSPHOR } from './renderer.js';
+export type { Palette, RendererOptions } from './renderer.js';
+
+export { GlyphAtlas, measureCell, scaleFont } from './atlas.js';
+export type { AtlasOptions } from './atlas.js';
+
+export { CrtPass } from './crt.js';
+export type { CrtOptions } from './crt.js';
+
+export { TerminalView } from './view.js';
+export type { ViewOptions } from './view.js';
+
+export {
+  MIN_COLS,
+  MIN_ROWS,
+  gridFor,
+  backingSize,
+  visibleRange,
+  atBottom,
+  atlasCodepoints,
+  atlasColumns,
+  slotPosition,
+} from './metrics.js';
+export type { CellSize, GridSize, Viewport } from './metrics.js';
