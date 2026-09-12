@@ -35,6 +35,35 @@ export type CommandFn = (
 
 export type Track = 'cadet' | 'operator';
 
+/**
+ * A command that takes over the whole screen until it exits.
+ *
+ * An editor, a pager, anything full-screen. The Machine knows only that such
+ * a thing exists, what it does with a keystroke and what it draws -- it holds
+ * no editor of its own, because it holds no dependencies of any kind. The
+ * adventure supplies the program (see `@sigkill/editor`) and the host drives
+ * it, exactly as `clearRequested` leaves the meaning of clearing to the host.
+ */
+export interface ScreenProgram {
+  readonly name: string;
+  /** Absolute path the program is editing, already resolved by the shell. */
+  readonly path: string;
+  key(k: { key: string; ctrl?: boolean }): void;
+  frame(): Array<{ text: string; kind: 'out' | 'err' | 'echo' | 'system'; cursor?: number }>;
+  resize(rows: number, cols: number): void;
+  /** Non-null once it is finished. */
+  readonly exit: { write: boolean; text: string; message?: string } | null;
+  /** Keys worth offering as on-screen buttons right now. */
+  readonly chips: readonly string[];
+  /**
+   * Text from a save that did not exit.
+   *
+   * The host clears this after applying it, so `:w` reaches the disk when it
+   * is typed rather than whenever the program happens to close.
+   */
+  pendingWrite?: string | undefined;
+}
+
 export interface CommandSpec {
   name: string;
   /** One-line summary, shown by `help`. */
@@ -90,6 +119,14 @@ export class ShellContext {
   exited: number | null = null;
   /** Raised by `clear`. The renderer decides what clearing means; we do not. */
   clearRequested = false;
+  /**
+   * Raised by a full-screen command such as `vi`.
+   *
+   * The command returns immediately; the host then drives the program until it
+   * exits. A Machine with no screen (a test, a cron job) simply never drives
+   * it, which is why `vi` in a script is a no-op rather than a hang.
+   */
+  screenRequest: ScreenProgram | undefined;
   /** Nesting depth of command substitution, so `x=$(x)` cannot run away. */
   private substDepth = 0;
   /**

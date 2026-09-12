@@ -93,6 +93,13 @@ content layer.
 It is also the string a tappable "do it" chip would send, which matters more on
 a phone than on a keyboard.
 
+**The `command` must be non-interactive**, because the test runs it through the
+real shell and asserts the step clears. `vi /etc/life_support.conf` opens an
+editor and changes nothing by itself, so it cannot go in the field. Lead with
+the editor in the *prose* — it is the humane route and usually the one a player
+should take — and put the one-line equivalent in `command` so CI has something
+it can check.
+
 ---
 
 ## Validation

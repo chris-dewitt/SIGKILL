@@ -9,7 +9,7 @@ export { FsError, isFsError } from './errors.js';
 export type { Errno } from './errors.js';
 
 export { ShellContext, run } from './shell/exec.js';
-export type { CommandFn, CommandSpec, ExecIO, RunResult, Track } from './shell/exec.js';
+export type { CommandFn, CommandSpec, ExecIO, RunResult, ScreenProgram, Track } from './shell/exec.js';
 export { parse } from './shell/parser.js';
 export { lex } from './shell/lexer.js';
 export { ShellSyntaxError } from './shell/types.js';

@@ -6,7 +6,7 @@ import { JobTable } from './proc/jobs.js';
 import { ServiceManager } from './proc/services.js';
 import { ProcessTable } from './proc/table.js';
 import type { Precondition, ProcSnapshot } from './proc/types.js';
-import { run, ShellContext, type CommandSpec, type RunResult, type Track } from './shell/exec.js';
+import { run, ShellContext, type CommandSpec, type RunResult, type ScreenProgram, type Track } from './shell/exec.js';
 import type { User, VfsSnapshot } from './vfs/types.js';
 import { Vfs } from './vfs/vfs.js';
 
@@ -122,11 +122,16 @@ export class Machine {
   }
 
   /** Run one command line. Returns captured output; never throws for user error. */
-  async exec(input: string): Promise<RunResult & { cleared: boolean }> {
+  async exec(input: string): Promise<RunResult & { cleared: boolean; screen: ScreenProgram | undefined }> {
     const target = this.active;
     target.shell.clearRequested = false;
+    target.shell.screenRequest = undefined;
     const result = await run(target.shell, input);
-    return { ...result, cleared: target.shell.clearRequested };
+    return {
+      ...result,
+      cleared: target.shell.clearRequested,
+      screen: target.shell.screenRequest,
+    };
   }
 
   /**

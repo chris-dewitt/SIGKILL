@@ -1,0 +1,110 @@
+# Full-screen programs
+
+How `vi` takes over the screen, and what to do to add another one (a pager, a
+hex viewer, a process monitor). `packages/editor` is the worked example.
+
+---
+
+## The seam, and why it is shaped like this
+
+`packages/machine` has no dependencies and no screen. It must not grow either.
+So a full-screen command does not draw: it hands the host a **program** and
+returns immediately.
+
+```ts
+// in the command
+ctx.screenRequest = new ViEditor(text, { rows, cols, path, readOnly });
+return 0;
+```
+
+```ts
+// in the host, after exec
+const result = await machine.exec(command);
+if (result.screen) enterScreen(result.screen);
+```
+
+This is the same pattern as `clearRequested`: the Machine raises a flag that
+says what is wanted, and the host decides what that means on its particular
+screen. A `ScreenProgram` is declared structurally in `machine`, so the Machine
+knows a full-screen thing can exist without importing one.
+
+**A Machine with no screen never drives the program.** That is deliberate and
+tested: `vi` inside a cron job or a test is a no-op that returns 0, not a hang.
+
+## The contract
+
+```ts
+interface ScreenProgram {
+  readonly name: string;
+  readonly path: string;          // the host owns the disk, so it needs this
+  key(k: { key: string; ctrl?: boolean }): void;
+  frame(): Array<{ text: string; kind: LineKind; cursor?: number }>;
+  resize(rows: number, cols: number): void;
+  readonly exit: { write: boolean; text: string; message?: string } | null;
+  readonly chips: readonly string[];
+  pendingWrite?: string | undefined;
+}
+```
+
+Keys in, frames out. **No DOM, no canvas, no async.** That is what makes every
+keystroke in vi unit-testable: `test/vi.test.ts` types `'jdd:wq<Enter>'` at it
+and reads the buffer back, with no browser anywhere.
+
+`frame()` returns exactly the rows the screen has. The program is told the real
+column count and **truncates to it**, so no line ever wraps — which is what
+makes the `cursor` column map exactly onto one cell.
+
+`pendingWrite` is `:w` without quitting. The host applies it and clears the
+field, so a save reaches the disk the moment it is typed rather than whenever
+the program happens to close.
+
+## Drawing
+
+`TerminalView.showScreen(lines)` puts a frame up as an **overlay**. The
+scrollback is not touched, so leaving the editor puts the player back exactly
+where they were — which is what a real terminal does, and the reason this is an
+overlay and not a `clear`.
+
+The cursor is a real reverse-video cell: the renderer fills a block in the
+line's colour and draws the glyph out of it in the background colour, using one
+extra atlas sheet tinted to the background. One cell, one draw call.
+
+## The phone
+
+This is the part most terminal-on-mobile attempts get wrong, so it is worth
+stating plainly.
+
+**`chips` is the answer to Escape.** The program names the keys worth showing
+for its current mode; the app renders them into the chip bar. In vi's normal
+mode that is `i ESC :w :wq dd u x o $ 0`; in insert mode it collapses to
+`ESC ← → ↑ ↓`. A chip label that is not a single keystroke is sent as its
+characters, so tapping `:wq` sends three keys.
+
+**The text input stays in the document and stays focused.** It is collapsed to
+a 1px transparent field, never `hidden`. Hiding it dismisses the soft keyboard,
+and then a phone player can tap chips but cannot type a single character. The
+cursor they watch is the block the renderer draws, not the field's caret.
+
+**Two input paths, because soft keyboards lie.** `keydown` handles named keys,
+control combos and printable characters from a physical keyboard. Many Android
+keyboards report `Unidentified` for keydown and only tell the truth through an
+`input` event, so whatever lands in the field is forwarded a character at a time
+and the field is emptied again.
+
+## Adding one
+
+1. Write the program as a pure state machine implementing `FullscreenProgram`.
+   Put the *text* handling in `TextBuffer` if it is editing anything — `vi` and
+   `nano` share it, which is why `dd` and `^K` cannot disagree about what
+   deleting a line means.
+2. Give it a `chips` list per mode. If a key is required to escape it, that key
+   must be in the list.
+3. Register a `CommandSpec` that checks permissions **before** opening (see
+   `inspect` in `commands.ts`: finding out at `:w` that a directory is
+   unwritable is how people lose work) and sets `ctx.screenRequest`.
+4. Test it by typing at it. `test/keys.ts` turns `'ihi<Escape>:wq<Enter>'` into
+   keystrokes, so a test reads like a session.
+5. Test the round trip through a real `Machine` too — `test/commands.test.ts`
+   drives the program and then asserts `grep` sees the change. `applyWrite` and
+   `flushPendingWrite` are exported for exactly that, so the app and the tests
+   share one save path instead of two copies.

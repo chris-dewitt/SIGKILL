@@ -187,6 +187,33 @@ body {
   color: var(--phosphor-faint);
 }
 
+/* ------------------------------------------------- while vi owns the screen */
+
+/*
+ * The prompt row collapses but does not leave.
+ *
+ * The input has to stay in the document and stay focused or the soft keyboard
+ * drops, and then a phone player can tap the chip bar but cannot type a single
+ * character into the editor. So it is shrunk to nothing and made invisible
+ * rather than hidden: still focusable, still the keyboard's target, and the
+ * cursor the player watches is the block the renderer draws on the screen.
+ */
+#line.screen-mode {
+  padding-bottom: 0;
+}
+
+#line.screen-mode #prompt,
+#line.screen-mode #tab {
+  display: none;
+}
+
+#line.screen-mode #input {
+  height: 1px;
+  padding: 0;
+  opacity: 0;
+  caret-color: transparent;
+}
+
 #tab {
   flex: 0 0 auto;
   font-family: var(--mono);

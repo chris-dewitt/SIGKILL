@@ -11,6 +11,12 @@ import type { Objective, World } from '@sigkill/quest';
  * The hint text is ORACLE speaking. The voice is still being cast -- the
  * shape of the ladder is the part that is settled, and swapping the lines is
  * a text edit in this file alone.
+ *
+ * One rule about the `command` field: it must be non-interactive, because the
+ * content test runs it through the real shell and asserts the step clears.
+ * `vi` opens an editor and changes nothing by itself, so the prose leads with
+ * the editor -- which is the humane way to do this -- while the field carries
+ * the one-line route CI can actually verify.
  */
 
 const O2_TARGET = /^\s*O2_TARGET\s*=\s*(-?\d+(?:\.\d+)?)/m;
@@ -48,40 +54,54 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
           {
             tier: 'nudge',
             lines: [
-              'The scrubber did not just fail. It refused.',
-              'It said why, at the time, and this ship writes everything down.',
+              'The scrubber did not fail. It refused, and it said why.',
+              'Ask it yourself:',
+              '',
+              '    systemctl status scrubber',
+              '',
+              'I have been reading that same line for eleven years.',
             ],
           },
           {
             tier: 'direction',
             track: 'cadet',
             lines: [
-              'Two places keep a record. /var/log/boot.log is what happened',
-              'during the cold start, and `systemctl status scrubber` is what',
-              'the controller thinks right now.',
+              'It is refusing a number it was given.',
               '',
-              'To read a file: cat /var/log/boot.log',
+              'Settings on this ship live in one place. Look at it:',
+              '',
+              '    ls /etc',
+              '',
+              'The one you want has life support in the name. To read a file,',
+              'put cat in front of it:  cat /etc/life_support.conf',
             ],
           },
           {
             tier: 'direction',
             lines: [
-              'systemctl status scrubber names the number it objects to.',
-              'The number lives in /etc/life_support.conf. Breathable is 19',
-              'to 23 and it is currently set well below that -- Vasquez was',
-              'stretching the reserve and the controller would not play along.',
+              'The number is O2_TARGET, and it lives in /etc with every other',
+              'setting this ship has -- ls /etc if you want to see the shape of',
+              'the place.',
+              '',
+              'Breathable is 19 to 23. Vasquez set it to 16 to stretch the',
+              'reserve and the controller has thrown it out ever since.',
             ],
           },
           {
             tier: 'command',
             command: "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
             lines: [
-              'Set the target to something it will accept. Any route works:',
+              'Open it and change the number. Either editor is aboard:',
+              '',
+              '    vi /etc/life_support.conf      then :wq to save and quit',
+              '    nano /etc/life_support.conf    then ^O to save, ^X to quit',
+              '',
+              'If you would rather not open anything, one line does it:',
               '',
               "    sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
               '',
-              'The file is writable by you. I do not care how the 21 gets',
-              'there, only that it does.',
+              'The file is yours to write. I do not care how the 21 gets there,',
+              'only that it does.',
             ],
           },
         ],
