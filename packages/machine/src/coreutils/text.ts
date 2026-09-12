@@ -60,12 +60,21 @@ export const textCommands: CommandSpec[] = [
 
       const pattern = operands[0]!;
       const recursive = flags.has('-r') || flags.has('-R');
+
       // The README sends the player to look in /etc, and `grep -r` is how
-      // anyone does that. Refusing a directory here made the obvious move the
-      // wrong one.
+      // anyone does that. Refusing a directory made the obvious move wrong.
+      // With no path at all, recursive grep searches the current directory --
+      // `grep -r needle` on its own is the commonest form of the command.
+      const given = operands.slice(1);
+      const targets = recursive && given.length === 0 ? ['.'] : given;
+      const treeErrors: string[] = [];
       const files = recursive
-        ? operands.slice(1).flatMap((operand) => expandTree(ctx, operand))
-        : operands.slice(1);
+        ? targets.flatMap((operand) => {
+            const found = expandTree(ctx, operand);
+            treeErrors.push(...found.errors);
+            return found.files;
+          })
+        : targets;
       const insensitive = flags.has('-i');
       const invert = flags.has('-v');
       const countOnly = flags.has('-c');
@@ -80,6 +89,9 @@ export const textCommands: CommandSpec[] = [
         return 2;
       }
 
+      // A directory it could not open is an error like any other: say so, and
+      // let it count towards the exit status.
+      for (const error of treeErrors) io.err(`grep: ${error}\n`);
       const { sources, code } = readInputs(ctx, io, files, 'grep');
       // Recursive output always names the file, even for a single match: the
       // whole point was finding out *where* it is.
@@ -102,7 +114,7 @@ export const textCommands: CommandSpec[] = [
       }
 
       emit(io, out);
-      if (code !== 0) return 2;
+      if (code !== 0 || treeErrors.length > 0) return 2;
       return matched ? 0 : 1;
     },
   },
@@ -113,7 +125,7 @@ export const textCommands: CommandSpec[] = [
     run: (ctx, argv, io) => {
       const parsed = parseArgs(argv, { valued: ['-n'] });
       // `head -5` as well as `head -n 5`: the bare form is what people type.
-      const { count: bare, rest: operands } = takeCountOperand(parsed.operands);
+      const { count: bare, rest: operands } = takeCountOperand(parsed.operands, parsed.separator);
       const count = Number(parsed.values.get('-n') ?? bare ?? 10);
       const { sources, code } = readInputs(ctx, io, operands, 'head');
       const showName = operands.length > 1;
@@ -133,7 +145,7 @@ export const textCommands: CommandSpec[] = [
     run: (ctx, argv, io) => {
       const parsed = parseArgs(argv, { valued: ['-n'] });
       // `head -5` as well as `head -n 5`: the bare form is what people type.
-      const { count: bare, rest: operands } = takeCountOperand(parsed.operands);
+      const { count: bare, rest: operands } = takeCountOperand(parsed.operands, parsed.separator);
       const count = Number(parsed.values.get('-n') ?? bare ?? 10);
       const { sources, code } = readInputs(ctx, io, operands, 'tail');
       const showName = operands.length > 1;

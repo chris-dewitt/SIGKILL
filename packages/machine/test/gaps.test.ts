@@ -230,3 +230,108 @@ describe('the small commands people reach for', () => {
     expect(r.stdout).toBe('hi\n');
   });
 });
+
+/**
+ * Eight findings from an automated review of the change above. Every one was
+ * real; each test names the command that was wrong.
+ */
+describe('the review findings', () => {
+  it('grep -r with no path searches the current directory', async () => {
+    const m = boot();
+    await m.exec('mkdir -p sub && echo needle > sub/a.txt');
+    const r = await m.exec('grep -r needle');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('needle');
+  });
+
+  it('grep -r says so when it cannot read a directory, and exits 2', async () => {
+    const m = boot();
+    m.vfs.mkdirp('/home/survivor/locked', ROOT_USER);
+    m.vfs.writeText('/home/survivor/locked/x.txt', 'needle\n', ROOT_USER);
+    m.vfs.chmod('/home/survivor/locked', 0o000, ROOT_USER);
+
+    const r = await m.exec('grep -r needle .');
+    expect(r.stderr).toContain('locked');
+    // Silently reporting "no matches" for a tree it never looked inside is the
+    // failure that matters here, not the exit code on its own.
+    expect(r.code).toBe(2);
+  });
+
+  it('the epoch survives a snapshot, so date does not jump across a save', async () => {
+    const m = new Machine({ epoch: 0 });
+    const before = (await m.exec('date +%s')).stdout;
+    const restored = Machine.restore(m.snapshot());
+    expect((await restored.exec('date +%s')).stdout).toBe(before);
+    expect(m.snapshot().epoch).toBe(0);
+  });
+
+  it('an explicit epoch still beats the snapshot, because the caller asked', async () => {
+    const m = new Machine({ epoch: 0 });
+    const restored = Machine.restore(m.snapshot(), { epoch: 86_400_000 });
+    expect((await restored.exec('date +%s')).stdout.trim()).toBe('86400');
+  });
+
+  it('chmod -x is a mode, not an unknown flag', async () => {
+    const m = boot();
+    await m.exec('touch s.sh && chmod 755 s.sh');
+    const r = await m.exec('chmod -x s.sh');
+    expect(r.stderr).toBe('');
+    expect((await m.exec('ls -l s.sh')).stdout).not.toContain('x');
+  });
+
+  it('chmod still rejects something that is not a mode at all', async () => {
+    const m = boot();
+    await m.exec('touch s.sh');
+    const r = await m.exec('chmod nonsense s.sh');
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toContain('invalid mode');
+  });
+
+  it('head -- -5 reads the file called -5', async () => {
+    const m = boot();
+    m.vfs.writeText('/home/survivor/-5', 'a file, not a count\n', ROOT_USER);
+    m.vfs.chown('/home/survivor/-5', 1000, 1000, ROOT_USER);
+    const r = await m.exec('head -- -5');
+    expect(r.stdout).toBe('a file, not a count\n');
+  });
+
+  it('dirname / is /, not the current directory', async () => {
+    const m = boot();
+    expect((await m.exec('dirname /')).stdout.trim()).toBe('/');
+    expect((await m.exec('dirname ///')).stdout.trim()).toBe('/');
+    expect((await m.exec('dirname /etc')).stdout.trim()).toBe('/');
+  });
+
+  it('a+X makes a directory traversable, which is the point of X', async () => {
+    const m = boot();
+    await m.exec('mkdir d && chmod 644 d');
+    await m.exec('chmod a+X d');
+    expect((m.vfs.lstat('/home/survivor/d', ROOT_USER).mode & 0o777).toString(8)).toBe('755');
+  });
+
+  it('a+X still leaves a plain file alone', async () => {
+    const m = boot();
+    await m.exec('touch notes.txt && chmod 644 notes.txt');
+    await m.exec('chmod a+X notes.txt');
+    expect((m.vfs.lstat('/home/survivor/notes.txt', ROOT_USER).mode & 0o777).toString(8)).toBe('644');
+  });
+
+  /**
+   * The worst of the eight. `vfs.chmod` follows a symlink to its target, but
+   * the mode was read with `lstat`, which returns the link's own fixed 0777.
+   * `chmod g+r link` on a 0600 file therefore wrote 0777 to it: world write
+   * and execute on a private file, from a command that asked for group read.
+   */
+  it('a symbolic chmod through a symlink uses the target mode', async () => {
+    const m = boot();
+    m.vfs.writeText('/home/survivor/secret.txt', 'private\n', ROOT_USER);
+    m.vfs.chmod('/home/survivor/secret.txt', 0o600, ROOT_USER);
+    m.vfs.chown('/home/survivor/secret.txt', 1000, 1000, ROOT_USER);
+    await m.exec('ln -s secret.txt link');
+
+    await m.exec('chmod g+r link');
+    const mode = (m.vfs.lstat('/home/survivor/secret.txt', ROOT_USER).mode & 0o777).toString(8);
+    expect(mode).toBe('640');
+    expect(mode).not.toBe('777');
+  });
+});

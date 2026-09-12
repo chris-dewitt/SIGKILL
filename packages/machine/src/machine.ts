@@ -52,6 +52,15 @@ export interface MachineSnapshot {
   env: Record<string, string>;
   status: number;
   clock: number;
+  /**
+   * The adventure's calendar origin.
+   *
+   * `date` makes this observable, so leaving it out of the snapshot meant a
+   * restored save could report a different time from the one it was saved at
+   * with the clock untouched -- which breaks the determinism the whole engine
+   * rests on.
+   */
+  epoch: number;
 }
 
 const DEFAULT_USER: User = { uid: 1000, gid: 1000, name: 'survivor' };
@@ -203,11 +212,22 @@ export class Machine {
       env: { ...this.shell.env },
       status: this.shell.status,
       clock: this.clock,
+      epoch: this.epoch,
     };
   }
 
   static restore(snap: MachineSnapshot, opts: MachineOptions = {}): Machine {
-    const machine = new Machine({ ...opts, snapshot: snap.vfs });
+    // A save carries its own calendar, so the snapshot supplies the epoch
+    // unless the caller explicitly asked for a different one. A snapshot
+    // written before `epoch` existed simply has none, and the default applies.
+    // Tested for undefined rather than truthiness: epoch 0 is the Unix epoch
+    // and a perfectly legal calendar to run an adventure on.
+    const epoch = opts.epoch ?? snap.epoch;
+    const machine = new Machine({
+      ...opts,
+      ...(epoch === undefined ? {} : { epoch }),
+      snapshot: snap.vfs,
+    });
     machine.procs.restore(snap.proc);
     machine.services.restore(snap.proc.services);
     machine.jobs.restore(snap.jobs);

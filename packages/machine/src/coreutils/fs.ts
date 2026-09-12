@@ -1,7 +1,7 @@
 import { FsError, isFsError } from '../errors.js';
 import * as p from '../vfs/path.js';
 import type { CommandSpec } from '../shell/exec.js';
-import { emit, formatMode, parseArgs, parseMode, usage } from './helpers.js';
+import { emit, formatMode, looksLikeMode, parseArgs, parseMode, usage } from './helpers.js';
 
 export const fsCommands: CommandSpec[] = [
   {
@@ -45,6 +45,13 @@ export const fsCommands: CommandSpec[] = [
       if (path === undefined) return usage(io, 'dirname: missing operand');
 
       const trimmed = path.replace(/\/+$/, '');
+      // An all-slash path trims to nothing and is the root. Answering "." there
+      // would send `cd "$(dirname "$p")"` somewhere else entirely once a script
+      // walked up to /.
+      if (trimmed === '') {
+        io.out((path.startsWith('/') ? '/' : '.') + '\n');
+        return 0;
+      }
       const cut = trimmed.lastIndexOf('/');
       // No slash at all means "here", which is what makes `cd $(dirname x)`
       // safe on a bare filename.
@@ -358,17 +365,29 @@ export const fsCommands: CommandSpec[] = [
     name: 'chmod',
     summary: 'change file mode bits',
     run: (ctx, argv, io) => {
-      const { operands } = parseArgs(argv);
+      // `chmod -x file` is a real command and `-x` is the mode, so the mode is
+      // taken before any flag parsing -- otherwise the parser eats it and the
+      // command reports a missing operand for an argument that was right there.
+      const first = argv[1];
+      const modeFirst = first !== undefined && looksLikeMode(first);
+      const operands = modeFirst ? argv.slice(1) : parseArgs(argv).operands;
+
       if (operands.length < 2) return usage(io, 'chmod: missing operand');
       const spec = operands[0]!;
+      if (!looksLikeMode(spec)) {
+        return usage(io, `chmod: invalid mode: '${spec}'  (try 755, +x, u+w, go-rwx)`);
+      }
+
       let code = 0;
       for (const operand of operands.slice(1)) {
         const path = ctx.resolve(operand);
         try {
-          // Symbolic modes are relative to what the file already is, so the
-          // mode is computed per file rather than once for the whole list.
-          const current = ctx.vfs.lstat(path, ctx.user).mode;
-          const mode = parseMode(spec, current);
+          // `stat`, not `lstat`: vfs.chmod follows a symlink to its target, so
+          // the mode must be read from the same inode it will be written to.
+          // Reading the link's own fixed 0777 and writing that through would
+          // hand out write and execute on whatever it points at.
+          const target = ctx.vfs.stat(path, ctx.user);
+          const mode = parseMode(spec, target.mode, target.kind === 'dir');
           if (mode === null) {
             return usage(io, `chmod: invalid mode: '${spec}'  (try 755, +x, u+w, go-rwx)`);
           }

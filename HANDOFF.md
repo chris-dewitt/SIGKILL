@@ -14,7 +14,7 @@ This file is the state of play; the others are the rules.
 | PR #6, #7, #8, #9 | merged | editors, the editor bug fixes, the PR agreement |
 | **PR #10 / `fix/coreutils-gaps`** | **open, needs review** | the command gaps in §4c |
 
-`pnpm check` on `fix/coreutils-gaps`: **395 tests** — 158 machine, 127 editor,
+`pnpm check` on `fix/coreutils-gaps`: **406 tests** — 169 machine, 127 editor,
 36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
 
 ---
@@ -274,6 +274,45 @@ responds to what the player does.
 commands, run it against the Machine, read the exit codes. It takes a minute
 and it is the only way to find what is missing rather than what you remember
 building.
+
+### The review that followed, and why bot findings get verified not trusted
+
+An automated review left eight findings on that PR. **Every one was real**, and
+they were all in the new code. Worth keeping as a calibration point: careful
+work plus 395 passing tests still shipped eight defects, and a second reader
+found them in minutes.
+
+The worst was a permissions bug. `vfs.chmod` follows a symlink to its target,
+but the mode was read with `lstat`, which returns the *link's* own fixed 0777.
+So `chmod g+r link` on a 0600 file wrote **0777** to it — world write and
+execute on a private file, from a command that asked for group read. Reading
+with `stat` fixes it, and the rule is general: **read the mode from the same
+inode the write will land on.**
+
+The rest: `grep -r PATTERN` with no path searched nothing instead of `.`;
+`epoch` was not in `MachineSnapshot`, so `date` jumped across a save (a
+determinism break, which is invariant #1); `chmod -x` was eaten by the flag
+parser; `head -- -5` ignored the `--` boundary, so a file genuinely named `-5`
+was unreachable; recursive grep swallowed unreadable directories and could
+report "no matches" for a tree it never opened; `dirname /` returned `.`;
+and `a+X` did not apply to directories, which is half the point of `X`.
+
+Two things this changed in the code beyond the fixes:
+
+- `parseArgs` now returns `separator`, the index in `operands` where arguments
+  after `--` begin. Anything that reinterprets an operand must respect it.
+- `expandTree` returns `{ files, errors }` rather than swallowing what it could
+  not read.
+
+And one of my own, found by the tests I wrote for the fix: the epoch restore
+used a truthiness check, so `epoch: 0` — the Unix epoch, a perfectly legal
+calendar — silently fell through to the default. Check `undefined`, not truth.
+
+**Verify a bot finding before fixing it.** All eight here were genuine, but the
+P1's *described symptom* was only reproducible once the fixture had an
+`/etc/sudoers`; without it `sudo` correctly refused and the command never ran,
+which looked like the bug was absent. A finding you cannot reproduce is a
+finding you do not understand yet.
 
 ### The working agreement with Chris
 
