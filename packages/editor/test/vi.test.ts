@@ -188,6 +188,36 @@ describe('normal mode', () => {
   });
 });
 
+// The single most common way a person gets stuck in vi, and the reason the
+// first playtest reported "can't type within the file".
+describe('typing in normal mode', () => {
+  it('says letters are commands, and names the way in', () => {
+    const e = open();
+    send(e, 'q');
+    expect(status(e)).toContain('Not a command: q');
+    expect(status(e)).toContain('press i');
+  });
+
+  it('changes nothing while it says so', () => {
+    const e = open();
+    send(e, 'zq');
+    expect(e.text).toBe(CONF);
+  });
+
+  it('stays quiet for keys that really are commands', () => {
+    const e = open();
+    send(e, 'j');
+    expect(status(e)).not.toContain('Not a command');
+  });
+
+  it('clears itself the moment insert mode starts', () => {
+    const e = open();
+    send(e, 'q');
+    send(e, 'i');
+    expect(status(e)).toContain('-- INSERT --');
+  });
+});
+
 describe('insert mode', () => {
   it('shows -- INSERT -- so the mode is never a guess', () => {
     const e = open();

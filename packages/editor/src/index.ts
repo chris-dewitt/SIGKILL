@@ -11,4 +11,5 @@ export type {
   FullscreenProgram,
 } from './types.js';
 export { editorCommands, applyWrite, flushPendingWrite } from './commands.js';
+export { chipKeystrokes } from './chips.js';
 export type { EditorCommandOptions } from './commands.js';

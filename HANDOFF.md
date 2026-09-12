@@ -11,9 +11,10 @@ This file is the state of play; the others are the rules.
 |---|---|---|
 | `main` @ `0b78b20` | **current** | Machine, Python, renderer, Android wrap, hints |
 | PR #1–#5 | merged | Phases 0–1, Android wrap, renderer, hint system |
-| **PR #6 / `phase-2-editor`** | **open, needs review** | `packages/editor` — vi and nano — plus the Act I trail fix |
+| PR #6 | merged | `packages/editor` — vi and nano — plus the Act I trail fix |
+| **PR #7 / `fix/editor-typing`** | **open, needs review** | the three touch-path bugs below |
 
-`pnpm check` on `phase-2-editor`: **344 tests** — 132 machine, 102 editor,
+`pnpm check` on `fix/editor-typing`: **360 tests** — 132 machine, 118 editor,
 36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
 
 ### A mistake that happened twice — do not make it a third time
@@ -145,6 +146,41 @@ cannot see from where they are standing.
 - The first hint rung now hands over a **diagnostic** (`systemctl status
   scrubber`) rather than a mood. Telling someone how to diagnose is not a
   spoiler; telling them the fix is. There is a test named for that line.
+
+### The touch path was broken, and unit tests could not have caught it
+
+Second playtest: *"is VIM broken? I'm trying vim (filename), and then can't type
+within the file."* It worked on a physical keyboard and failed on a phone, so I
+drove the built app in headless Chromium on a touch viewport and reproduced it
+in one run. Three separate bugs, all of them in the glue between the editor and
+the DOM, none of them reachable by the editor's own tests:
+
+1. **Tapping a chip lost focus.** `refreshChips()` rebuilds the buttons on every
+   keystroke, so the tapped button stopped existing mid-gesture, focus fell to
+   `<body>`, and the soft keyboard closed. Everything typed after that went
+   nowhere. Fixed with `preventDefault` on pointerdown (so an on-screen key
+   never takes focus at all) plus an explicit refocus after each tap.
+2. **`:w` and `:wq` chips never sent Enter** — they typed the command into the
+   ex line and sat there.
+3. **nano's `^O` and `^X` chips typed a literal caret and a letter into the
+   file** instead of sending Ctrl.
+
+The mapping from a chip label to keystrokes now lives in
+`packages/editor/src/chips.ts` — **in the package, not the app** — precisely so
+it can be tested without a browser. `test/chips.test.ts` finishes a whole edit
+by taps alone.
+
+Also added: typing a letter in normal mode now says
+`Not a command: q -- press i to start typing, or :help`. Real vi beeps and moves
+on; this is a teaching game, and silence there looks exactly like a broken
+editor. That is the literal complaint that started this.
+
+**Lesson for whoever is next: the editor is pure and well-tested, and that is
+not enough.** Anything that touches focus, the soft keyboard, or the chip bar
+has to be driven in a real browser on a touch viewport. Playwright and Chromium
+are available in the cloud session (`/opt/pw-browsers/chromium-1194`); serve
+`apps/terminal/dist` and drive it. Twenty minutes of that found three bugs that
+344 unit tests did not.
 
 **The constraint this introduced, which matters for every future ladder:** a
 `command` rung's `command` field must be non-interactive, because CI runs it

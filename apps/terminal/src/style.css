@@ -190,28 +190,32 @@ body {
 /* ------------------------------------------------- while vi owns the screen */
 
 /*
- * The prompt row collapses but does not leave.
+ * The prompt row stays, and stays a real input.
  *
- * The input has to stay in the document and stay focused or the soft keyboard
- * drops, and then a phone player can tap the chip bar but cannot type a single
- * character into the editor. So it is shrunk to nothing and made invisible
- * rather than hidden: still focusable, still the keyboard's target, and the
- * cursor the player watches is the block the renderer draws on the screen.
+ * The field must remain focusable and full-size or the soft keyboard will not
+ * come up -- a 1px transparent input is exactly the shape mobile browsers
+ * refuse to raise a keyboard for, and then a phone player can tap the chip bar
+ * but cannot type a single character into the editor.
+ *
+ * So instead of collapsing it, its text and caret go transparent: every
+ * keystroke is forwarded to the editor and the field never holds anything to
+ * read, while the cursor the player watches is the block the renderer draws on
+ * the screen. The row doubles as the tap target that brings the keyboard back.
  */
-#line.screen-mode {
-  padding-bottom: 0;
-}
-
 #line.screen-mode #prompt,
 #line.screen-mode #tab {
   display: none;
 }
 
 #line.screen-mode #input {
-  height: 1px;
-  padding: 0;
-  opacity: 0;
+  color: transparent;
   caret-color: transparent;
+  /* Selection would reveal the forwarded characters the field briefly holds. */
+  user-select: none;
+}
+
+#line.screen-mode #input::selection {
+  background: transparent;
 }
 
 #tab {

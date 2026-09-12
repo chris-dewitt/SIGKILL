@@ -72,7 +72,7 @@ export class ViEditor implements FullscreenProgram {
   /** Keys worth putting on screen, by mode. Order is tap priority. */
   get chips(): readonly string[] {
     if (this.mode === 'insert') return ['ESC', '←', '→', '↑', '↓'];
-    if (this.mode === 'command') return ['ESC', 'w', 'q', 'wq', 'q!'];
+    if (this.mode === 'command') return ['ESC', 'ENTER', '←', '→'];
     return ['i', 'ESC', ':w', ':wq', 'dd', 'u', 'x', 'o', '$', '0'];
   }
 
@@ -207,7 +207,16 @@ export class ViEditor implements FullscreenProgram {
       case 'N': this.repeatSearch(true); break;
       case 'Z': this.pending = 'Z'; return;
       case 'Escape': this.message = ''; break;
-      default: break;
+
+      default:
+        // Real vi beeps and moves on. This is a teaching game and the status
+        // line is right there, so it says the one thing the player needs:
+        // letters are commands until you ask for insert mode. Without this,
+        // typing a word in normal mode looks exactly like a broken editor.
+        if (key.length === 1 && key >= ' ') {
+          this.note(`Not a command: ${key}   --   press i to start typing, or :help`);
+        }
+        break;
     }
 
     this.clearPending();
