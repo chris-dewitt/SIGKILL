@@ -94,3 +94,106 @@ export function formatMode(kind: string, mode: number): string {
     `${bits & 4 ? 'r' : '-'}${bits & 2 ? 'w' : '-'}${bits & 1 ? 'x' : '-'}`;
   return type + rwx((mode >> 6) & 7) + rwx((mode >> 3) & 7) + rwx(mode & 7);
 }
+
+/**
+ * Pull a bare `-N` count out of the operands, as `head -5` and `tail -20` use.
+ *
+ * `parseArgs` deliberately leaves `-5` alone -- it cannot know whether a lone
+ * negative number is a flag or an argument -- so the commands that accept the
+ * historical form ask for it here. Without this, `head -5 file` tries to open
+ * a file called `-5`, which is the error a player sees the first time they
+ * reach for the form every other system accepts.
+ *
+ * Returns the count and the operands with it removed.
+ */
+export function takeCountOperand(
+  operands: string[],
+): { count: number | undefined; rest: string[] } {
+  const rest: string[] = [];
+  let count: number | undefined;
+  for (const operand of operands) {
+    const numeric = /^-(\d+)$/.exec(operand);
+    // Only the first one, and only before any filename: `head -5 -3 f` is an
+    // error in real coreutils too, but taking the first is the kinder reading.
+    if (numeric && count === undefined && rest.length === 0) {
+      count = Number(numeric[1]);
+      continue;
+    }
+    rest.push(operand);
+  }
+  return { count, rest };
+}
+
+/**
+ * Parse a chmod mode: octal, or symbolic like `+x`, `u+w`, `go-rwx`, `a=r`.
+ *
+ * Symbolic modes are how anyone actually makes a script executable, and
+ * `chmod +x` is one of the first real things a person learns to type. Octal
+ * only is a teaching gap, not a simplification.
+ *
+ * Returns the new mode, or null if the spec is not a mode at all.
+ */
+export function parseMode(spec: string, current: number): number | null {
+  if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
+
+  let mode = current & 0o7777;
+  // Comma-separated clauses, as in `u+rw,go-w`.
+  for (const clause of spec.split(',')) {
+    const m = /^([ugoa]*)([+\-=])([rwxX]*)$/.exec(clause);
+    if (!m) return null;
+
+    const [, whoSpec = '', op = '', permSpec = ''] = m;
+    const who = whoSpec === '' || whoSpec.includes('a') ? 'ugo' : whoSpec;
+
+    let bits = 0;
+    if (permSpec.includes('r')) bits |= 0o4;
+    if (permSpec.includes('w')) bits |= 0o2;
+    // `X` sets execute only where some execute bit is already on, which is
+    // what makes `chmod -R a+X` safe on a tree of files and directories.
+    if (permSpec.includes('x') || (permSpec.includes('X') && (mode & 0o111) !== 0)) bits |= 0o1;
+
+    for (const [target, shift] of [['u', 6], ['g', 3], ['o', 0]] as const) {
+      if (!who.includes(target)) continue;
+      const field = bits << shift;
+      const mask = 0o7 << shift;
+      if (op === '+') mode |= field;
+      else if (op === '-') mode &= ~field;
+      else mode = (mode & ~mask) | field;
+    }
+  }
+  return mode;
+}
+
+/**
+ * Every regular file at or under a path, for `grep -r`.
+ *
+ * Unreadable directories are skipped rather than fatal: a player running
+ * `grep -r secret /etc` should get the matches they *can* see, exactly as on
+ * a real system, not one permission error and nothing else.
+ */
+export function expandTree(ctx: ShellContext, start: string): string[] {
+  const out: string[] = [];
+  const walk = (path: string): void => {
+    let kind: string;
+    try {
+      kind = ctx.vfs.lstat(ctx.resolve(path), ctx.user).kind;
+    } catch {
+      // Report it the way a missing operand is reported: by trying to read it.
+      out.push(path);
+      return;
+    }
+    if (kind !== 'dir') {
+      out.push(path);
+      return;
+    }
+    let entries: string[];
+    try {
+      entries = ctx.vfs.readdir(ctx.resolve(path), ctx.user);
+    } catch {
+      return;
+    }
+    for (const entry of entries.sort()) walk(`${path.replace(/\/$/, '')}/${entry}`);
+  };
+  walk(start);
+  return out;
+}

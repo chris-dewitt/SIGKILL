@@ -9,53 +9,20 @@ This file is the state of play; the others are the rules.
 
 | Branch / PR | State | Contains |
 |---|---|---|
-| `main` @ `0b78b20` | **current** | Machine, Python, renderer, Android wrap, hints |
+| `main` @ `786843e` | **current** | Machine, Python, renderer, Android wrap, hints, editors |
 | PR #1–#5 | merged | Phases 0–1, Android wrap, renderer, hint system |
-| PR #6 | merged | `packages/editor` — vi and nano — plus the Act I trail fix |
-| **PR #7 / `fix/editor-typing`** | **open, needs review** | the three touch-path bugs below |
+| PR #6, #7, #8, #9 | merged | editors, the editor bug fixes, the PR agreement |
+| **PR #10 / `fix/coreutils-gaps`** | **open, needs review** | the command gaps in §4c |
 
-`pnpm check` on `fix/editor-typing`: **369 tests** — 132 machine, 127 editor,
+`pnpm check` on `fix/coreutils-gaps`: **395 tests** — 158 machine, 127 editor,
 36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
-
-### The working agreement with Chris
-
-**A pull request means the branch is finished.** He reviews and merges as soon
-as one appears — that is the agreement and it is the right one. Do the whole
-job, get `pnpm check` green, update the docs, *then* open the PR.
-
-If more has to follow, say **"more coming, do not merge yet"** in the first
-line of the PR body *and* in the chat message. Silence means finished.
-
-Never push to a branch after its PR is open except to answer CI or review.
-
-### A mistake that happened three times — do not make it a fourth
-
-Three times a branch was merged **while a later commit was still being pushed
-to it**, stranding that commit on a closed PR's branch. The cause was mine
-every time: opening a PR before the work was done, then continuing to push to
-it. See the agreement above.
-
-- The renderer sat orphaned on `phase-1-complete` for a day. `main` had a
-  placeholder `packages/crt` the whole time and CI ran 159 tests, while I
-  reported 195. Recovered in PR #4.
-- The hint system did the same thing on `phase-2-crt-renderer` minutes later.
-  Recovered same-session into PR #5.
-- The `sudo` editor fix did it again on `fix/editor-typing`. Recovered into
-  PR #8 within a minute, because the check below had become a habit by then.
-
-**After any merge, verify with `git merge-base --is-ancestor <sha> origin/main`**
-rather than trusting that a push went in. It is two seconds and it is the only
-reason the third one cost a minute instead of a day.
-
-Also: `git ls-remote --heads origin` is the recovery tool. Nothing was ever
-lost, only misplaced.
 
 ---
 
 ## 2. What is built
 
 **`packages/machine`** — the deterministic virtual computer. 21 kB gzipped,
-zero runtime dependencies, 50 commands. VFS with real uid/gid permissions and
+zero runtime dependencies, 57 commands. VFS with real uid/gid permissions and
 symlink loop detection; a quote-preserving shell (pipes, `&&`/`||`, redirection,
 subshells, `$(...)`); a process table with systemd-style units read from the
 filesystem; a virtual clock with `sleep`, background jobs and cron; a simulated
@@ -258,6 +225,91 @@ job is a no-op rather than a hang.
 
 ---
 
+## 4c. What a player actually types, and what the shell accepted
+
+I swept ~100 commands a curious person types in Act I through the real Machine
+and read the failures rather than guessing at them. Most were correct
+behaviour and were left alone — `cd /nope` erroring, the scrubber refusing an
+unbreathable target, `systemctl status` exiting 3 the way real systemd does.
+The rest were genuine gaps, and clustered into two kinds:
+
+**Flag forms people type, that were rejected:**
+
+- `head -5` / `tail -20` — only `head -n 5` worked. `parseArgs` deliberately
+  leaves a bare `-5` alone (it cannot know whether a lone number is a flag), so
+  the commands that accept the historical form now ask for it via
+  `takeCountOperand`.
+- `chmod +x` — octal only. `chmod +x script.sh` is one of the first real things
+  anybody learns to type; octal-only is a teaching gap, not a simplification.
+  `parseMode` now takes `+x`, `u+w`, `go-rwx`, `a=r`, comma clauses and `X`.
+- `grep -r` — refused a directory outright, while the README sends the player
+  to look in `/etc`. It walks the tree now, skips what it cannot read, and
+  keeps GNU's exit codes exactly (2 on any error, even with matches found —
+  `/etc/shadow` is unreadable forever, so that path is exercised constantly).
+
+**Commands reached for and missing:** `date`, `uname`, `df`, `tee`,
+`basename`, `dirname`. 57 commands now.
+
+`date` is the interesting one: it reads `epoch + clock()` and nothing else, so
+it is deterministic and only moves when ship time moves (`sleep 90` advances it
+by ninety seconds). `ShellContext` gained `epoch` for it. **Never reach for
+`new Date()` here** — a clock that follows the player's wall time would break
+replay for every puzzle downstream.
+
+`df` measures the real tree rather than printing a made-up number, so it
+responds to what the player does.
+
+**Still missing, in rough order of how much a player wants them:**
+
+| Missing | Why it matters | Size |
+|---|---|---|
+| `less` / `more` | a pager is the natural next use of the `ScreenProgram` seam | medium, and fun |
+| `journalctl` | systemd is right there; `journalctl -u scrubber` is the obvious move | medium — needs a log store |
+| `for` / `if` / `while` | shell control flow; probably its own teaching beat | large |
+| `awk` | a whole language; maybe never, or as its own adventure | large |
+| `sed -n '1,3p'` | only `s///` is implemented; addresses are a natural extension | small |
+| `diff`, `xargs`, `history`, `alias`, `file`, `realpath`, `type` | each cheap on its own | small |
+
+**The method is the reusable part:** write a sweep of plausible player
+commands, run it against the Machine, read the exit codes. It takes a minute
+and it is the only way to find what is missing rather than what you remember
+building.
+
+### The working agreement with Chris
+
+**A pull request means the branch is finished.** He reviews and merges as soon
+as one appears — that is the agreement and it is the right one. Do the whole
+job, get `pnpm check` green, update the docs, *then* open the PR.
+
+If more has to follow, say **"more coming, do not merge yet"** in the first
+line of the PR body *and* in the chat message. Silence means finished.
+
+Never push to a branch after its PR is open except to answer CI or review.
+
+### A mistake that happened three times — do not make it a fourth
+
+Three times a branch was merged **while a later commit was still being pushed
+to it**, stranding that commit on a closed PR's branch. The cause was mine
+every time: opening a PR before the work was done, then continuing to push to
+it. See the agreement above.
+
+- The renderer sat orphaned on `phase-1-complete` for a day. `main` had a
+  placeholder `packages/crt` the whole time and CI ran 159 tests, while I
+  reported 195. Recovered in PR #4.
+- The hint system did the same thing on `phase-2-crt-renderer` minutes later.
+  Recovered same-session into PR #5.
+- The `sudo` editor fix did it again on `fix/editor-typing`. Recovered into
+  PR #8 within a minute, because the check below had become a habit by then.
+
+**After any merge, verify with `git merge-base --is-ancestor <sha> origin/main`**
+rather than trusting that a push went in. It is two seconds and it is the only
+reason the third one cost a minute instead of a day.
+
+Also: `git ls-remote --heads origin` is the recovery tool. Nothing was ever
+lost, only misplaced.
+
+---
+
 ## 5. Open decisions — waiting on Chris, blocking nothing else
 
 ### 5a. The ORACLE voice — pick one
@@ -321,10 +373,10 @@ My pick: **3**, with **2**'s weight for the act endings. Chris edits from there.
 - `games/wreck` Acts II+ are unwritten. Only Act I exists.
 - vi leaves out visual mode, marks, macros and named registers. `:help` inside
   it says so rather than pretending. Add them only if a puzzle needs them.
-- **`head -5` and `tail -20` are not accepted** — only `head -n 5`. Real coreutils
-  take the bare-number form and players reach for it constantly. Found while
-  probing the editor; left alone so as not to widen that PR. Small fix in
-  `packages/machine/src/coreutils/text.ts`, worth doing early.
+- Missing commands and shell features are catalogued in §4c, with sizes.
+  `less` is the one I would do next: it is a pager, which is the natural
+  second use of the full-screen seam, and it is what a player types the moment
+  a log is longer than the screen.
 
 ---
 
@@ -368,13 +420,19 @@ gate. Nothing else on this list matters as much.
 
 ## 7. What I would do next
 
-1. Get PR #6 reviewed and merged. **New branch off `main` for anything after
-   it.**
-2. Phone playtest of the editor specifically. If vi-on-glass is bad, that is the
-   next piece of work and it outranks everything else.
-3. Chris picks an ORACLE voice (§5a); rewrite `games/wreck/src/objectives.ts`
+1. **Playtest.** The editor on a laptop and on a phone. That is the Phase 2
+   gate and the only thing here nobody but Chris can answer. If editing on
+   glass is unpleasant, that outranks everything below it.
+2. **Chris picks an ORACLE voice** (§5a); rewrite `games/wreck/src/objectives.ts`
    prose only — no ladder shape changes.
-4. Then, and only then, Act II of The Wreck.
+3. **`less`.** A pager is the natural second use of the full-screen seam
+   (`docs/FULLSCREEN.md`), and it is what a player types the moment a log is
+   longer than the screen. `journalctl -u scrubber` is the one after that.
+4. **Act II of The Wreck** — but only after 1, and with the voice from 2.
+
+Act I currently ends after `survive-a-reboot` and then there is nothing. That
+is the content cliff to fill, and it is deliberately not filled yet: writing
+more ORACLE before the voice is chosen would mean rewriting it twice.
 
 Do not recreate deleted roadmaps. Do not widen a PR on your own. If a test
 fails, say so with the output.

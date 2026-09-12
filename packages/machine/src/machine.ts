@@ -98,6 +98,7 @@ export class Machine {
       services: this.services,
       jobs: this.jobs,
       clock: now,
+      epoch: this.epoch,
       advance: (ms) => this.tick(ms),
       network: opts.network,
       session: this.session,

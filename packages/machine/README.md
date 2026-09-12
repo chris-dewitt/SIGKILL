@@ -3,7 +3,7 @@
 A deterministic virtual computer. Every SIGKILL adventure runs on one.
 
 Zero runtime dependencies. Runs in Node and in a browser. 21 kB gzipped,
-50 commands.
+57 commands.
 
 ```ts
 import { Machine, ROOT_USER } from '@sigkill/machine';

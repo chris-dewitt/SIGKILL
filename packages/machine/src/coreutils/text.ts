@@ -1,7 +1,44 @@
 import type { CommandSpec } from '../shell/exec.js';
-import { emit, lines, parseArgs, readInputs, usage } from './helpers.js';
+import { isFsError } from '../errors.js';
+import { emit, expandTree, lines, parseArgs, readInputs, takeCountOperand, usage } from './helpers.js';
 
 export const textCommands: CommandSpec[] = [
+  {
+    name: 'tee',
+    summary: 'copy stdin to a file and to stdout',
+    manual:
+      'tee [-a] FILE...\n\n' +
+      'Read standard input, write it to each FILE and to standard output.\n' +
+      '  -a  append instead of overwriting\n\n' +
+      'The point is the "and": a pipeline can be saved and kept flowing at the\n' +
+      'same time, which `>` cannot do because it swallows the output.',
+    plain:
+      'Saves what is coming down a pipe to a file AND keeps it on screen.\n' +
+      '  cat /var/log/boot.log | grep FAIL | tee fails.txt\n' +
+      'You see the failures and you have a copy of them. Add -a to add to the\n' +
+      'end of a file instead of replacing it.',
+    run: (ctx, argv, io) => {
+      const { flags, operands } = parseArgs(argv, { flags: ['-a'] });
+      const append = flags.has('-a');
+      let code = 0;
+
+      for (const operand of operands) {
+        const path = ctx.resolve(operand);
+        try {
+          if (append && ctx.vfs.exists(path, ctx.user)) ctx.vfs.append(path, io.stdin, ctx.user);
+          else ctx.vfs.writeText(path, io.stdin, ctx.user);
+        } catch (e) {
+          io.err(`tee: ${operand}: ${isFsError(e) ? e.reason : String(e)}\n`);
+          code = 1;
+        }
+      }
+
+      // Down the pipe as well, always -- that is the whole job.
+      io.out(io.stdin);
+      return code;
+    },
+  },
+
   {
     name: 'echo',
     summary: 'write arguments to standard output',
@@ -22,7 +59,13 @@ export const textCommands: CommandSpec[] = [
       if (operands.length === 0) return usage(io, 'usage: grep [-inv] PATTERN [FILE...]');
 
       const pattern = operands[0]!;
-      const files = operands.slice(1);
+      const recursive = flags.has('-r') || flags.has('-R');
+      // The README sends the player to look in /etc, and `grep -r` is how
+      // anyone does that. Refusing a directory here made the obvious move the
+      // wrong one.
+      const files = recursive
+        ? operands.slice(1).flatMap((operand) => expandTree(ctx, operand))
+        : operands.slice(1);
       const insensitive = flags.has('-i');
       const invert = flags.has('-v');
       const countOnly = flags.has('-c');
@@ -38,7 +81,9 @@ export const textCommands: CommandSpec[] = [
       }
 
       const { sources, code } = readInputs(ctx, io, files, 'grep');
-      const showName = files.length > 1;
+      // Recursive output always names the file, even for a single match: the
+      // whole point was finding out *where* it is.
+      const showName = files.length > 1 || recursive;
       const out: string[] = [];
       let matched = false;
 
@@ -66,8 +111,10 @@ export const textCommands: CommandSpec[] = [
     name: 'head',
     summary: 'output the first lines of a file',
     run: (ctx, argv, io) => {
-      const { values, operands } = parseArgs(argv, { valued: ['-n'] });
-      const count = Number(values.get('-n') ?? 10);
+      const parsed = parseArgs(argv, { valued: ['-n'] });
+      // `head -5` as well as `head -n 5`: the bare form is what people type.
+      const { count: bare, rest: operands } = takeCountOperand(parsed.operands);
+      const count = Number(parsed.values.get('-n') ?? bare ?? 10);
       const { sources, code } = readInputs(ctx, io, operands, 'head');
       const showName = operands.length > 1;
       const out: string[] = [];
@@ -84,8 +131,10 @@ export const textCommands: CommandSpec[] = [
     name: 'tail',
     summary: 'output the last lines of a file',
     run: (ctx, argv, io) => {
-      const { values, operands } = parseArgs(argv, { valued: ['-n'] });
-      const count = Number(values.get('-n') ?? 10);
+      const parsed = parseArgs(argv, { valued: ['-n'] });
+      // `head -5` as well as `head -n 5`: the bare form is what people type.
+      const { count: bare, rest: operands } = takeCountOperand(parsed.operands);
+      const count = Number(parsed.values.get('-n') ?? bare ?? 10);
       const { sources, code } = readInputs(ctx, io, operands, 'tail');
       const showName = operands.length > 1;
       const out: string[] = [];

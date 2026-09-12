@@ -98,10 +98,12 @@ What is in and tested today:
   done yet, and they cost nothing. The bottom rung of every ladder is run
   against a real machine in CI, so a hint cannot quietly go out of date.
 - **Coreutils** — `ls cat cd pwd echo grep head tail wc sort uniq cut tr sed
-  find mkdir rmdir rm cp mv touch ln chmod stat ps kill systemctl sudo sleep
-  jobs wait crontab ssh scp curl nc ping python3 whoami id env export unset
-  which man help clear exit true false hostname`, plus `vi vim nano hint
-  objectives` from the adventure.
+  tee find basename dirname mkdir rmdir rm cp mv touch ln chmod stat df date
+  uname ps kill systemctl sudo sleep jobs wait crontab ssh scp curl nc ping
+  python3 whoami id env export unset which man help clear exit true false
+  hostname`, plus `vi vim nano hint objectives` from the adventure. `head -5`
+  and `chmod +x` work, not only `head -n 5` and `chmod 755` — the forms people
+  actually type. `date` reads the ship's clock, never the wall clock.
 
 Two properties are load-bearing and never traded away:
 

@@ -169,7 +169,7 @@ Add a determinism test for it. Run the same script twice, compare snapshots.
 
 ## Status
 
-**Phase 0 complete. Phase 1 complete** — filesystem, shell, 50 commands,
+**Phase 0 complete. Phase 1 complete** — filesystem, shell, 57 commands,
 processes and services, jobs and cron, the simulated network, and real Python
 sharing the VFS.
 
