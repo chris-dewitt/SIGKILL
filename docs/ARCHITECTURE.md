@@ -23,7 +23,7 @@ packages/machine       THE MACHINE. A deterministic virtual computer.
        +-- lang/       PythonRuntime *interface* (no implementation)
        |
 packages/python        Pyodide behind that interface, in a Web Worker
-packages/crt           Renderer (Phase 2, currently a placeholder)
+packages/crt           Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass
 games/wreck            Adventure 1 content (Phase 3, currently a placeholder)
 ```
 

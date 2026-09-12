@@ -1,3 +1,4 @@
+import { TerminalView } from '@sigkill/crt';
 import { path as vpath } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { bootWreck, COLD_OPEN } from './world.js';
@@ -18,6 +19,19 @@ machine.python = new WorkerPythonRuntime({
 });
 
 const screen = document.querySelector<HTMLDivElement>('#screen')!;
+
+/**
+ * The phosphor screen.
+ *
+ * `?plain` disables the shader — for a device without WebGL2, and for anyone
+ * who finds the persistence uncomfortable. It becomes a real setting once
+ * there is a settings screen to put it in.
+ */
+const view = new TerminalView(screen, {
+  font: '13.5px "SFMono-Regular", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
+  gutter: 16,
+  plain: new URLSearchParams(location.search).has('plain'),
+});
 const input = document.querySelector<HTMLInputElement>('#input')!;
 const promptEl = document.querySelector<HTMLLabelElement>('#prompt')!;
 const form = document.querySelector<HTMLFormElement>('#line')!;
@@ -41,25 +55,18 @@ let pythonWarmed = false;
 /** Characters a shell needs constantly that Android buries two taps deep. */
 const SYMBOL_KEYS = ['|', '/', '-', '~', '$', '*', '>', '.', "'", '"'];
 
-function write(text: string, kind: 'out' | 'err' | 'echo' | 'system' = 'out'): void {
-  if (text.length === 0) return;
-  const line = document.createElement('div');
-  line.className = `row row-${kind}`;
-  line.textContent = text;
-  screen.append(line);
+type LineKind = 'out' | 'err' | 'echo' | 'system';
+
+function write(text: string, kind: LineKind = 'out'): void {
+  view.push(text, kind);
 }
 
-function writeBlock(text: string, kind: 'out' | 'err' | 'system'): void {
-  const rows = text.split('\n');
-  if (rows[rows.length - 1] === '') rows.pop();
-  for (const row of rows) {
-    // A blank line still needs to occupy a row.
-    write(row.length > 0 ? row : ' ', kind);
-  }
+function writeBlock(text: string, kind: LineKind): void {
+  view.write(text, kind);
 }
 
 function scrollToEnd(): void {
-  screen.scrollTop = screen.scrollHeight;
+  view.scrollToBottom();
 }
 
 function refreshPrompt(): void {
@@ -83,7 +90,7 @@ async function submit(raw: string): Promise<void> {
     try {
       const result = await machine.exec(command);
       if (result.cleared) {
-        screen.replaceChildren();
+        view.clear();
       } else {
         writeBlock(result.stdout, 'out');
         writeBlock(result.stderr, 'err');
@@ -304,12 +311,36 @@ screen.addEventListener('click', () => {
   if (!input.disabled) input.focus();
 });
 
-for (const line of COLD_OPEN) write(line.length > 0 ? line : ' ', 'system');
+// Scrolling the canvas is ours to implement: it is a picture, not a document.
+screen.addEventListener(
+  'wheel',
+  (event) => {
+    event.preventDefault();
+    view.scrollBy(Math.sign(event.deltaY) * 3);
+  },
+  { passive: false },
+);
+
+let touchY: number | null = null;
+screen.addEventListener('touchstart', (e) => { touchY = e.touches[0]?.clientY ?? null; }, { passive: true });
+screen.addEventListener('touchmove', (e) => {
+  const y = e.touches[0]?.clientY;
+  if (y === undefined || touchY === null) return;
+  const delta = touchY - y;
+  // One row per ~18px of drag, which is roughly one line height.
+  if (Math.abs(delta) >= 18) {
+    view.scrollBy(Math.trunc(delta / 18));
+    touchY = y;
+  }
+}, { passive: true });
+screen.addEventListener('touchend', () => { touchY = null; }, { passive: true });
+
+for (const line of COLD_OPEN) write(line, 'system');
 refreshPrompt();
 buildSymbolRow();
 refreshChips();
 scrollToEnd();
 input.focus();
 
-// A path helper is exported for the console during development.
-Object.assign(window, { machine, vpath });
+// Exported for the console during development.
+Object.assign(window, { machine, vpath, view });
