@@ -61,14 +61,39 @@ describe('every command hint actually works', () => {
 });
 
 describe('the ladder follows the player, not a script', () => {
-  it('opens with a nudge about the refusal, not the answer', async () => {
+  // The line the first rung walks: telling the player how to *diagnose* is not
+  // a spoiler and is the whole lesson; telling them the fix ends the puzzle.
+  it('opens by handing over a diagnostic, not the fix', async () => {
     const { machine } = bootWreck();
     const r = await machine.exec('hint');
+
     expect(r.stdout).toContain('refused');
-    // Naming the file, the number or the command would end the puzzle here.
+    expect(r.stdout).toContain('systemctl status scrubber');
+
     expect(r.stdout).not.toContain('life_support.conf');
     expect(r.stdout).not.toContain('O2_TARGET');
-    expect(r.stdout).not.toContain('systemctl');
+    // 'sed' on its own matches the word "refused"; the command is what matters.
+    expect(r.stdout).not.toContain('sed -i');
+    expect(r.stdout).not.toContain('=21');
+  });
+
+  it('gives a command the player can actually run on every rung', async () => {
+    const { machine } = bootWreck();
+    // Three asks on the opening step; each one should name something typeable.
+    for (let i = 0; i < 3; i++) {
+      const r = await machine.exec('hint');
+      expect(r.stdout, `rung ${i + 1}`).toMatch(/systemctl|ls |cat |vi |nano |sed /);
+    }
+  });
+
+  it('offers an editor before it offers sed', async () => {
+    const { machine } = bootWreck();
+    await machine.exec('hint');
+    await machine.exec('hint');
+    const answer = (await machine.exec('hint')).stdout;
+    expect(answer).toContain('vi /etc/life_support.conf');
+    expect(answer).toContain('nano /etc/life_support.conf');
+    expect(answer.indexOf('vi /etc')).toBeLessThan(answer.indexOf('sed -i'));
   });
 
   it('nudges about starting the service once the number is right', async () => {

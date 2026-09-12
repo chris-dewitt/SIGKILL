@@ -1,6 +1,6 @@
 # SIGKILL — handoff
 
-Written 2026-09-12. Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
+Written 2026-09-12, updated after the first real playtest. Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
 This file is the state of play; the others are the rules.
 
 ---
@@ -9,12 +9,12 @@ This file is the state of play; the others are the rules.
 
 | Branch / PR | State | Contains |
 |---|---|---|
-| `main` @ `3187023` | **current** | Machine, Python, phosphor renderer, Android wrap |
-| PR #1, #2, #3, #4 | merged | Phases 0–1, the Android wrap, the renderer |
-| **PR #5 / `phase-2-hints`** | **open, needs review** | `packages/quest` + the Act I hint ladders |
+| `main` @ `0b78b20` | **current** | Machine, Python, renderer, Android wrap, hints |
+| PR #1–#5 | merged | Phases 0–1, Android wrap, renderer, hint system |
+| **PR #6 / `phase-2-editor`** | **open, needs review** | `packages/editor` — vi and nano — plus the Act I trail fix |
 
-`pnpm check` on `phase-2-hints`: **240 tests** — 132 machine, 36 crt, 29 quest,
-27 python, 16 wreck. Typecheck 6/6, build clean.
+`pnpm check` on `phase-2-editor`: **344 tests** — 132 machine, 102 editor,
+36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
 
 ### A mistake that happened twice — do not make it a third time
 
@@ -54,7 +54,11 @@ wire it into the app; the Worker is what keeps player code away from the DOM.
 demand, a glyph atlas, and a switchable WebGL2 pass. `?plain` turns the shader
 off.
 
-**`packages/quest`** (PR #5) — objectives and hint ladders. See §4.
+**`packages/quest`** — objectives and hint ladders. See §4.
+
+**`packages/editor`** (PR #6) — `vi`/`vim` and `nano` over one shared
+`TextBuffer` with a real undo stack. Pure state machines: keys in, frames out,
+no DOM, so every keystroke is unit-tested. See §4b and `docs/FULLSCREEN.md`.
 
 **`games/wreck`** — the NAV-7 world seed and the Act I objectives.
 
@@ -89,7 +93,7 @@ three.
 
 ---
 
-## 4. The hint system (PR #5) — the part most likely to be misused
+## 4. The hint system — the part most likely to be misused
 
 Full guide in **`docs/HINTS.md`**. The three things that matter:
 
@@ -110,6 +114,49 @@ prose cannot be tested. `games/wreck/test/wreck.test.ts` drives a real machine
 to each step and runs that string through the actual shell. **Copy that test
 into every adventure that adds a ladder** — it is ~20 lines and it is the
 reason a hint cannot quietly go out of date.
+
+---
+
+## 4b. The editor, and the playtest that caused it
+
+Chris played it and hit two things. Both were real design failures, not bugs:
+
+> *"what fucking file am I writing into when I use ls all I see is the fucking
+> README"* — and — *"WTF, can't use VIM???"*
+
+He was right twice. `sed -i` is an indefensible first-ever file edit, and a hint
+that names `/etc/life_support.conf` cold is asking someone to edit a file they
+cannot see from where they are standing.
+
+**What changed:**
+
+- `vi`, `vim` and `nano` exist, over one shared `TextBuffer`. vi has modes,
+  counts, operators, `/` search, undo/redo and ex commands including
+  `:%s/a/b/g`. nano has no modes and prints its keys on screen.
+- **The chip bar becomes the editor's keys** in editor mode — `i ESC :w :wq dd
+  u` in normal mode, `ESC ← → ↑ ↓` in insert. That is the whole answer to
+  pressing Escape on a phone, and the reason vi is usable there at all.
+- The prompt input is **collapsed, never hidden**, so the soft keyboard stays up.
+  Hiding it leaves a phone player able to tap chips but unable to type.
+- `/home/survivor` has a `logs/` directory with two readable logs, so `ls` on the
+  first command is no longer a dead end that reads as a broken game.
+- The README is a trail: `systemctl status scrubber` → `ls /etc` → open it with
+  either editor → start the service.
+- The first hint rung now hands over a **diagnostic** (`systemctl status
+  scrubber`) rather than a mood. Telling someone how to diagnose is not a
+  spoiler; telling them the fix is. There is a test named for that line.
+
+**The constraint this introduced, which matters for every future ladder:** a
+`command` rung's `command` field must be non-interactive, because CI runs it
+through the real shell. `vi` changes nothing by itself. So the prose leads with
+the editor and the field carries the one-line `sed` equivalent. `docs/HINTS.md`
+says so.
+
+**Where a new full-screen program goes:** `docs/FULLSCREEN.md`. The seam is
+`ctx.screenRequest`, which follows `clearRequested` exactly — the Machine raises
+a flag, the host decides what it means, and the Machine still depends on
+nothing. A Machine with no screen never drives the program, so `vi` in a cron
+job is a no-op rather than a hang.
 
 ---
 
@@ -169,12 +216,13 @@ My pick: **3**, with **2**'s weight for the act endings. Chris edits from there.
 
 ### 5b. Also open
 
-- **Playtest feedback is the Phase 2 gate.** Do not start Phase 3 content until
-  Chris has played twenty minutes on a real phone and wants to keep going.
-  Content built on unpleasant input is content thrown away. Instructions in §6.
-- Remaining Phase 2 polish: chip-bar tuning, gestures, haptics, audio,
-  tablet/landscape layouts.
+- **The phone playtest is still the Phase 2 gate**, and is now specifically a
+  test of the editor: is vi tolerable on a touchscreen with the chip bar doing
+  the work? If it is not, fix that before any Act II content. Instructions in §6.
+- Remaining Phase 2 polish: gestures, haptics, audio, tablet/landscape layouts.
 - `games/wreck` Acts II+ are unwritten. Only Act I exists.
+- vi leaves out visual mode, marks, macros and named registers. `:help` inside
+  it says so rather than pretending. Add them only if a puzzle needs them.
 
 ---
 
@@ -197,25 +245,33 @@ On a phone, same wifi: `pnpm dev` already binds `0.0.0.0`, so open
 pnpm --filter @sigkill/terminal android:debug
 ```
 
-**What to try, in order:** `ls`, `cat README`, `systemctl status scrubber`,
-then `hint` three times and notice it stops at the command; fix the config any
-way you like; `hint` again and notice it has moved on to starting the service;
-`sudo systemctl start scrubber`; `objectives`. Then `?plain` in the URL to see
-the CRT shader off. Then `python3 -c 'print(1+1)'` to pay the interpreter cost
-once.
+**What to try, in order:**
 
-**What to judge:** whether typing on a phone is tolerable. Nothing else on this
-list matters as much.
+1. `ls` — there is a `logs/` directory now. `cat logs/vasquez.log`.
+2. `cat README` — it names the diagnostic, the directory and both editors.
+3. `systemctl status scrubber` — the refusal, in its own words.
+4. `hint`, three times. It hands over a diagnostic first and the fix last.
+5. `vi /etc/life_support.conf` — `j`, `$`, then `r2` … or just `i` and type.
+   Save and quit with `:wq`. Every key you need is on the chip bar.
+6. `nano /etc/life_support.conf` if vi annoys you: `^O` then `^X`.
+7. `sudo systemctl start scrubber`, then `objectives`.
+8. `?plain` in the URL to see it with the CRT shader off.
+9. `python3 -c 'print(1+1)'` — local only; the artifact host will not serve
+   Pyodide's `.zip` standard library, and `python3` says so plainly there.
+
+**What to judge:** whether editing a file on a phone is tolerable. That is the
+gate. Nothing else on this list matters as much.
 
 ---
 
 ## 7. What I would do next
 
-1. Get PR #5 reviewed and merged. **New branch off `main` for anything after
+1. Get PR #6 reviewed and merged. **New branch off `main` for anything after
    it.**
-2. Chris picks a voice; rewrite `games/wreck/src/objectives.ts` prose only.
-3. Phone playtest. Report honestly; if the input model is bad, fix that before
-   anything else.
+2. Phone playtest of the editor specifically. If vi-on-glass is bad, that is the
+   next piece of work and it outranks everything else.
+3. Chris picks an ORACLE voice (§5a); rewrite `games/wreck/src/objectives.ts`
+   prose only — no ladder shape changes.
 4. Then, and only then, Act II of The Wreck.
 
 Do not recreate deleted roadmaps. Do not widen a PR on your own. If a test

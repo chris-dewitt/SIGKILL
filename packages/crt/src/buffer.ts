@@ -8,6 +8,14 @@ export type LineKind = 'out' | 'err' | 'echo' | 'system';
 export interface Line {
   text: string;
   kind: LineKind;
+  /**
+   * Column to draw a block cursor on.
+   *
+   * Only full-screen programs set this, and they are handed the real column
+   * count and truncate to it, so a line carrying a cursor never wraps. That
+   * is what makes the mapping below exact.
+   */
+  cursor?: number;
 }
 
 /** One row as displayed, after wrapping to a given width. */
@@ -18,6 +26,8 @@ export interface Row {
   line: number;
   /** True for the first row of a wrapped line, for continuation markers. */
   first: boolean;
+  /** Column within this row to draw the block cursor on. */
+  cursor?: number;
 }
 
 export interface BufferOptions {
@@ -59,8 +69,8 @@ export class TerminalBuffer {
   }
 
   /** Append one line. A trailing newline in `text` does not create a blank. */
-  push(text: string, kind: LineKind = 'out'): void {
-    this.lines.push({ text, kind });
+  push(text: string, kind: LineKind = 'out', cursor?: number): void {
+    this.lines.push(cursor === undefined ? { text, kind } : { text, kind, cursor });
     if (this.lines.length > this.scrollback) {
       this.lines.splice(0, this.lines.length - this.scrollback);
     }
@@ -103,11 +113,16 @@ export class TerminalBuffer {
 
     for (const [index, line] of this.lines.entries()) {
       if (line.text.length === 0) {
-        rows.push({ text: '', kind: line.kind, line: index, first: true });
+        const blank: Row = { text: '', kind: line.kind, line: index, first: true };
+        // A cursor on an empty line still has to be drawn, at column zero.
+        if (line.cursor !== undefined) blank.cursor = line.cursor;
+        rows.push(blank);
         continue;
       }
       for (const [n, chunk] of wrap(line.text, cols).entries()) {
-        rows.push({ text: chunk, kind: line.kind, line: index, first: n === 0 });
+        const row: Row = { text: chunk, kind: line.kind, line: index, first: n === 0 };
+        if (line.cursor !== undefined && n === 0) row.cursor = line.cursor;
+        rows.push(row);
       }
     }
 

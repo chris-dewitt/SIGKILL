@@ -9,6 +9,7 @@ Read this, then the architecture doc, then the code.
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this. Read before reversing anything that looks arbitrary. |
 | [docs/TESTING.md](docs/TESTING.md) | The determinism harness and the goal-predicate pattern. |
 | [docs/HINTS.md](docs/HINTS.md) | **Read before authoring an objective or a hint ladder.** |
+| [docs/FULLSCREEN.md](docs/FULLSCREEN.md) | How `vi` takes the screen, and how to add another full-screen program. |
 | [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the thirteen adventures. |
 | [packages/machine/README.md](packages/machine/README.md) | The engine's API surface. |
 | [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four of us share this repo. |
@@ -101,6 +102,7 @@ packages/machine/    The Machine — vfs, shell, coreutils, proc, net, lang. The
 packages/python/     Pyodide behind the PythonRuntime interface, in a Worker.
 packages/crt/        Phosphor renderer: glyph atlas, WebGL2 CRT, terminal buffer.
 packages/quest/      Objectives, state-aware hint ladders, `hint` and `objectives`.
+packages/editor/     vi and nano over one text buffer. `vi`, `vim`, `nano`.
 apps/terminal/       Playable web terminal; becomes the Capacitor app.
 games/wreck/         Adventure 1: the NAV-7 world seed and the Act I ladders.
 ```

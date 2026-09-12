@@ -70,6 +70,11 @@ export class TerminalView {
   private settleMs = 0;
   private lastFrameAt = 0;
   private scroll = 0;
+  /** A full-screen program's frame, drawn instead of the scrollback. */
+  private overlay: TerminalBuffer | undefined;
+  /** Bumped whenever the overlay is replaced or dropped, to force a redraw. */
+  private overlaySerial = 0;
+  private lastOverlaySerial = -1;
   private observer: ResizeObserver | undefined;
   private disposed = false;
 
@@ -121,6 +126,39 @@ export class TerminalView {
 
   get columns(): number {
     return this.renderer.columns;
+  }
+
+  /** Rows the screen can show. A full-screen program needs both dimensions. */
+  get rows(): number {
+    return this.renderer.rows;
+  }
+
+  /** True while a full-screen program owns the screen. */
+  get showingScreen(): boolean {
+    return this.overlay !== undefined;
+  }
+
+  /**
+   * Hand the whole screen to a full-screen program.
+   *
+   * The scrollback is not touched, so leaving the editor puts the player back
+   * exactly where they were -- which is the behaviour of a real terminal and
+   * the reason this is an overlay rather than a `clear`.
+   *
+   * Lines are drawn as given: no wrapping happens because the program is told
+   * the real column count and truncates to it.
+   */
+  showScreen(lines: ReadonlyArray<{ text: string; kind: LineKind; cursor?: number }>): void {
+    const frame = new TerminalBuffer();
+    for (const line of lines) frame.push(line.text, line.kind, line.cursor);
+    this.overlay = frame;
+    this.overlaySerial++;
+  }
+
+  hideScreen(): void {
+    if (this.overlay === undefined) return;
+    this.overlay = undefined;
+    this.overlaySerial++;
   }
 
   write(text: string, kind: LineKind = 'out'): void {
@@ -189,12 +227,17 @@ export class TerminalView {
     const elapsed = this.lastFrameAt === 0 ? 16.7 : Math.min(now - this.lastFrameAt, 100);
     this.lastFrameAt = now;
 
+    // Each overlay frame is a fresh buffer, so its own revision restarts and
+    // cannot be compared. The serial is what says "a new frame arrived".
     const changed =
-      this.buffer.revision !== this.lastRevision || this.scroll !== this.lastScroll;
+      this.buffer.revision !== this.lastRevision ||
+      this.scroll !== this.lastScroll ||
+      this.overlaySerial !== this.lastOverlaySerial;
 
     if (changed) {
       this.lastRevision = this.buffer.revision;
       this.lastScroll = this.scroll;
+      this.lastOverlaySerial = this.overlaySerial;
       // Phosphor keeps glowing after the last change, so keep drawing until
       // it has faded. Without this the decay freezes mid-fade, leaving a
       // permanent ghost of the previous screen.
@@ -212,7 +255,10 @@ export class TerminalView {
   };
 
   private draw(elapsedMs = 16.7): void {
-    this.renderer.render(this.buffer, this.scroll);
+    // An overlay is always pinned: a full-screen program draws exactly the
+    // rows it means to, and scrolling it would be scrolling the wrong thing.
+    if (this.overlay) this.renderer.render(this.overlay, 0);
+    else this.renderer.render(this.buffer, this.scroll);
     if (this.crt) this.crt.render(this.renderer.canvas, elapsedMs);
     else this.blit();
     this.syncMirror();
@@ -232,7 +278,7 @@ export class TerminalView {
    * of scrollback on every command would be unusable.
    */
   private syncMirror(): void {
-    const lines = this.buffer.all();
+    const lines = (this.overlay ?? this.buffer).all();
     const tail = lines.slice(-Math.max(this.renderer.rows, 20));
     const text = tail.map((l) => l.text).join('\n');
     if (this.mirror.textContent !== text) this.mirror.textContent = text;

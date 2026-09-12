@@ -39,5 +39,6 @@ agents editing it at once will conflict. Claim it explicitly.
 | `packages/python` | Pyodide behind the `PythonRuntime` interface. |
 | `packages/crt` | Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass. |
 | `packages/quest` | Objectives and hint ladders. Read `docs/HINTS.md` before authoring one. |
+| `packages/editor` | vi and nano. Pure state machines; read `docs/FULLSCREEN.md`. |
 | `apps/terminal` | The playable terminal; becomes the Capacitor app. |
 | `games/wreck` | Adventure 1: the NAV-7 world seed and the Act I objectives. |

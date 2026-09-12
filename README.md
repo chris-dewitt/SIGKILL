@@ -62,6 +62,7 @@ Every one of the thirteen games runs on one deterministic virtual computer.
 packages/machine/    VFS, shell parser, coreutils, virtual clock
 packages/crt/        Phosphor renderer
 packages/quest/      Objectives and hint ladders
+packages/editor/     vi and nano
 apps/terminal/       Playable terminal; becomes the Capacitor app
 games/wreck/         Adventure 1 content
 ```
@@ -85,6 +86,12 @@ What is in and tested today:
   exactly what it appears to be doing.
 - **Python** — real Python via Pyodide in a Web Worker, sharing the same
   filesystem. Edit a config from `python3`, and `grep` sees the change.
+- **Editors** — `vi` (and `vim`) and `nano`, over one shared text buffer with a
+  real undo stack. vi has modes, counts, operators, `/` search and ex commands
+  including `:%s/a/b/g`; nano has no modes and prints its keys at the bottom of
+  the screen. Both are pure state machines — keys in, frames out, no DOM — so
+  every keystroke in them is unit-tested. On a phone the chip bar becomes the
+  editor's own keys, which is how you press Escape without an Escape key.
 - **Objectives and hints** — `objectives` shows the board; `hint` asks the
   ship's daemon for help. Hints escalate a rung at a time and end at the
   literal command, they read the world so they nudge about what you have *not*
@@ -93,8 +100,8 @@ What is in and tested today:
 - **Coreutils** — `ls cat cd pwd echo grep head tail wc sort uniq cut tr sed
   find mkdir rmdir rm cp mv touch ln chmod stat ps kill systemctl sudo sleep
   jobs wait crontab ssh scp curl nc ping python3 whoami id env export unset
-  which man help clear exit true false hostname`, plus `hint` and `objectives`
-  from the adventure.
+  which man help clear exit true false hostname`, plus `vi vim nano hint
+  objectives` from the adventure.
 
 Two properties are load-bearing and never traded away:
 

@@ -69,13 +69,25 @@ export class TerminalRenderer {
     this.atlas = new GlyphAtlas({
       font: this.font,
       scale: 1,
-      colors: {
-        out: this.palette.out,
-        err: this.palette.err,
-        echo: this.palette.echo,
-        system: this.palette.system,
-      },
+      colors: this.atlasColors(),
     });
+  }
+
+  /**
+   * One tinted sheet per line kind, plus one in the background colour.
+   *
+   * That last sheet is the cursor: a filled block in the line's own colour
+   * with the glyph punched out of it in the background colour, which is what
+   * reverse video is and what every terminal draws a block cursor with.
+   */
+  private atlasColors(): Record<string, string> {
+    return {
+      out: this.palette.out,
+      err: this.palette.err,
+      echo: this.palette.echo,
+      system: this.palette.system,
+      cursor: this.palette.background,
+    };
   }
 
   get columns(): number {
@@ -95,12 +107,7 @@ export class TerminalRenderer {
       this.atlas = new GlyphAtlas({
         font: this.font,
         scale: this.scale,
-        colors: {
-          out: this.palette.out,
-          err: this.palette.err,
-          echo: this.palette.echo,
-          system: this.palette.system,
-        },
+        colors: this.atlasColors(),
       });
     }
 
@@ -150,20 +157,30 @@ export class TerminalRenderer {
     }
   }
 
-  private drawRow(row: Row, left: number, top: number, cellW: number, _cellH: number): void {
+  private drawRow(row: Row, left: number, top: number, cellW: number, cellH: number): void {
     // The atlas is keyed by line kind, so the kind *is* the colour key.
     const color = row.kind;
 
+    // The block goes down before any glyph, so the character it sits under is
+    // drawn on top of it rather than being painted over.
+    if (row.cursor !== undefined) {
+      this.ctx.fillStyle = this.palette[row.kind];
+      this.ctx.fillRect(left + row.cursor * cellW, top, cellW, cellH);
+    }
+
     for (let n = 0; n < row.text.length; n++) {
       const ch = row.text[n];
-      if (ch === undefined || ch === ' ') continue;
+      if (ch === undefined) continue;
+      const onCursor = n === row.cursor;
+      // A space matters under the cursor: the block is the only thing to see.
+      if (ch === ' ' && !onCursor) continue;
 
       const x = left + n * cellW;
-      if (this.atlas.draw(this.ctx, color, ch, x, top)) continue;
+      if (this.atlas.draw(this.ctx, onCursor ? 'cursor' : color, ch, x, top)) continue;
 
       // Outside the atlas — a box-drawing character we did not pre-render, or
       // an emoji in a log. Slower, but a missing glyph would be worse.
-      this.ctx.fillStyle = this.palette[row.kind];
+      this.ctx.fillStyle = onCursor ? this.palette.background : this.palette[row.kind];
       this.ctx.fillText(ch, x, top);
     }
   }

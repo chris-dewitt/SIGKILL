@@ -1,5 +1,6 @@
 import { TerminalView } from '@sigkill/crt';
-import { path as vpath } from '@sigkill/machine';
+import { applyWrite, flushPendingWrite } from '@sigkill/editor';
+import { path as vpath, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { bootWreck, COLD_OPEN } from '@sigkill/wreck';
 
@@ -52,8 +53,27 @@ let busy = false;
 /** Once Pyodide is loaded, later runs are fast and need no notice. */
 let pythonWarmed = false;
 
+/**
+ * The full-screen program that owns the screen, if any.
+ *
+ * While this is set the prompt is hidden, every keystroke goes to the program
+ * instead of the shell, and the chip bar shows the program's own keys -- which
+ * is the entire answer to "how do you press Escape on a phone".
+ */
+let screenProgram: ScreenProgram | undefined;
+
 /** Characters a shell needs constantly that Android buries two taps deep. */
 const SYMBOL_KEYS = ['|', '/', '-', '~', '$', '*', '>', '.', "'", '"'];
+
+/** Chip labels that are not literal keystrokes, and what they actually send. */
+const CHIP_KEYS: Record<string, Array<{ key: string; ctrl?: boolean }>> = {
+  ESC: [{ key: 'Escape' }],
+  '←': [{ key: 'ArrowLeft' }],
+  '→': [{ key: 'ArrowRight' }],
+  '↑': [{ key: 'ArrowUp' }],
+  '↓': [{ key: 'ArrowDown' }],
+  ENTER: [{ key: 'Enter' }],
+};
 
 type LineKind = 'out' | 'err' | 'echo' | 'system';
 
@@ -95,6 +115,7 @@ async function submit(raw: string): Promise<void> {
         writeBlock(result.stdout, 'out');
         writeBlock(result.stderr, 'err');
       }
+      if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
@@ -114,6 +135,76 @@ async function submit(raw: string): Promise<void> {
   refreshChips();
   scrollToEnd();
   if (!input.disabled) input.focus();
+}
+
+// ---------------------------------------------------------------- full screen
+
+/**
+ * Hand the screen to a full-screen program.
+ *
+ * The prompt is hidden rather than disabled: a visible text field under a vi
+ * session invites people to type into the wrong place, and on a phone it would
+ * also keep the soft keyboard's Enter bound to the shell.
+ */
+function enterScreen(program: ScreenProgram): void {
+  screenProgram = program;
+  program.resize(view.rows, view.columns);
+
+  // The input stays in the DOM and stays focused, only collapsed out of sight.
+  // Hiding it outright would dismiss the soft keyboard, and then a phone
+  // player could tap chips but never type a single character.
+  form.classList.add('screen-mode');
+  symbols.hidden = true;
+  input.value = '';
+  input.focus();
+
+  paintScreen();
+  refreshChips();
+}
+
+function paintScreen(): void {
+  if (!screenProgram) return;
+  screenProgram.resize(view.rows, view.columns);
+  view.showScreen(screenProgram.frame());
+}
+
+function screenKey(key: string, ctrl = false): void {
+  const program = screenProgram;
+  if (!program) return;
+
+  program.key({ key, ctrl });
+
+  const shell = machine.active.shell;
+  const failed = flushPendingWrite(machine.active.vfs, program, shell.user);
+  if (failed) write(`${program.name}: ${failed}`, 'err');
+
+  const done = program.exit;
+  if (!done) {
+    paintScreen();
+    refreshChips();
+    return;
+  }
+
+  // Leaving: put the scrollback back exactly as it was, which is what a real
+  // terminal does and why this was an overlay rather than a clear.
+  view.hideScreen();
+  screenProgram = undefined;
+  form.classList.remove('screen-mode');
+  symbols.hidden = false;
+  input.value = '';
+
+  if (done.write) {
+    const error = applyWrite(machine.active.vfs, program.path, done.text, shell.user);
+    if (error) write(`${program.name}: ${error}`, 'err');
+    else if (done.message) write(done.message, 'system');
+  } else if (done.message) {
+    write(done.message, 'system');
+  }
+
+  refreshPrompt();
+  refreshChips();
+  scrollToEnd();
+  input.focus();
 }
 
 // ---------------------------------------------------------------- completion
@@ -195,6 +286,9 @@ function applyCompletion(): void {
  * in front of you. On a phone this is not a convenience, it is the input method.
  */
 function suggestions(): string[] {
+  // A full-screen program names its own keys, and they change with its mode.
+  if (screenProgram) return [...screenProgram.chips];
+
   const value = input.value;
   const tokens = value.split(/\s+/).filter((t) => t.length > 0);
 
@@ -234,6 +328,19 @@ function refreshChips(): void {
     chip.type = 'button';
     chip.className = 'chip';
     chip.textContent = suggestion;
+
+    if (screenProgram) {
+      chip.addEventListener('click', () => {
+        // A label like ESC or an arrow stands for a named key; anything else
+        // is literally the characters to send, so `:wq` is three keystrokes.
+        const named: Array<{ key: string; ctrl?: boolean }> =
+          CHIP_KEYS[suggestion] ?? [...suggestion].map((c) => ({ key: c }));
+        for (const k of named) screenKey(k.key, k.ctrl ?? false);
+      });
+      chips.append(chip);
+      continue;
+    }
+
     chip.addEventListener('click', () => {
       const value = input.value;
       const trailing = /\s$/.test(value) || value.length === 0;
@@ -270,15 +377,56 @@ function buildSymbolRow(): void {
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  if (busy) return;
+  if (screenProgram || busy) return;
   const value = input.value;
   input.value = '';
   void submit(value);
 });
 
-input.addEventListener('input', refreshChips);
+/**
+ * Text typed while a full-screen program owns the screen.
+ *
+ * Soft keyboards are the reason this exists as well as the keydown path: many
+ * Android keyboards report `Unidentified` for keydown and only tell the truth
+ * through an input event. Whatever lands in the field is forwarded a character
+ * at a time and the field is emptied again.
+ */
+input.addEventListener('input', () => {
+  if (!screenProgram) {
+    refreshChips();
+    return;
+  }
+  const typed = input.value;
+  input.value = '';
+  for (const ch of typed) screenKey(ch);
+});
 
 input.addEventListener('keydown', (event) => {
+  if (screenProgram) {
+    const named = new Set([
+      'Escape', 'Enter', 'Backspace', 'Tab', 'Delete',
+      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End',
+    ]);
+    if (named.has(event.key)) {
+      event.preventDefault();
+      screenKey(event.key);
+      return;
+    }
+    if (event.ctrlKey && event.key.length === 1) {
+      // ^O and ^X are nano's save and quit, and the browser wants both.
+      event.preventDefault();
+      screenKey(event.key, true);
+      return;
+    }
+    // A printable character from a real keyboard: handle it here so the field
+    // never holds text. Anything else falls through to the input event above.
+    if (event.key.length === 1 && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      screenKey(event.key);
+    }
+    return;
+  }
+
   if (event.key === 'Tab') {
     event.preventDefault();
     applyCompletion();
@@ -306,7 +454,10 @@ input.addEventListener('keydown', (event) => {
   }
 });
 
-tabButton.addEventListener('click', applyCompletion);
+tabButton.addEventListener('click', () => {
+  if (screenProgram) screenKey('Tab');
+  else applyCompletion();
+});
 
 // Tapping anywhere on the screen focuses the line, the way a terminal should.
 screen.addEventListener('click', () => {
@@ -337,6 +488,12 @@ screen.addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 screen.addEventListener('touchend', () => { touchY = null; }, { passive: true });
+
+// A rotation or a keyboard appearing changes the grid; the program has to be
+// told, or it keeps drawing to the old geometry.
+window.addEventListener('resize', () => {
+  if (screenProgram) paintScreen();
+});
 
 for (const line of COLD_OPEN) write(line, 'system');
 refreshPrompt();
