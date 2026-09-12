@@ -36,5 +36,6 @@ agents editing it at once will conflict. Claim it explicitly.
 | `packages/machine` | The engine. Zero dependencies. Read `docs/ARCHITECTURE.md` first. |
 | `packages/python` | Pyodide behind the `PythonRuntime` interface. |
 | `packages/crt` | Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass. |
+| `packages/quest` | Objectives and hint ladders. Read `docs/HINTS.md` before authoring one. |
 | `apps/terminal` | The playable terminal; becomes the Capacitor app. |
-| `games/wreck` | Adventure 1 content. Phase 3, currently a placeholder. |
+| `games/wreck` | Adventure 1: the NAV-7 world seed and the Act I objectives. |

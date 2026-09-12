@@ -24,7 +24,8 @@ packages/machine       THE MACHINE. A deterministic virtual computer.
        |
 packages/python        Pyodide behind that interface, in a Web Worker
 packages/crt           Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass
-games/wreck            Adventure 1 content (Phase 3, currently a placeholder)
+packages/quest         Objectives and hint ladders -- see docs/HINTS.md
+games/wreck            Adventure 1: the NAV-7 world seed and the Act I ladders
 ```
 
 Dependencies point one way: `apps` → `packages` → nothing. `packages/machine`

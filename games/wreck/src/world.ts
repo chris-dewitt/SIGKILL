@@ -1,14 +1,34 @@
-import { Machine, ROOT_USER } from '@sigkill/machine';
+import { Machine, ROOT_USER, type Track } from '@sigkill/machine';
+import { Questbook, questCommands } from '@sigkill/quest';
+import { oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
+
+export interface WreckOptions {
+  /** Which manual voice and hint ladder the player gets. */
+  track?: Track;
+}
+
+export interface Wreck {
+  machine: Machine;
+  /** Objectives and hint state, so a save can carry both. */
+  questbook: Questbook;
+}
 
 /**
  * The opening state of NAV-7 — Act I, Deck C.
  *
- * Temporary: this lives here only until the content pipeline exists. It will
- * move to games/wreck as an authored world snapshot, at which point this file
- * goes away rather than growing.
+ * Written as code rather than loaded as a snapshot because every line of it
+ * is still being tuned. It becomes an authored snapshot when the numbers stop
+ * moving, and the objectives in ./objectives.ts do not change either way:
+ * they read the world, not this function.
  */
-export function bootWreck(): Machine {
-  const m = new Machine({ hostname: 'nav7', track: 'operator' });
+export function bootWreck(opts: WreckOptions = {}): Wreck {
+  const track = opts.track ?? 'operator';
+  const questbook = new Questbook(WRECK_OBJECTIVES, { track });
+  const m = new Machine({
+    hostname: 'nav7',
+    track,
+    commands: questCommands(questbook, { speaker: 'ORACLE' }),
+  });
   const v = m.vfs;
 
   v.mkdirp('/home/survivor', ROOT_USER);
@@ -121,10 +141,11 @@ export function bootWreck(): Machine {
 
   // Authored by the adventure, never by the Machine: a real atmosphere
   // controller refuses a target outside the breathable band, and says why.
+  // It reads the number through the same helper the objectives do, so the
+  // hint and the refusal can never disagree about what counts as breathable.
   m.setPrecondition('scrubber', (vfs) => {
-    const conf = vfs.readText('/etc/life_support.conf', ROOT_USER);
-    const target = Number(/O2_TARGET=(\d+(?:\.\d+)?)/.exec(conf)?.[1] ?? NaN);
-    if (!Number.isFinite(target)) {
+    const target = oxygenTarget({ vfs, services: m.services });
+    if (target === null) {
       return { ok: false, reason: 'O2_TARGET missing or unreadable in /etc/life_support.conf' };
     }
     if (target < 19 || target > 23) {
@@ -137,7 +158,7 @@ export function bootWreck(): Machine {
 
   m.shell.cwd = '/home/survivor';
   m.shell.env['PWD'] = '/home/survivor';
-  return m;
+  return { machine: m, questbook };
 }
 
 export const COLD_OPEN = [
@@ -152,5 +173,6 @@ export const COLD_OPEN = [
   "ORACLE: daemon. I can't move, I can't see, and I can't fix",
   "ORACLE: anything myself.",
   'ORACLE: You can. Start with: ls',
+  "ORACLE: When you are lost, type: hint. It costs nothing.",
   '',
 ];

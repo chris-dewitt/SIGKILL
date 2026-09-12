@@ -61,6 +61,7 @@ Every one of the thirteen games runs on one deterministic virtual computer.
 ```
 packages/machine/    VFS, shell parser, coreutils, virtual clock
 packages/crt/        Phosphor renderer
+packages/quest/      Objectives and hint ladders
 apps/terminal/       Playable terminal; becomes the Capacitor app
 games/wreck/         Adventure 1 content
 ```
@@ -84,10 +85,16 @@ What is in and tested today:
   exactly what it appears to be doing.
 - **Python** — real Python via Pyodide in a Web Worker, sharing the same
   filesystem. Edit a config from `python3`, and `grep` sees the change.
+- **Objectives and hints** — `objectives` shows the board; `hint` asks the
+  ship's daemon for help. Hints escalate a rung at a time and end at the
+  literal command, they read the world so they nudge about what you have *not*
+  done yet, and they cost nothing. The bottom rung of every ladder is run
+  against a real machine in CI, so a hint cannot quietly go out of date.
 - **Coreutils** — `ls cat cd pwd echo grep head tail wc sort uniq cut tr sed
   find mkdir rmdir rm cp mv touch ln chmod stat ps kill systemctl sudo sleep
   jobs wait crontab ssh scp curl nc ping python3 whoami id env export unset
-  which man help clear exit true false hostname`.
+  which man help clear exit true false hostname`, plus `hint` and `objectives`
+  from the adventure.
 
 Two properties are load-bearing and never traded away:
 
@@ -132,6 +139,7 @@ Full detail in [CLAUDE.md](CLAUDE.md) and [docs/PLAN.md](docs/PLAN.md).
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The map, and a trace of one command end to end |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this |
 | [docs/TESTING.md](docs/TESTING.md) | The determinism harness and goal predicates |
+| [docs/HINTS.md](docs/HINTS.md) | Writing objectives and hint ladders |
 | [CLAUDE.md](CLAUDE.md) | The rules that are not negotiable |
 
 ---
