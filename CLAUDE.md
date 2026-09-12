@@ -4,6 +4,7 @@ Read this, then the architecture doc, then the code.
 
 | Doc | Use for |
 |-----|---------|
+| **[HANDOFF.md](HANDOFF.md)** | **Read first.** Where the code is, what is open, what is waiting on Chris. |
 | **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | **Start here.** The map, and a full trace of one command from keypress to changed filesystem. |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this. Read before reversing anything that looks arbitrary. |
 | [docs/TESTING.md](docs/TESTING.md) | The determinism harness and the goal-predicate pattern. |

@@ -1,3 +1,5 @@
+<!-- New here? Read HANDOFF.md first: current branches, open decisions, how to playtest. -->
+
 # Working on
 
 Four of us share this repo — Chris, Claude, Codex, Cursor. Claim a package
