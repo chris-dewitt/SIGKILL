@@ -1,7 +1,21 @@
 import { path as vpath } from '@sigkill/machine';
+import { WorkerPythonRuntime } from '@sigkill/python';
 import { bootWreck, COLD_OPEN } from './world.js';
 
 const machine = bootWreck();
+
+/**
+ * Python is lazy on purpose.
+ *
+ * Constructing this costs nothing; the worker spawns and Pyodide's twelve
+ * megabytes load on the first `python3` and never before. A player still
+ * learning `ls` should not pay for an interpreter they have not reached.
+ */
+machine.python = new WorkerPythonRuntime({
+  indexURL: new URL('pyodide/', document.baseURI).href,
+  createWorker: () =>
+    new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module' }),
+});
 
 const screen = document.querySelector<HTMLDivElement>('#screen')!;
 const input = document.querySelector<HTMLInputElement>('#input')!;
@@ -13,6 +27,16 @@ const tabButton = document.querySelector<HTMLButtonElement>('#tab')!;
 
 const history: string[] = [];
 let historyIndex = -1;
+
+/**
+ * Commands are async now, and some of them (Python, a remote host) take real
+ * time. One command runs at a time: a second Enter while one is in flight
+ * would interleave output and race the machine's state.
+ */
+let busy = false;
+
+/** Once Pyodide is loaded, later runs are fast and need no notice. */
+let pythonWarmed = false;
 
 /** Characters a shell needs constantly that Android buries two taps deep. */
 const SYMBOL_KEYS = ['|', '/', '-', '~', '$', '*', '>', '.', "'", '"'];
@@ -42,7 +66,7 @@ function refreshPrompt(): void {
   promptEl.textContent = machine.prompt;
 }
 
-function submit(raw: string): void {
+async function submit(raw: string): Promise<void> {
   const command = raw.trim();
   write(machine.prompt + command, 'echo');
 
@@ -50,25 +74,39 @@ function submit(raw: string): void {
     history.push(command);
     historyIndex = history.length;
 
-    const result = machine.exec(command);
-    if (result.cleared) {
-      screen.replaceChildren();
-    } else {
-      writeBlock(result.stdout, 'out');
-      writeBlock(result.stderr, 'err');
+    busy = true;
+    input.disabled = true;
+    // The first python3 loads an interpreter. Say so rather than appearing hung.
+    const slow = command.startsWith('python') && !pythonWarmed
+      ? window.setTimeout(() => write('[loading interpreter...]', 'system'), 350)
+      : undefined;
+    try {
+      const result = await machine.exec(command);
+      if (result.cleared) {
+        screen.replaceChildren();
+      } else {
+        writeBlock(result.stdout, 'out');
+        writeBlock(result.stderr, 'err');
+      }
+      machine.tick(1000);
+    } finally {
+      if (slow !== undefined) window.clearTimeout(slow);
+      if (command.startsWith('python')) pythonWarmed = true;
+      busy = false;
+      // Staying disabled is only correct when the session itself ended.
+      input.disabled = machine.exited !== null;
     }
-    machine.tick(1000);
 
     if (machine.exited !== null) {
       write('', 'system');
       write('[session closed]', 'system');
-      input.disabled = true;
     }
   }
 
   refreshPrompt();
   refreshChips();
   scrollToEnd();
+  if (!input.disabled) input.focus();
 }
 
 // ---------------------------------------------------------------- completion
@@ -222,10 +260,10 @@ function buildSymbolRow(): void {
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (busy) return;
   const value = input.value;
   input.value = '';
-  submit(value);
-  input.focus();
+  void submit(value);
 });
 
 input.addEventListener('input', refreshChips);
@@ -263,7 +301,7 @@ tabButton.addEventListener('click', applyCompletion);
 // Tapping anywhere on the screen focuses the line, the way a terminal should.
 screen.addEventListener('click', () => {
   if (window.getSelection()?.toString()) return;
-  input.focus();
+  if (!input.disabled) input.focus();
 });
 
 for (const line of COLD_OPEN) write(line.length > 0 ? line : ' ', 'system');

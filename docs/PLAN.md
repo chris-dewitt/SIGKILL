@@ -1,6 +1,6 @@
 # SIGKILL — development plan
 
-**Status:** Phase 1 in progress
+**Status:** Phases 0 and 1 complete. Phase 2 next.
 **Companion:** the illustrated version of this plan lives as a shared artifact;
 this file is the one that gets updated.
 
@@ -24,6 +24,10 @@ Settled during planning. Closed unless deliberately reopened.
 | Model delivery | Bundled via Play Asset Delivery. Genuinely offline, forever. |
 | Boss win condition | Multiple deterministic objectives, exact-matchable, testable in CI. |
 | Glass box depth | A real tiny transformer with live attention and embeddings rendered on the CRT. |
+| Puzzle format | Agent-drafted against a strict schema, validated in CI: every puzzle declares what it teaches, ships ≥3 solution routes and ≥2 rejected near-misses, and fails the build otherwise. Chris reviews. |
+| APK timing | Capacitor wrapped **now**, alongside Phase 2, so every input change is tested on a real device. Android IME, keyboard resize and safe areas are exactly the risks Phase 2 exists to find. |
+| Renderer | Full canvas glyph-atlas plus WebGL post-pass — real phosphor persistence, bloom, barrel distortion. The series' visual identity is worth half of Phase 2. Accessibility is rebuilt deliberately (hidden DOM mirror + hidden input for IME), not dropped. |
+| Narrative | Chris picks a voice from drafted samples, then Claude writes to it and Chris edits. |
 
 ### Why TypeScript
 
@@ -153,26 +157,41 @@ push, playable web terminal.
 
 **Gate:** a glowing green prompt that echoes what you type. ✅
 
-### Phase 1 — The Machine (in progress)
+### Phase 1 — The Machine ✅
 
 - [x] VFS — inodes, POSIX permissions, symlinks with loop detection, errno
 - [x] Shell — quoting, globbing, pipes, `&&`/`||`, redirection, subshells, expansion
-- [x] 35 coreutils
+- [x] 50 commands
 - [x] Snapshot/restore round-tripping exactly; virtual clock
 - [x] Determinism harness and solution-agnostic goal tests
 - [x] Command substitution `$(...)` and backticks
 - [x] Process table, systemd units, `sudo` backed by /etc/sudoers
-- [ ] Background jobs (`&`), `jobs`, `cron`
-- [ ] Pyodide bound to the VFS
-- [ ] Simulated network — `ssh`/`curl`/`nc` against other Machine instances
+- [x] Background jobs (`&`), `jobs`, `wait`, `cron`
+- [x] Pyodide bound to the VFS, in a Web Worker
+- [x] Simulated network — `ssh`/`scp`/`curl`/`nc`/`ping` against other Machine instances
+- [x] Async executor (required before any real engine could be bound)
 
 **Gate:** bash → python → bash on a phone. Write a file in the shell, edit it
-with `python3`, `grep` sees the change.
+with `python3`, `grep` sees the change. ✅ — verified in a browser at 400px,
+and Act I now has a fourth solution that goes through Python.
 
 ### Phase 2 — Feel
 
-Chip bar, completion, symbol row, gesture history, haptics. Phosphor
-persistence and decay. Audio. Companion dialogue. Sprite pipeline.
+Two tracks of work, both gated on the same thing.
+
+**Input** — chip bar, completion, symbol row, gesture history, haptics,
+landscape and tablet layouts, external-keyboard support.
+
+**Renderer** — canvas glyph-atlas terminal with a hidden DOM mirror for
+screen readers and a hidden input for IME (the architecture real terminal
+emulators use), plus a WebGL2 post-pass: phosphor persistence and decay,
+bloom, barrel distortion, scanlines. Lands in `packages/crt`.
+
+**Capacitor** — wrapped at the start of this phase, not the end. Every input
+change gets tested on a real APK, because Android IME quirks, keyboard
+resize and safe-area behaviour are precisely what this phase exists to find.
+
+Also: audio, companion dialogue system, sprite pipeline.
 
 **Gate — the real one:** twenty minutes on Chris's phone, and he wants to keep
 going. **Everything downstream is blocked on this.** Content built on

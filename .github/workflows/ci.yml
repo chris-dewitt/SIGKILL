@@ -39,6 +39,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Guards the Android manifest decisions a Capacitor upgrade could undo:
+      # adjustResize, no network permission, no cloud backup.
+      - name: Check Android manifest
+        run: pnpm --filter @sigkill/terminal check:android
+
   audit:
     runs-on: ubuntu-latest
     steps:

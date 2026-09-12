@@ -1,4 +1,8 @@
 import { commandRegistry } from './coreutils/index.js';
+import { pythonCommands, type PythonRuntime } from './lang/python.js';
+import type { Network, Session } from './net/network.js';
+import { dueBetween } from './proc/cron.js';
+import { JobTable } from './proc/jobs.js';
 import { ServiceManager } from './proc/services.js';
 import { ProcessTable } from './proc/table.js';
 import type { Precondition, ProcSnapshot } from './proc/types.js';
@@ -18,12 +22,32 @@ export interface MachineOptions {
   cwd?: string;
   env?: Record<string, string>;
   track?: Track;
+  /** The internet this machine is attached to, if any. */
+  network?: Network;
+  /**
+   * A real Python interpreter, supplied from outside so this package does not
+   * depend on one. Absent means `python3` reports it is not installed, which
+   * is a legitimate state for a machine to be in.
+   */
+  python?: PythonRuntime;
+  /**
+   * Shared session state. Pass the same object to every machine on a network
+   * so that `ssh` from any of them pushes onto one stack.
+   */
+  session?: Session;
+  /**
+   * Wall-clock instant the virtual clock counts from, in ms since the Unix
+   * epoch. Only cron cares, and only so that `0 3 * * *` means three in the
+   * morning of the adventure's own calendar rather than of the player's.
+   */
+  epoch?: number;
 }
 
 export interface MachineSnapshot {
   version: 1;
   vfs: VfsSnapshot;
   proc: ProcSnapshot;
+  jobs: ReturnType<JobTable['snapshot']>;
   cwd: string;
   env: Record<string, string>;
   status: number;
@@ -42,13 +66,24 @@ export class Machine {
   readonly vfs: Vfs;
   readonly procs: ProcessTable;
   readonly services: ServiceManager;
+  readonly jobs = new JobTable();
   readonly shell: ShellContext;
+  readonly epoch: number;
+  readonly session: Session;
+  /** Swappable at runtime so the app can lazy-load the interpreter. */
+  python: PythonRuntime | undefined;
   /** Virtual clock in milliseconds. Advanced explicitly, never by wall time. */
   private clock = 0;
+
+  /** Guards cron against re-entering itself through a job that sleeps. */
+  private cronRunning = false;
 
   constructor(opts: MachineOptions = {}) {
     const user = opts.user ?? DEFAULT_USER;
     const now = (): number => this.clock;
+    this.epoch = opts.epoch ?? Date.UTC(2387, 2, 14);
+    this.session = opts.session ?? { stack: [] };
+    this.python = opts.python;
 
     this.vfs = opts.snapshot ? Vfs.restore(opts.snapshot, { now }) : new Vfs({ now });
     this.procs = new ProcessTable(now);
@@ -61,26 +96,68 @@ export class Machine {
       vfs: this.vfs,
       procs: this.procs,
       services: this.services,
+      jobs: this.jobs,
       clock: now,
+      advance: (ms) => this.tick(ms),
+      network: opts.network,
+      session: this.session,
       user,
       hostname: opts.hostname ?? 'localhost',
-      commands: commandRegistry(opts.commands ?? []),
+      commands: commandRegistry([...pythonCommands(() => this.python), ...(opts.commands ?? [])]),
       cwd: opts.cwd,
       env: opts.env,
       track: opts.track,
     });
   }
 
-  /** Run one command line. Returns captured output; never throws for user error. */
-  exec(input: string): RunResult & { cleared: boolean } {
-    this.shell.clearRequested = false;
-    const result = run(this.shell, input);
-    return { ...result, cleared: this.shell.clearRequested };
+  /**
+   * The shell the player is actually typing into.
+   *
+   * Normally this machine's own. After `ssh`, the machine at the top of the
+   * session stack — which is why the prompt and every command follow you
+   * across the hop without anything being special-cased.
+   */
+  get active(): Machine {
+    return this.session.stack[this.session.stack.length - 1] ?? this;
   }
 
-  /** Advance the virtual clock. Timestamps and timed events read from here. */
-  tick(ms: number): void {
+  /** Run one command line. Returns captured output; never throws for user error. */
+  async exec(input: string): Promise<RunResult & { cleared: boolean }> {
+    const target = this.active;
+    target.shell.clearRequested = false;
+    const result = await run(target.shell, input);
+    return { ...result, cleared: target.shell.clearRequested };
+  }
+
+  /**
+   * Advance the virtual clock, then let anything time-driven catch up.
+   *
+   * Async because cron runs real commands, and commands are async. Nothing
+   * here consults wall time: a tick is the only way time passes.
+   */
+  async tick(ms: number): Promise<void> {
+    if (ms <= 0) return;
+    const from = this.clock;
     this.clock += ms;
+
+    this.jobs.settle(this.clock);
+
+    // A cron job that sleeps would otherwise advance the clock and re-enter
+    // cron from inside itself.
+    if (this.cronRunning) return;
+    const due = dueBetween(this.vfs, this.epoch, from, this.clock);
+    if (due.length === 0) return;
+
+    this.cronRunning = true;
+    try {
+      for (const job of due) {
+        // Cron output goes to no terminal, exactly like the real thing. A
+        // crontab that wants to be seen redirects to a file.
+        await run(this.shell, job.entry.command);
+      }
+    } finally {
+      this.cronRunning = false;
+    }
   }
 
   /**
@@ -98,12 +175,15 @@ export class Machine {
   }
 
   get prompt(): string {
-    const cwd = this.shell.cwd === this.shell.home ? '~' : this.shell.cwd;
-    const sigil = this.shell.user.uid === 0 ? '#' : '$';
-    return `${this.shell.user.name}@${this.shell.hostname}:${cwd} ${sigil} `;
+    const shell = this.active.shell;
+    const cwd = shell.cwd === shell.home ? '~' : shell.cwd;
+    const sigil = shell.user.uid === 0 ? '#' : '$';
+    return `${shell.user.name}@${shell.hostname}:${cwd} ${sigil} `;
   }
 
   get exited(): number | null {
+    // Only the machine the player started on can end the session; `exit` on a
+    // remote host pops the stack instead.
     return this.shell.exited;
   }
 
@@ -112,6 +192,7 @@ export class Machine {
       version: 1,
       vfs: this.vfs.snapshot(),
       proc: { ...this.procs.snapshot(), services: this.services.snapshot() },
+      jobs: this.jobs.snapshot(),
       cwd: this.shell.cwd,
       env: { ...this.shell.env },
       status: this.shell.status,
@@ -123,6 +204,7 @@ export class Machine {
     const machine = new Machine({ ...opts, snapshot: snap.vfs });
     machine.procs.restore(snap.proc);
     machine.services.restore(snap.proc.services);
+    machine.jobs.restore(snap.jobs);
     machine.shell.cwd = snap.cwd;
     machine.shell.env = { ...snap.env };
     machine.shell.status = snap.status;

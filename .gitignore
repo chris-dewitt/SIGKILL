@@ -225,16 +225,21 @@ node_modules/
 .eslintcache
 
 # ------------------------------------------------------------------- Mobile
-# Capacitor generates these; they are reproducible from config.
-/android/
+# The Android project IS tracked: AndroidManifest.xml carries real decisions
+# (adjustResize, no INTERNET permission, no backup) that cap sync would not
+# regenerate. Capacitor's own android/.gitignore covers build outputs.
+# Only the copied web bundle and signing material are excluded here.
+apps/terminal/android/app/src/main/assets/public/
+apps/terminal/android/app/src/main/assets/capacitor.config.json
 /ios/
 *.keystore
 *.jks
-*.aab
-*.apk
 google-services.json
 
 # --------------------------------------------------------------------- Local
 .DS_Store
 .idea/
 .vscode/
+
+# Copied from node_modules by tools/copy-pyodide.mjs; regenerate, never commit.
+apps/terminal/public/pyodide/

@@ -5,6 +5,7 @@ export type TokenType =
   | 'PIPE'
   | 'AND_IF'
   | 'OR_IF'
+  | 'AMP'
   | 'SEMI'
   | 'GT'
   | 'DGT'
@@ -123,7 +124,7 @@ export function lex(input: string): Token[] {
       if (c === '|' && peek(1) === '|') { tokens.push({ type: 'OR_IF', text: '||' }); i += 2; continue; }
       if (c === '|') { tokens.push({ type: 'PIPE', text: '|' }); i += 1; continue; }
       if (c === '&' && peek(1) === '&') { tokens.push({ type: 'AND_IF', text: '&&' }); i += 2; continue; }
-      if (c === '&') throw new ShellSyntaxError('background jobs (&) are not supported yet');
+      if (c === '&') { tokens.push({ type: 'AMP', text: '&' }); i += 1; continue; }
       if (c === ';') { tokens.push({ type: 'SEMI', text: ';' }); i += 1; continue; }
       if (c === '>' && peek(1) === '>') { tokens.push({ type: 'DGT', text: '>>' }); i += 2; continue; }
       if (c === '>') { tokens.push({ type: 'GT', text: '>' }); i += 1; continue; }

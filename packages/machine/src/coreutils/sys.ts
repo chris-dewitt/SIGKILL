@@ -131,10 +131,25 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'exit',
     summary: 'close the session',
-    run: (ctx, argv) => {
+    manual:
+      'Close the current shell. Inside an ssh session this returns you to the\n' +
+      'machine you came from rather than ending anything.',
+    plain:
+      'Leaves the current shell. If you are logged into another machine over\n' +
+      'ssh, this brings you back to your own.',
+    run: (ctx, argv, io) => {
       const code = Number(argv[1] ?? 0);
-      ctx.exited = Number.isFinite(code) ? code : 0;
-      return ctx.exited;
+      const status = Number.isFinite(code) ? code : 0;
+
+      // Walking back out of an ssh hop is not the same as ending the session.
+      if (ctx.session && ctx.session.stack.length > 0) {
+        ctx.session.stack.pop();
+        io.out('logout\n');
+        return status;
+      }
+
+      ctx.exited = status;
+      return status;
     },
   },
 

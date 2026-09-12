@@ -4,15 +4,27 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node tools/copy-pyodide.mjs",
     "dev": "vite --host 0.0.0.0",
+    "prebuild": "node tools/copy-pyodide.mjs",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "android:sync": "pnpm build && cap sync android",
+    "android:open": "cap open android",
+    "android:debug": "pnpm android:sync && cd android && ./gradlew assembleDebug",
+    "android:release": "pnpm android:sync && cd android && ./gradlew bundleRelease",
+    "check:android": "node tools/check-manifest.mjs"
   },
   "dependencies": {
-    "@sigkill/machine": "workspace:*"
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@sigkill/machine": "workspace:*",
+    "@sigkill/python": "workspace:*"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
+    "pyodide": "^0.28.3",
     "typescript": "^5.7.2",
     "vite": "^6.4.3"
   }

@@ -17,7 +17,7 @@ export interface ExpandContext {
    * Injected rather than imported so expansion does not depend on the
    * executor that depends on it.
    */
-  run(source: string): string;
+  run(source: string): Promise<string>;
 }
 
 /**
@@ -27,7 +27,7 @@ export interface ExpandContext {
  * parameters, then field splitting, then globbing. Quoted parts opt out of
  * the later stages, which is the whole reason quoting exists.
  */
-export function expandWord(word: Word, ctx: ExpandContext): string[] {
+export async function expandWord(word: Word, ctx: ExpandContext): Promise<string[]> {
   interface Piece { text: string; glob: boolean; split: boolean }
   const pieces: Piece[] = [];
 
@@ -40,7 +40,7 @@ export function expandWord(word: Word, ctx: ExpandContext): string[] {
     if (part.kind === 'subst') {
       // Trailing newlines are stripped, as every shell does — otherwise
       // `cd $(pwd)` and friends would carry a newline into the argument.
-      const output = ctx.run(part.value).replace(/\n+$/, '');
+      const output = (await ctx.run(part.value)).replace(/\n+$/, '');
       pieces.push({ text: output, glob: !part.quoted, split: !part.quoted });
       continue;
     }
@@ -91,8 +91,12 @@ export function expandWord(word: Word, ctx: ExpandContext): string[] {
   return out;
 }
 
-export function expandWords(words: Word[], ctx: ExpandContext): string[] {
-  return words.flatMap((w) => expandWord(w, ctx));
+export async function expandWords(words: Word[], ctx: ExpandContext): Promise<string[]> {
+  const out: string[] = [];
+  // Sequential rather than parallel: substitutions can mutate the machine, and
+  // a shell evaluates words left to right.
+  for (const word of words) out.push(...(await expandWord(word, ctx)));
+  return out;
 }
 
 function expandTilde(text: string, ctx: ExpandContext): string {

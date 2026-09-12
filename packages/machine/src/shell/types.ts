@@ -47,6 +47,8 @@ export interface AndOr {
   type: 'andor';
   first: Pipeline;
   rest: Array<{ op: '&&' | '||'; pipeline: Pipeline }>;
+  /** Terminated by `&` rather than `;` or a newline. */
+  background?: boolean;
 }
 
 export interface Script {
