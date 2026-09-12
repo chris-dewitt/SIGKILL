@@ -97,7 +97,7 @@ It returns text and raises flags. No ANSI, no colour, no layout. `clear` sets
 ```
 packages/machine/    The Machine — vfs, shell, coreutils, proc, net, lang. The crown jewel.
 packages/python/     Pyodide behind the PythonRuntime interface, in a Worker.
-packages/crt/        Renderer (Phase 2 — placeholder).
+packages/crt/        Phosphor renderer: glyph atlas, WebGL2 CRT, terminal buffer.
 apps/terminal/       Playable web terminal; becomes the Capacitor app.
 games/wreck/         Adventure 1 content (Phase 3 — placeholder).
 ```
