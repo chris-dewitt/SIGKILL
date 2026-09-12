@@ -21,7 +21,9 @@
     "@capacitor/core": "^7.6.9",
     "@sigkill/machine": "workspace:*",
     "@sigkill/python": "workspace:*",
-    "@sigkill/crt": "workspace:*"
+    "@sigkill/crt": "workspace:*",
+    "@sigkill/quest": "workspace:*",
+    "@sigkill/wreck": "workspace:*"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",
