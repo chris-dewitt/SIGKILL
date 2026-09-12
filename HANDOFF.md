@@ -14,7 +14,7 @@ This file is the state of play; the others are the rules.
 | PR #6 | merged | `packages/editor` — vi and nano — plus the Act I trail fix |
 | **PR #7 / `fix/editor-typing`** | **open, needs review** | the three touch-path bugs below |
 
-`pnpm check` on `fix/editor-typing`: **365 tests** — 132 machine, 123 editor,
+`pnpm check` on `fix/editor-typing`: **369 tests** — 132 machine, 127 editor,
 36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
 
 ### A mistake that happened twice — do not make it a third time
@@ -177,6 +177,23 @@ lesson instead of hiding it.
 The host reports a refused write through a new optional `notify()` on
 `ScreenProgram` — writing it to the scrollback would have hidden it behind the
 editor's own frame until the player quit.
+
+### `sudo vi` opened writable and then threw the work away
+
+Found while checking the read-only fix, and it was the advice I had just given:
+
+```
+sudo open   "/etc/crew.csv" 3L, 76C      <- writable, no [readonly]
+sudo :w     EACCES: Permission denied    <- then refuses
+```
+
+`sudo` swaps `ctx.user` for exactly one command and restores it in a `finally`.
+The editor outlives that: by the time the player types `:w`, the shell is the
+unprivileged user again, and the host was writing as *the shell's* user.
+
+`ScreenProgram` now carries `user`, captured (and copied) at launch, and the
+host writes as that. Any future full-screen program must do the same — the rule
+is in `docs/FULLSCREEN.md`.
 
 ### The touch path was broken, and unit tests could not have caught it
 
