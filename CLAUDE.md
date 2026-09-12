@@ -93,6 +93,27 @@ moment the app can hold a secret, every SDK in it is a way out.
 It returns text and raises flags. No ANSI, no colour, no layout. `clear` sets
 `ctx.clearRequested` and the renderer decides what that means.
 
+### 7. A pull request means the branch is finished
+
+Chris reviews and merges the moment a PR appears. That is the agreement, and
+it is the right one — a PR is a request to merge, not a progress bar.
+
+So: **do the whole job first.** All the code, the tests, `pnpm check` green,
+the docs updated. *Then* open the PR.
+
+If more genuinely has to follow, say so in two places — the first line of the
+PR body and the chat message — in those words: **more coming, do not merge
+yet.** Silence means finished.
+
+Never push to a branch after its PR is open except to answer CI or review, and
+say so when you do.
+
+Getting this wrong is not a small mistake. Three commits were stranded on
+already-merged branches in one session because a push and a merge raced; each
+one needed a fresh branch and a new PR to recover. After any merge, verify
+with `git merge-base --is-ancestor <sha> origin/main` rather than assuming the
+push landed.
+
 ---
 
 ## Layout
