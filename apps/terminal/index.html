@@ -16,7 +16,12 @@
   </head>
   <body>
     <div id="crt">
-      <div id="screen" role="log" aria-live="polite" aria-label="Terminal output"></div>
+      <!--
+        Just a host for the canvas. The live region lives inside, created by
+        TerminalView alongside the canvas it mirrors -- two nested log regions
+        would announce everything twice.
+      -->
+      <div id="screen"></div>
       <div id="dock">
         <div id="chips" role="toolbar" aria-label="Command suggestions"></div>
         <div id="symbols" role="toolbar" aria-label="Symbol keys"></div>

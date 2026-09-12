@@ -201,7 +201,18 @@ export function pythonCommands(getRuntime: () => PythonRuntime | undefined): Com
       return 0;
     }
 
-    await runtime.ready();
+    try {
+      await runtime.ready();
+    } catch (e) {
+      // The interpreter is a 12 MB download that some hosts cannot serve.
+      // Say so plainly rather than surfacing a module-resolution error.
+      io.err(
+        `${argv[0]}: the Python interpreter could not be loaded on this build.\n` +
+          `The shell is unaffected; every other command still works.\n` +
+          `  (${e instanceof Error ? e.message : String(e)})\n`,
+      );
+      return 127;
+    }
 
     const roots = machineRoots(ctx.vfs);
     const tree = collectTree(ctx.vfs, roots);
