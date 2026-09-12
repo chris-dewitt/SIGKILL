@@ -77,13 +77,27 @@ stating plainly.
 **`chips` is the answer to Escape.** The program names the keys worth showing
 for its current mode; the app renders them into the chip bar. In vi's normal
 mode that is `i ESC :w :wq dd u x o $ 0`; in insert mode it collapses to
-`ESC ← → ↑ ↓`. A chip label that is not a single keystroke is sent as its
-characters, so tapping `:wq` sends three keys.
+`ESC ← → ↑ ↓`.
 
-**The text input stays in the document and stays focused.** It is collapsed to
-a 1px transparent field, never `hidden`. Hiding it dismisses the soft keyboard,
-and then a phone player can tap chips but cannot type a single character. The
-cursor they watch is the block the renderer draws, not the field's caret.
+**A label is not keystrokes.** `chipKeystrokes(label)` in
+`packages/editor/src/chips.ts` does that translation, and it lives in the
+package rather than the app so it can be tested without a browser. It knows
+that `^O` is Ctrl-O and not a caret and an O, and that `:wq` needs an Enter on
+the end or the editor just sits in command mode with the text typed. Both of
+those shipped broken once.
+
+**An on-screen key must never take focus.** The chip bar is rebuilt on every
+keystroke, so a tapped button stops existing mid-gesture, focus falls to
+`<body>` and the soft keyboard closes — after which everything typed is
+silently lost. Every on-screen key calls `preventDefault` on `pointerdown`, and
+the tap handler refocuses the input afterwards as well.
+
+**The text input stays in the document, full size, and focused.** Its text and
+caret go transparent; it is never `hidden` and never shrunk to a pixel. Hiding
+it dismisses the soft keyboard, and a 1px fully transparent input is exactly
+the shape mobile browsers decline to raise a keyboard for — either way a phone
+player can tap chips but cannot type a single character. The cursor they watch
+is the block the renderer draws, not the field's caret.
 
 **Two input paths, because soft keyboards lie.** `keydown` handles named keys,
 control combos and printable characters from a physical keyboard. Many Android
@@ -104,7 +118,14 @@ and the field is emptied again.
    unwritable is how people lose work) and sets `ctx.screenRequest`.
 4. Test it by typing at it. `test/keys.ts` turns `'ihi<Escape>:wq<Enter>'` into
    keystrokes, so a test reads like a session.
-5. Test the round trip through a real `Machine` too — `test/commands.test.ts`
+5. **Drive it in a real browser on a touch viewport before believing it.** The
+   editor is pure and has 118 unit tests, and they could not see any of the
+   three focus-and-chip bugs above, because those live in the glue. Chromium
+   and Playwright are available in the cloud session
+   (`/opt/pw-browsers/chromium-1194`): serve `apps/terminal/dist`, open it with
+   `hasTouch: true`, tap the chips, and read `#screen`'s live-region mirror for
+   assertions without needing pixels.
+6. Test the round trip through a real `Machine` too — `test/commands.test.ts`
    drives the program and then asserts `grep` sees the change. `applyWrite` and
    `flushPendingWrite` are exported for exactly that, so the app and the tests
    share one save path instead of two copies.

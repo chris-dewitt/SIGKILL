@@ -188,6 +188,36 @@ describe('normal mode', () => {
   });
 });
 
+// The single most common way a person gets stuck in vi, and the reason the
+// first playtest reported "can't type within the file".
+describe('typing in normal mode', () => {
+  it('says letters are commands, and names the way in', () => {
+    const e = open();
+    send(e, 'q');
+    expect(status(e)).toContain('Not a command: q');
+    expect(status(e)).toContain('press i');
+  });
+
+  it('changes nothing while it says so', () => {
+    const e = open();
+    send(e, 'zq');
+    expect(e.text).toBe(CONF);
+  });
+
+  it('stays quiet for keys that really are commands', () => {
+    const e = open();
+    send(e, 'j');
+    expect(status(e)).not.toContain('Not a command');
+  });
+
+  it('clears itself the moment insert mode starts', () => {
+    const e = open();
+    send(e, 'q');
+    send(e, 'i');
+    expect(status(e)).toContain('-- INSERT --');
+  });
+});
+
 describe('insert mode', () => {
   it('shows -- INSERT -- so the mode is never a guess', () => {
     const e = open();
@@ -313,25 +343,64 @@ describe('a phone can reach every key it needs', () => {
   });
 });
 
+// Blocking `i` here was the bug behind "can't type within the file": most of
+// /etc and all of /var/log are root-owned, so the editor refused silently on
+// the files a player is most likely to open first.
 describe('a file the player cannot write', () => {
-  it('refuses to enter insert mode and says why', () => {
+  it('is still editable, exactly as it is in vi', () => {
     const e = open(CONF, { readOnly: true });
-    send(e, 'i');
-    expect(status(e)).toContain('read-only');
-    send(e, 'X');
-    expect(e.text).toBe(CONF);
+    send(e, 'iX<Escape>');
+    expect(e.text).toContain('X#');
+    expect(status(e)).not.toContain('read-only');
   });
 
-  it('refuses :w with the real vi error', () => {
+  it('refuses :w with the real vi error, and names the override', () => {
     const e = open(CONF, { readOnly: true });
-    send(e, ':w<Enter>');
-    expect(status(e)).toContain('E45');
+    send(e, 'x:w<Enter>');
+    expect(status(e)).toContain('E45: readonly');
+    expect(status(e)).toContain('add ! to override');
+    expect(e.pendingWrite).toBeUndefined();
     expect(e.exit).toBeNull();
   });
 
-  it('announces itself as readonly on open', () => {
+  it(':w! tries anyway and leaves the refusing to the filesystem', () => {
+    const e = open(CONF, { readOnly: true });
+    send(e, 'x:w!<Enter>');
+    expect(e.pendingWrite).toBeDefined();
+  });
+
+  it('shows what the host says when the disk refuses the write', () => {
+    const e = open(CONF, { readOnly: true });
+    send(e, 'x:w!<Enter>');
+    e.notify('/etc/crew.csv: permission denied');
+    expect(status(e)).toContain('permission denied');
+  });
+
+  it('announces itself as readonly on open, with the way round it', () => {
     const e = open(CONF, { readOnly: true });
     expect(status(e)).toContain('[readonly]');
+    expect(status(e)).toContain(':w!');
+  });
+
+  it('keeps the readonly flag visible in the ruler', () => {
+    const e = open(CONF, { readOnly: true });
+    send(e, 'j');
+    expect(status(e)).toContain('[RO]');
+  });
+
+  // Every one of these lines has to survive a 40-column phone.
+  it('never overflows the screen width, however long the path', () => {
+    const e = new ViEditor(CONF, {
+      rows: 8,
+      cols: 40,
+      path: '/etc/systemd/system/multi-user.target.wants/scrubber.service',
+      readOnly: true,
+    });
+    expect(status(e).length).toBeLessThanOrEqual(40);
+    expect(status(e)).toContain(':w!');
+    send(e, 'j');
+    expect(status(e).length).toBeLessThanOrEqual(40);
+    expect(status(e)).toContain('[RO]');
   });
 });
 

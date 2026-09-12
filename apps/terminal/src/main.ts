@@ -1,5 +1,5 @@
 import { TerminalView } from '@sigkill/crt';
-import { applyWrite, flushPendingWrite } from '@sigkill/editor';
+import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { bootWreck, COLD_OPEN } from '@sigkill/wreck';
@@ -64,16 +64,6 @@ let screenProgram: ScreenProgram | undefined;
 
 /** Characters a shell needs constantly that Android buries two taps deep. */
 const SYMBOL_KEYS = ['|', '/', '-', '~', '$', '*', '>', '.', "'", '"'];
-
-/** Chip labels that are not literal keystrokes, and what they actually send. */
-const CHIP_KEYS: Record<string, Array<{ key: string; ctrl?: boolean }>> = {
-  ESC: [{ key: 'Escape' }],
-  '←': [{ key: 'ArrowLeft' }],
-  '→': [{ key: 'ArrowRight' }],
-  '↑': [{ key: 'ArrowUp' }],
-  '↓': [{ key: 'ArrowDown' }],
-  ENTER: [{ key: 'Enter' }],
-};
 
 type LineKind = 'out' | 'err' | 'echo' | 'system';
 
@@ -156,7 +146,9 @@ function enterScreen(program: ScreenProgram): void {
   form.classList.add('screen-mode');
   symbols.hidden = true;
   input.value = '';
-  input.focus();
+  // submit() disables the field while a command runs and re-enables it in its
+  // own finally block, so focusing here would be focusing a disabled element.
+  queueMicrotask(keepFocus);
 
   paintScreen();
   refreshChips();
@@ -176,7 +168,11 @@ function screenKey(key: string, ctrl = false): void {
 
   const shell = machine.active.shell;
   const failed = flushPendingWrite(machine.active.vfs, program, shell.user);
-  if (failed) write(`${program.name}: ${failed}`, 'err');
+  if (failed) {
+    // The program owns the screen, so the scrollback is behind its frame. Tell
+    // the program instead, and it puts the message on its own status line.
+    program.notify?.(failed);
+  }
 
   const done = program.exit;
   if (!done) {
@@ -328,14 +324,16 @@ function refreshChips(): void {
     chip.type = 'button';
     chip.className = 'chip';
     chip.textContent = suggestion;
+    holdFocusOnTap(chip);
 
     if (screenProgram) {
       chip.addEventListener('click', () => {
-        // A label like ESC or an arrow stands for a named key; anything else
-        // is literally the characters to send, so `:wq` is three keystrokes.
-        const named: Array<{ key: string; ctrl?: boolean }> =
-          CHIP_KEYS[suggestion] ?? [...suggestion].map((c) => ({ key: c }));
-        for (const k of named) screenKey(k.key, k.ctrl ?? false);
+        for (const k of chipKeystrokes(suggestion)) screenKey(k.key, k.ctrl ?? false);
+        // The chip bar is rebuilt on every keystroke, so the button that was
+        // tapped no longer exists and focus would land on <body> -- which on a
+        // phone drops the soft keyboard and silently swallows everything typed
+        // next. Put focus back on the field that receives keys.
+        keepFocus();
       });
       chips.append(chip);
       continue;
@@ -354,12 +352,30 @@ function refreshChips(): void {
   }
 }
 
+/**
+ * Return focus to the field that receives keystrokes.
+ *
+ * `preventDefault` on pointerdown stops the button taking focus at all, which
+ * is the real fix; this is the belt to that braces, for taps that arrive
+ * without a pointer event and for the rebuild that follows each keystroke.
+ */
+function keepFocus(): void {
+  if (!input.disabled) input.focus();
+}
+
+/** Keep a tap on an on-screen key from moving focus off the input. */
+function holdFocusOnTap(button: HTMLElement): void {
+  button.addEventListener('pointerdown', (event) => event.preventDefault());
+  button.addEventListener('mousedown', (event) => event.preventDefault());
+}
+
 function buildSymbolRow(): void {
   for (const key of SYMBOL_KEYS) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'symbol';
     button.textContent = key;
+    holdFocusOnTap(button);
     button.addEventListener('click', () => {
       const start = input.selectionStart ?? input.value.length;
       const end = input.selectionEnd ?? start;
@@ -454,6 +470,7 @@ input.addEventListener('keydown', (event) => {
   }
 });
 
+holdFocusOnTap(tabButton);
 tabButton.addEventListener('click', () => {
   if (screenProgram) screenKey('Tab');
   else applyCompletion();

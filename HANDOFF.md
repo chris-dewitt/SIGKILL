@@ -11,9 +11,10 @@ This file is the state of play; the others are the rules.
 |---|---|---|
 | `main` @ `0b78b20` | **current** | Machine, Python, renderer, Android wrap, hints |
 | PR #1–#5 | merged | Phases 0–1, Android wrap, renderer, hint system |
-| **PR #6 / `phase-2-editor`** | **open, needs review** | `packages/editor` — vi and nano — plus the Act I trail fix |
+| PR #6 | merged | `packages/editor` — vi and nano — plus the Act I trail fix |
+| **PR #7 / `fix/editor-typing`** | **open, needs review** | the three touch-path bugs below |
 
-`pnpm check` on `phase-2-editor`: **344 tests** — 132 machine, 102 editor,
+`pnpm check` on `fix/editor-typing`: **365 tests** — 132 machine, 123 editor,
 36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
 
 ### A mistake that happened twice — do not make it a third time
@@ -146,6 +147,72 @@ cannot see from where they are standing.
   scrubber`) rather than a mood. Telling someone how to diagnose is not a
   spoiler; telling them the fix is. There is a test named for that line.
 
+### Read-only files could not be typed into at all
+
+The first report was *"can't type within the file"* and I found a touch-path
+bug, fixed it, and asked whether it had been a phone. It had not — it was a
+laptop, and there was a fourth bug underneath:
+
+```
+/etc/life_support.conf   typed=YES
+README                   typed=YES
+/etc/crew.csv            typed=NO   "/etc/crew.csv" is read-only
+/var/log/boot.log        typed=NO   "/var/log/boot.log" is read-only
+```
+
+`enterInsert()` refused on any file the player could not write. Most of `/etc`
+and all of `/var/log` are root-owned, so the files a curious player opens first
+were exactly the ones that silently did nothing when they pressed `i`.
+
+**It was also wrong vi.** Real vi opens a read-only file, lets you change the
+buffer freely, and refuses at `:w` with E45. Blocking the keystroke is an
+invention, and it reads as a broken editor because nothing visibly happens.
+
+Now: read-only files are editable in both editors; `:w` gives
+`E45: readonly (add ! to override)`; `:w!` attempts it and the **filesystem**
+refuses, with its real error (`EACCES: Permission denied`) shown on the status
+line. `sudo vim /etc/crew.csv` opens it writable. That chain teaches the actual
+lesson instead of hiding it.
+
+The host reports a refused write through a new optional `notify()` on
+`ScreenProgram` — writing it to the scrollback would have hidden it behind the
+editor's own frame until the player quit.
+
+### The touch path was broken, and unit tests could not have caught it
+
+Second playtest: *"is VIM broken? I'm trying vim (filename), and then can't type
+within the file."* It worked on a physical keyboard and failed on a phone, so I
+drove the built app in headless Chromium on a touch viewport and reproduced it
+in one run. Three separate bugs, all of them in the glue between the editor and
+the DOM, none of them reachable by the editor's own tests:
+
+1. **Tapping a chip lost focus.** `refreshChips()` rebuilds the buttons on every
+   keystroke, so the tapped button stopped existing mid-gesture, focus fell to
+   `<body>`, and the soft keyboard closed. Everything typed after that went
+   nowhere. Fixed with `preventDefault` on pointerdown (so an on-screen key
+   never takes focus at all) plus an explicit refocus after each tap.
+2. **`:w` and `:wq` chips never sent Enter** — they typed the command into the
+   ex line and sat there.
+3. **nano's `^O` and `^X` chips typed a literal caret and a letter into the
+   file** instead of sending Ctrl.
+
+The mapping from a chip label to keystrokes now lives in
+`packages/editor/src/chips.ts` — **in the package, not the app** — precisely so
+it can be tested without a browser. `test/chips.test.ts` finishes a whole edit
+by taps alone.
+
+Also added: typing a letter in normal mode now says
+`Not a command: q -- press i to start typing, or :help`. Real vi beeps and moves
+on; this is a teaching game, and silence there looks exactly like a broken
+editor. That is the literal complaint that started this.
+
+**Lesson for whoever is next: the editor is pure and well-tested, and that is
+not enough.** Anything that touches focus, the soft keyboard, or the chip bar
+has to be driven in a real browser on a touch viewport. Playwright and Chromium
+are available in the cloud session (`/opt/pw-browsers/chromium-1194`); serve
+`apps/terminal/dist` and drive it. Twenty minutes of that found three bugs that
+344 unit tests did not.
+
 **The constraint this introduced, which matters for every future ladder:** a
 `command` rung's `command` field must be non-interactive, because CI runs it
 through the real shell. `vi` changes nothing by itself. So the prose leads with
@@ -223,6 +290,10 @@ My pick: **3**, with **2**'s weight for the act endings. Chris edits from there.
 - `games/wreck` Acts II+ are unwritten. Only Act I exists.
 - vi leaves out visual mode, marks, macros and named registers. `:help` inside
   it says so rather than pretending. Add them only if a puzzle needs them.
+- **`head -5` and `tail -20` are not accepted** — only `head -n 5`. Real coreutils
+  take the bare-number form and players reach for it constantly. Found while
+  probing the editor; left alone so as not to widen that PR. Small fix in
+  `packages/machine/src/coreutils/text.ts`, worth doing early.
 
 ---
 
