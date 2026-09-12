@@ -1,9 +1,9 @@
 import { TerminalView } from '@sigkill/crt';
 import { path as vpath } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
-import { bootWreck, COLD_OPEN } from './world.js';
+import { bootWreck, COLD_OPEN } from '@sigkill/wreck';
 
-const machine = bootWreck();
+const { machine, questbook } = bootWreck();
 
 /**
  * Python is lazy on purpose.
@@ -203,6 +203,9 @@ function suggestions(): string[] {
     const out = ['ls', 'cat', 'cd', 'pwd', 'grep'];
     if (here.some((e) => e.endsWith('.log'))) out.push('tail');
     if (here.includes('README')) out.unshift('cat README');
+    // Always reachable in one tap. A hint nobody can find is not a hint, and
+    // on a phone the only discovery surface is this bar.
+    out.push('hint');
     return [...new Set(out)].slice(0, 6);
   }
 
@@ -343,4 +346,4 @@ scrollToEnd();
 input.focus();
 
 // Exported for the console during development.
-Object.assign(window, { machine, vpath, view });
+Object.assign(window, { machine, questbook, vpath, view });

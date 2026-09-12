@@ -7,6 +7,7 @@ Read this, then the architecture doc, then the code.
 | **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | **Start here.** The map, and a full trace of one command from keypress to changed filesystem. |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this. Read before reversing anything that looks arbitrary. |
 | [docs/TESTING.md](docs/TESTING.md) | The determinism harness and the goal-predicate pattern. |
+| [docs/HINTS.md](docs/HINTS.md) | **Read before authoring an objective or a hint ladder.** |
 | [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the thirteen adventures. |
 | [packages/machine/README.md](packages/machine/README.md) | The engine's API surface. |
 | [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four of us share this repo. |
@@ -98,8 +99,9 @@ It returns text and raises flags. No ANSI, no colour, no layout. `clear` sets
 packages/machine/    The Machine — vfs, shell, coreutils, proc, net, lang. The crown jewel.
 packages/python/     Pyodide behind the PythonRuntime interface, in a Worker.
 packages/crt/        Phosphor renderer: glyph atlas, WebGL2 CRT, terminal buffer.
+packages/quest/      Objectives, state-aware hint ladders, `hint` and `objectives`.
 apps/terminal/       Playable web terminal; becomes the Capacitor app.
-games/wreck/         Adventure 1 content (Phase 3 — placeholder).
+games/wreck/         Adventure 1: the NAV-7 world seed and the Act I ladders.
 ```
 
 Dependencies point one way: `apps` → `packages` → nothing. Import across
@@ -145,9 +147,13 @@ Add a determinism test for it. Run the same script twice, compare snapshots.
 
 **Phase 0 complete. Phase 1 complete** — filesystem, shell, 50 commands,
 processes and services, jobs and cron, the simulated network, and real Python
-sharing the VFS. 159 tests.
+sharing the VFS.
 
-**Phase 2 is next, and it gates everything downstream:** the mobile input
-model. Do not start Phase 3 content until Chris has played twenty minutes on
-a real phone and wants to keep going. Content built on unpleasant input is
-content thrown away.
+**Phase 2 in progress** — the phosphor renderer and the Android wrap are in.
+So is the hint system: `packages/quest` plus the Act I ladders in
+`games/wreck`. 240 tests.
+
+**Phase 2 gates everything downstream:** the mobile input model. Do not start
+Phase 3 content until Chris has played twenty minutes on a real phone and
+wants to keep going. Content built on unpleasant input is content thrown
+away.
