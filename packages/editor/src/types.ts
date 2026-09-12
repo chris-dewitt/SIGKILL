@@ -26,6 +26,14 @@ export interface EditorExit {
 export interface EditorOptions {
   rows: number;
   cols: number;
+  /**
+   * The user the editor is running as.
+   *
+   * Captured when the command runs, not read back later: under `sudo` the
+   * shell's user reverts the moment the command returns, and the editor
+   * outlives that by design.
+   */
+  user?: { uid: number; gid: number; name: string };
   /** Shown in the status line and in messages. */
   path: string;
   /** True when the file exists but the player cannot write it. */
@@ -45,6 +53,8 @@ export interface FullscreenProgram {
   readonly name: string;
   /** Absolute path being edited. The host owns the disk, so it needs this. */
   readonly path: string;
+  /** Who launched it. Captured at launch because `sudo` only lasts one command. */
+  readonly user: { uid: number; gid: number; name: string };
   key(k: EditorKey): void;
   frame(): FrameLine[];
   resize(rows: number, cols: number): void;

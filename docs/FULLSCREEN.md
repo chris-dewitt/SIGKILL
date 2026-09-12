@@ -54,6 +54,12 @@ and reads the buffer back, with no browser anywhere.
 column count and **truncates to it**, so no line ever wraps — which is what
 makes the `cursor` column map exactly onto one cell.
 
+`user` is who launched it, **captured at launch and copied**. `sudo` swaps
+`ctx.user` for one command and restores it in a `finally`, so a program that
+reads the shell's user when the player finally presses `:w` sees the
+unprivileged one — `sudo vi /etc/hosts` then opens writable and throws the work
+away at the end. The host writes as `program.user`.
+
 `pendingWrite` is `:w` without quitting. The host applies it and clears the
 field, so a save reaches the disk the moment it is typed rather than whenever
 the program happens to close.

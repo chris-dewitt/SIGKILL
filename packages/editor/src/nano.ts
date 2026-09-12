@@ -19,6 +19,7 @@ export class NanoEditor implements FullscreenProgram {
   private rows: number;
   private cols: number;
   readonly path: string;
+  readonly user: { uid: number; gid: number; name: string };
   private readonly readOnly: boolean;
   private top = 0;
   private message: string;
@@ -33,6 +34,7 @@ export class NanoEditor implements FullscreenProgram {
     this.rows = Math.max(4, opts.rows);
     this.cols = Math.max(20, opts.cols);
     this.path = opts.path;
+    this.user = opts.user ?? { uid: 0, gid: 0, name: 'root' };
     this.readOnly = opts.readOnly ?? false;
     this.message = opts.isNew
       ? '[ New File ]'

@@ -36,6 +36,7 @@ export class ViEditor implements FullscreenProgram {
   private rows: number;
   private cols: number;
   readonly path: string;
+  readonly user: { uid: number; gid: number; name: string };
   private readonly readOnly: boolean;
   /** First buffer line shown, so the cursor can be kept on screen. */
   private top = 0;
@@ -49,6 +50,7 @@ export class ViEditor implements FullscreenProgram {
     this.rows = Math.max(3, opts.rows);
     this.cols = Math.max(20, opts.cols);
     this.path = opts.path;
+    this.user = opts.user ?? { uid: 0, gid: 0, name: 'root' };
     this.readOnly = opts.readOnly ?? false;
 
     const lines = this.buffer.count;
