@@ -17,21 +17,35 @@ This file is the state of play; the others are the rules.
 `pnpm check` on `fix/editor-typing`: **369 tests** — 132 machine, 127 editor,
 36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
 
-### A mistake that happened twice — do not make it a third time
+### The working agreement with Chris
 
-Both times a branch was merged **while a later commit was still being pushed to
-it**, stranding that commit on a closed PR's branch:
+**A pull request means the branch is finished.** He reviews and merges as soon
+as one appears — that is the agreement and it is the right one. Do the whole
+job, get `pnpm check` green, update the docs, *then* open the PR.
+
+If more has to follow, say **"more coming, do not merge yet"** in the first
+line of the PR body *and* in the chat message. Silence means finished.
+
+Never push to a branch after its PR is open except to answer CI or review.
+
+### A mistake that happened three times — do not make it a fourth
+
+Three times a branch was merged **while a later commit was still being pushed
+to it**, stranding that commit on a closed PR's branch. The cause was mine
+every time: opening a PR before the work was done, then continuing to push to
+it. See the agreement above.
 
 - The renderer sat orphaned on `phase-1-complete` for a day. `main` had a
   placeholder `packages/crt` the whole time and CI ran 159 tests, while I
   reported 195. Recovered in PR #4.
 - The hint system did the same thing on `phase-2-crt-renderer` minutes later.
   Recovered same-session into PR #5.
+- The `sudo` editor fix did it again on `fix/editor-typing`. Recovered into
+  PR #8 within a minute, because the check below had become a habit by then.
 
-**Rule: after opening a PR, do not push more work to that branch.** Start a new
-branch off `main` for the next thing. And after any merge, verify with
-`git merge-base --is-ancestor <sha> origin/main` rather than trusting that a
-push "went in".
+**After any merge, verify with `git merge-base --is-ancestor <sha> origin/main`**
+rather than trusting that a push went in. It is two seconds and it is the only
+reason the third one cost a minute instead of a day.
 
 Also: `git ls-remote --heads origin` is the recovery tool. Nothing was ever
 lost, only misplaced.
