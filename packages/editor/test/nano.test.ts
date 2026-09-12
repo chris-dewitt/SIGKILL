@@ -130,17 +130,23 @@ describe('the screen', () => {
 });
 
 describe('a file the player cannot write', () => {
-  it('refuses every edit and says why, once', () => {
+  it('is still editable; the refusal belongs at the save', () => {
     const e = open('locked\n', { readOnly: true });
     send(e, 'x');
-    expect(e.text).toBe('locked\n');
-    expect(message(e)).toContain('read only');
+    expect(e.text).toBe('xlocked\n');
   });
 
-  it('refuses ^O with the path in the message', () => {
+  it('says so on open, and says what it would take', () => {
     const e = open('locked\n', { readOnly: true });
-    send(e, '<C-o>');
+    expect(message(e)).toContain('Read only');
+    expect(message(e)).toContain('sudo');
+  });
+
+  it('attempts the write and shows what the disk says', () => {
+    const e = open('locked\n', { readOnly: true });
+    send(e, 'x<C-o>');
+    expect(e.pendingWrite).toBe('xlocked\n');
+    e.notify('/etc/motd: permission denied');
     expect(message(e)).toContain('permission denied');
-    expect(e.pendingWrite).toBeUndefined();
   });
 });

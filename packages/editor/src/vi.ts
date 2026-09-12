@@ -53,11 +53,28 @@ export class ViEditor implements FullscreenProgram {
 
     const lines = this.buffer.count;
     const chars = text.length;
-    this.message = opts.isNew
-      ? `"${this.path}" [New File]`
+    // The tail is the useful half of this line, so it is what survives a
+    // narrow screen: the path is shortened until the flags fit, never the
+    // other way round.
+    const tail = opts.isNew
+      ? '[New File]'
       : this.readOnly
-        ? `"${this.path}" [readonly] ${lines}L, ${chars}C`
-        : `"${this.path}" ${lines}L, ${chars}C`;
+        ? `[readonly] ${lines}L  :w! forces`
+        : `${lines}L, ${chars}C`;
+    this.message = `"${this.fitPath(this.cols - tail.length - 3)}" ${tail}`;
+  }
+
+  /**
+   * The path, shortened to leave room for the rest of the status line.
+   *
+   * At phone width a full path eats the whole line and the flag that actually
+   * matters -- [readonly], [+] -- gets sliced off the end.
+   */
+  private fitPath(budget = 24): string {
+    if (budget < 8) budget = 8;
+    if (this.path.length <= budget) return this.path;
+    const base = this.path.slice(this.path.lastIndexOf('/') + 1);
+    return base.length <= budget ? base : base.slice(0, budget - 1) + '…';
   }
 
   get exit(): EditorExit | null {
@@ -131,7 +148,7 @@ export class ViEditor implements FullscreenProgram {
     // end up here.
     if (this.pending === 'Z') {
       this.clearPending();
-      if (key === 'Z') this.write(true);
+      if (key === 'Z') this.write(true, false);
       else if (key === 'Q') this.finished = { write: false, text: this.buffer.toText() };
       return;
     }
@@ -223,10 +240,6 @@ export class ViEditor implements FullscreenProgram {
   }
 
   private enterInsert(): void {
-    if (this.readOnly) {
-      this.fail(`"${this.path}" is read-only`);
-      return;
-    }
     this.mode = 'insert';
     this.message = '';
     // One checkpoint for the whole session, so Escape then `u` undoes the
@@ -331,8 +344,10 @@ export class ViEditor implements FullscreenProgram {
     if (substitute) return this.runSubstitute(substitute);
 
     switch (command) {
-      case 'w': case 'w!': return this.write(false);
-      case 'wq': case 'wq!': case 'x': case 'xit': return this.write(true);
+      case 'w': return this.write(false, false);
+      case 'w!': return this.write(false, true);
+      case 'wq': case 'x': case 'xit': return this.write(true, false);
+      case 'wq!': case 'x!': return this.write(true, true);
       case 'q':
         if (this.buffer.dirty) {
           this.fail('E37: No write since last change (add ! to override)');
@@ -381,9 +396,12 @@ export class ViEditor implements FullscreenProgram {
     else this.note(`${changed} substitution${changed === 1 ? '' : 's'}`);
   }
 
-  private write(thenQuit: boolean): void {
-    if (this.readOnly) {
-      this.fail(`E45: '${this.path}' is read-only (add ! to override)`);
+  private write(thenQuit: boolean, force: boolean): void {
+    // vi's actual behaviour: the buffer was always editable, and this is where
+    // it says no. `!` overrides the editor's own refusal -- the filesystem
+    // still gets the last word, and says so through `notify`.
+    if (this.readOnly && !force) {
+      this.fail('E45: readonly (add ! to override)');
       return;
     }
     const text = this.buffer.toText();
@@ -404,6 +422,13 @@ export class ViEditor implements FullscreenProgram {
    * types `:w`, switches away and force-quits should still have their work.
    */
   pendingWrite: string | undefined;
+
+  /** The host reporting back, usually a write the disk refused. */
+  notify(message: string): void {
+    this.fail(message);
+    // A refused write did not happen, whatever the buffer was told.
+    this.buffer.dirty = true;
+  }
 
   private note(text: string): void {
     this.message = text;
@@ -464,7 +489,9 @@ export class ViEditor implements FullscreenProgram {
   }
 
   private dirtyMark(): string {
-    return this.buffer.dirty ? `"${this.path}" [+]` : `"${this.path}"`;
+    const flags = `${this.readOnly ? ' [RO]' : ''}${this.buffer.dirty ? ' [+]' : ''}`;
+    // Leave room for the flags and for the ruler the caller appends.
+    return `"${this.fitPath(this.cols - flags.length - 10)}"${flags}`;
   }
 
   /** Keep the cursor on screen, scrolling by the smallest amount that works. */

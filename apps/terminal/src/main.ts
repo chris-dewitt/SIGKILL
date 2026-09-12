@@ -168,7 +168,11 @@ function screenKey(key: string, ctrl = false): void {
 
   const shell = machine.active.shell;
   const failed = flushPendingWrite(machine.active.vfs, program, shell.user);
-  if (failed) write(`${program.name}: ${failed}`, 'err');
+  if (failed) {
+    // The program owns the screen, so the scrollback is behind its frame. Tell
+    // the program instead, and it puts the message on its own status line.
+    program.notify?.(failed);
+  }
 
   const done = program.exit;
   if (!done) {

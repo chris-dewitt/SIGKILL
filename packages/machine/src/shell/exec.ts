@@ -56,6 +56,13 @@ export interface ScreenProgram {
   /** Keys worth offering as on-screen buttons right now. */
   readonly chips: readonly string[];
   /**
+   * Tell the program something, while it still owns the screen.
+   *
+   * A failed write is the case that matters: printing it to the scrollback
+   * would hide it behind the program's own frame until the player quit.
+   */
+  notify?(message: string): void;
+  /**
    * Text from a save that did not exit.
    *
    * The host clears this after applying it, so `:w` reaches the disk when it

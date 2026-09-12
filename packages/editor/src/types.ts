@@ -57,4 +57,6 @@ export interface FullscreenProgram {
    * renders these into the chip bar, and they change with the mode.
    */
   readonly chips: readonly string[];
+  /** Show a message from the host -- typically a write the disk refused. */
+  notify?(message: string): void;
 }

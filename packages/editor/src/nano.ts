@@ -34,11 +34,22 @@ export class NanoEditor implements FullscreenProgram {
     this.cols = Math.max(20, opts.cols);
     this.path = opts.path;
     this.readOnly = opts.readOnly ?? false;
-    this.message = opts.isNew ? '[ New File ]' : this.readOnly ? '[ Read only ]' : '';
+    this.message = opts.isNew
+      ? '[ New File ]'
+      : this.readOnly
+        ? '[ Read only -- saving needs sudo ]'
+        : '';
   }
 
   get exit(): EditorExit | null {
     return this.finished;
+  }
+
+  /** The host reporting back, usually a write the disk refused. */
+  notify(message: string): void {
+    this.message = message;
+    this.status = 'error';
+    this.buffer.dirty = true;
   }
 
   resize(rows: number, cols: number): void {
@@ -96,23 +107,19 @@ export class NanoEditor implements FullscreenProgram {
     }
   }
 
-  /** Guard every mutation behind the read-only check, in one place. */
+  /**
+   * Apply a change.
+   *
+   * A read-only file is still editable here, as it is in nano and vi: the
+   * refusal belongs at the save, not at the keystroke. Blocking typing reads
+   * as a broken editor and tells the player nothing about why.
+   */
   private edit(change: () => void): void {
-    if (this.readOnly) {
-      this.message = 'Cannot write: file is read only';
-      this.status = 'error';
-      return;
-    }
     change();
     this.message = '';
   }
 
   private save(): void {
-    if (this.readOnly) {
-      this.message = 'Cannot write: permission denied';
-      this.status = 'error';
-      return;
-    }
     const text = this.buffer.toText();
     this.pendingWrite = text;
     this.buffer.markClean();
@@ -138,12 +145,8 @@ export class NanoEditor implements FullscreenProgram {
       return;
     }
     if (key === 'y') {
-      if (this.readOnly) {
-        this.confirming = false;
-        this.message = 'Cannot write: permission denied';
-        this.status = 'error';
-        return;
-      }
+      // The write is attempted even on a read-only file; the filesystem is
+      // what refuses, and it says why.
       this.finished = { write: true, text: this.buffer.toText(), message: `Wrote ${this.path}` };
       return;
     }
