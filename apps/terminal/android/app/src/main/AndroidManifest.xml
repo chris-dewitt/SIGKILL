@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true"
+
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!--
+        Permissions: none.
+
+        SIGKILL is entirely offline. Pyodide, every asset and all content ship
+        inside the package; there is no server, no account and no telemetry.
+        Capacitor adds INTERNET by default and it has been removed on purpose,
+        so the app *provably* cannot reach the network - a claim worth being
+        able to make about a game that runs player-authored code.
+
+        Capacitor serves the web layer through WebViewAssetLoader over
+        https://localhost, which is a local interception and needs no INTERNET
+        permission. If the app ever shows a blank screen after a Capacitor
+        upgrade, restoring this line is the first thing to try:
+
+            <uses-permission android:name="android.permission.INTERNET" />
+
+        allowBackup is off so that nothing in app storage - including an API
+        key, if BYO key ever ships - can be swept into a cloud backup.
+
+        VIBRATE will be needed when keystroke haptics land in Phase 2. It is
+        not declared yet because nothing uses it.
+    -->
+
+</manifest>
