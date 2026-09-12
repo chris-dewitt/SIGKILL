@@ -81,6 +81,8 @@ export function editorCommands(opts: EditorCommandOptions = {}): CommandSpec[] {
       path,
       isNew: found.isNew,
       readOnly: found.readOnly,
+      // Copied, not referenced: sudo restores ctx.user when this returns.
+      user: { ...ctx.user },
     });
     return 0;
   };

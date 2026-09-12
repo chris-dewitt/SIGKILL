@@ -48,6 +48,15 @@ export interface ScreenProgram {
   readonly name: string;
   /** Absolute path the program is editing, already resolved by the shell. */
   readonly path: string;
+  /**
+   * Who launched it, captured at launch.
+   *
+   * `sudo` swaps `ctx.user` for the duration of one command and puts it back
+   * in a finally block, so by the time the player types `:w` the shell is the
+   * unprivileged user again. The host must write as *this* user or
+   * `sudo vi /etc/hosts` opens writable and then throws the work away.
+   */
+  readonly user: { uid: number; gid: number; name: string };
   key(k: { key: string; ctrl?: boolean }): void;
   frame(): Array<{ text: string; kind: 'out' | 'err' | 'echo' | 'system'; cursor?: number }>;
   resize(rows: number, cols: number): void;

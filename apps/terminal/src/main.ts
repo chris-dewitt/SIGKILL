@@ -166,8 +166,9 @@ function screenKey(key: string, ctrl = false): void {
 
   program.key({ key, ctrl });
 
-  const shell = machine.active.shell;
-  const failed = flushPendingWrite(machine.active.vfs, program, shell.user);
+  // The program's own user, not the shell's: under sudo they differ, and the
+  // shell has already reverted by the time a keystroke gets here.
+  const failed = flushPendingWrite(machine.active.vfs, program, program.user);
   if (failed) {
     // The program owns the screen, so the scrollback is behind its frame. Tell
     // the program instead, and it puts the message on its own status line.
@@ -190,7 +191,7 @@ function screenKey(key: string, ctrl = false): void {
   input.value = '';
 
   if (done.write) {
-    const error = applyWrite(machine.active.vfs, program.path, done.text, shell.user);
+    const error = applyWrite(machine.active.vfs, program.path, done.text, program.user);
     if (error) write(`${program.name}: ${error}`, 'err');
     else if (done.message) write(done.message, 'system');
   } else if (done.message) {
