@@ -90,6 +90,21 @@ export class ServiceManager {
       .filter((s): s is ServiceStatus => s !== undefined);
   }
 
+  /**
+   * Would this unit's precondition pass right now, without starting it?
+   *
+   * A recorded failure is history and stays as it is -- that is what real
+   * systemd shows. But a player who has just fixed the configuration and runs
+   * `systemctl status` deserves to know the fix took, rather than reading the
+   * error from the last attempt and concluding their edit did nothing.
+   */
+  precheck(name: string): { ok: boolean; reason?: string } {
+    const check = this.preconditions.get(unitName(name));
+    if (!check) return { ok: true };
+    const verdict = check(this.vfs);
+    return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason };
+  }
+
   start(name: string): ServiceResult {
     const unit = loadUnit(this.vfs, name);
     if (!unit) return { ok: false, reason: `Unit ${unitName(name)}.service not found.` };

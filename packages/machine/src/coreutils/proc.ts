@@ -168,6 +168,24 @@ export const procCommands: CommandSpec[] = [
         ];
         if (status.pid !== undefined) rows.push(`   Main PID: ${status.pid}`);
         if (status.error) rows.push('', `      Error: ${status.error}`);
+
+        // A failure is history and stays printed, but the player may have just
+        // fixed the thing it complains about. Saying nothing here is how
+        // somebody edits the config correctly, reads a stale error, and
+        // concludes their edit did not work.
+        if (status.state === 'failed') {
+          const now = ctx.services.precheck(status.name);
+          if (now.ok) {
+            rows.push(
+              '',
+              '       Note: that failure is from the last attempt. The problem it',
+              '             names is no longer there.',
+              `             Try: sudo systemctl start ${status.name}`,
+            );
+          } else if (now.reason !== undefined && now.reason !== status.error) {
+            rows.push('', `    Current: ${now.reason}`);
+          }
+        }
         emit(io, rows);
         // systemd exits non-zero when the unit is not active. Scripts rely on
         // it, and so can a puzzle.
@@ -183,7 +201,17 @@ export const procCommands: CommandSpec[] = [
       };
 
       const action = actions[verb];
-      if (!action) return usage(io, `systemctl: unknown command '${verb}'`);
+      if (!action) {
+        // Caps lock is a real hazard on a phone keyboard, and `STATUS` looks
+        // to a beginner like it should obviously work. Say what they meant
+        // rather than only what they typed.
+        const lower = verb.toLowerCase();
+        const meant = lower !== verb && (lower === 'status' || lower in actions)
+          ? `  Did you mean: systemctl ${lower} ${target}\n`
+          : '';
+        io.err(`systemctl: unknown command '${verb}'\n${meant}`);
+        return 1;
+      }
 
       if (ctx.user.uid !== 0 && verb !== 'status') {
         // Real systemd would prompt for authentication here. Refusing outright

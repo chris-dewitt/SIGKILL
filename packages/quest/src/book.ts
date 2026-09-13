@@ -24,6 +24,8 @@ export interface QuestSnapshot {
   /** Rungs taken, keyed by objective and step. */
   revealed: Record<string, number>;
   asked: number;
+  /** Objectives whose completion beat has already played. */
+  announced?: string[];
 }
 
 export interface QuestbookOptions {
@@ -49,6 +51,8 @@ export class Questbook {
   track: Track;
   private revealed = new Map<string, number>();
   private asked = 0;
+  /** Objectives whose completion beat has already played. */
+  private announced = new Set<string>();
 
   constructor(objectives: readonly Objective[], opts: QuestbookOptions = {}) {
     this.objectives = assertObjectives(objectives);
@@ -81,6 +85,23 @@ export class Questbook {
         ),
       }))
       .filter((row) => !this.objectives.find((o) => o.id === row.id)?.secret || row.blockedBy.length === 0);
+  }
+
+  /**
+   * Objectives that have closed since this was last called.
+   *
+   * Drained rather than queried so a beat plays exactly once, however the
+   * player got there -- the goals are solution-agnostic, so the host cannot
+   * hang the beat off a particular command.
+   */
+  drainCompleted(world: World): Objective[] {
+    const closed: Objective[] = [];
+    for (const objective of this.objectives) {
+      if (!objective.done(world) || this.announced.has(objective.id)) continue;
+      this.announced.add(objective.id);
+      closed.push(objective);
+    }
+    return closed;
   }
 
   /**
@@ -158,11 +179,18 @@ export class Questbook {
   }
 
   snapshot(): QuestSnapshot {
-    return { version: 1, revealed: Object.fromEntries(this.revealed), asked: this.asked };
+    return {
+      version: 1,
+      revealed: Object.fromEntries(this.revealed),
+      asked: this.asked,
+      announced: [...this.announced],
+    };
   }
 
   restore(snapshot: QuestSnapshot): void {
     this.revealed = new Map(Object.entries(snapshot.revealed));
     this.asked = snapshot.asked;
+    // Without this a restored save replays every beat the player already saw.
+    this.announced = new Set(snapshot.announced ?? []);
   }
 }
