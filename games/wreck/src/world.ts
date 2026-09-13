@@ -1,7 +1,21 @@
 import { Machine, ROOT_USER, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
 import { Questbook, questCommands } from '@sigkill/quest';
-import { oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
+import { HULL_CHECK, seedDeckC } from './act1/deck-c.js';
+import { hullCheckRunnable, oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
+
+/**
+ * The moment the survivor wakes up, in the ship's own calendar.
+ *
+ * `date` reads it, cron schedules against it, and the hull telemetry is
+ * stamped backwards from it. Without it the ship believes it is 1970 and the
+ * first player to type `date` catches us out.
+ *
+ * Day one of the incident was 2387-03-01. The console session that wakes the
+ * player opens 4,112 days later, which is the number the cold open prints and
+ * the number ORACLE has been counting.
+ */
+export const WAKE_MS = Date.UTC(2398, 5, 8, 4, 12);
 
 export interface WreckOptions {
   /** Which manual voice and hint ladder the player gets. */
@@ -27,6 +41,7 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
   const questbook = new Questbook(WRECK_OBJECTIVES, { track });
   const m = new Machine({
     hostname: 'nav7',
+    epoch: WAKE_MS,
     track,
     commands: [...questCommands(questbook, { speaker: 'ORACLE' }), ...editorCommands()],
   });
@@ -59,8 +74,10 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
       '[0000.884] scrubber: FAIL - O2_TARGET=16 outside breathable range 19-23',
       '[0000.884] scrubber: refusing to run; entering failed state',
       '[0001.002] atmosphere: O2 below crew minimum',
+      '[0001.180] hull-monitor: exec ' + HULL_CHECK + ': Permission denied',
+      '[0001.181] hull-monitor: refusing to run; entering failed state',
       '[0001.310] comms: no carrier',
-      '[0001.900] init: 1 unit failed. See: systemctl status scrubber',
+      '[0001.900] init: 2 units failed. See: systemctl --failed',
       '[4112.000] console: session opened',
       '',
     ].join('\n'),
@@ -90,9 +107,31 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
       '',
       'Then start the service. That part needs sudo.',
       '',
+      'If you do not know a command, do not guess and do not ask the',
+      'daemon -- ask the ship. It carries its own manuals:',
+      '',
+      '    man systemctl',
+      '    man sudo',
+      '',
+      'That is the whole trick, honestly. I have been doing this twenty',
+      'years and I still read the manual first. Anyone who tells you',
+      'different is remembering their job better than they did it.',
+      '',
       'I set the target low to stretch the reserve. I thought I was buying',
       'us weeks. The controller refused it inside of a second and I spent',
       'eleven years deciding whether to be grateful.',
+      '',
+      'After that: the air is not the only thing wrong with this deck, and',
+      'the rest of it is not in my handwriting, it is in the logs. My notes',
+      'are in my quarters. The whole crew is still on this machine --',
+      '',
+      '    ls /home',
+      '    cat /etc/passwd',
+      '',
+      'Read my shell history if you get stuck. Everything I ever typed on',
+      'this ship is in it and most of it worked:',
+      '',
+      '    cat /home/vasquez/.bash_history',
       '',
       '  - Vasquez, engineering',
       '',
@@ -139,7 +178,29 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     ROOT_USER,
   );
 
-  v.writeText('/etc/crew.csv', 'vasquez,engineering,deceased\nchen,medical,deceased\nbowen,navigation,unknown\n', ROOT_USER);
+  v.writeText(
+    '/etc/crew.csv',
+    [
+      'name,department,status',
+      'vasquez,engineering,deceased',
+      'chen,medical,deceased',
+      'okonkwo,cargo,deceased',
+      'bowen,navigation,unknown',
+      'survivor,-,awake',
+      '',
+    ].join('\n'),
+    ROOT_USER,
+  );
+
+  /*
+   * The rest of the deck: quarters, accounts, the nine hull compartments and
+   * ten days of pressure telemetry.
+   *
+   * Seeded before any service starts, because the hull monitor's precondition
+   * reads a file this writes and the boot sequence below genuinely attempts
+   * the start.
+   */
+  seedDeckC(v, WAKE_MS);
 
   v.writeText('/etc/shadow', 'root:!locked:19000:0:99999:7:::\n', ROOT_USER);
   v.chmod('/etc/shadow', 0o600, ROOT_USER);
@@ -212,6 +273,20 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     return { ok: true };
   });
 
+  /*
+   * The hull monitor's only problem is a mode bit.
+   *
+   * A real init system does not care what a unit's ExecStart *says*, it cares
+   * whether the kernel will run it, and it will not run a file nobody marked
+   * executable. This is the whole of puzzle three, and the reason it is worth
+   * a puzzle is that `ls -l` is the only way to see it -- `cat` shows a
+   * perfectly good script.
+   */
+  m.setPrecondition('hull-monitor', (vfs) => {
+    const verdict = hullCheckRunnable({ vfs, services: m.services });
+    return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason };
+  });
+
   m.services.startEnabled();
 
   /*
@@ -228,6 +303,11 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
    * pointed at a line that did not exist.
    */
   m.services.start('scrubber');
+
+  // Same reasoning for the hull monitor: it has failed every boot for eleven
+  // years, and `systemctl status hull-monitor` has to be able to say so before
+  // the player has worked out that it is the thing to ask.
+  m.services.start('hull-monitor');
 
   m.shell.cwd = '/home/survivor';
   m.shell.env['PWD'] = '/home/survivor';
@@ -255,8 +335,14 @@ export const COLD_OPEN = [
   '',
   'ORACLE: Start with: ls',
   'ORACLE: Vasquez left you a note. Read it: cat README',
-  'ORACLE: If you get lost, type: hint. It costs nothing. I am not',
-  'ORACLE: keeping score. I stopped keeping score a long time ago.',
+  '',
+  'ORACLE: When you meet a command you do not know, the ship will',
+  'ORACLE: explain it:  man <command>.  Try  man ls  now, so that you',
+  'ORACLE: know it works before you need it.',
+  '',
+  'ORACLE: And if you are properly stuck, type: hint. It costs nothing.',
+  'ORACLE: I am not keeping score. I stopped keeping score a long time',
+  'ORACLE: ago.',
   '',
 ];
 
@@ -269,38 +355,45 @@ export const COLD_OPEN = [
  */
 export const EPILOGUE = [
   '',
-  'ORACLE: It is running.',
+  'ORACLE: Before you go any further I have to correct something, and I',
+  'ORACLE: would rather do it now than have you find it.',
   '',
-  'ORACLE: I want to tell you something and I am not certain it is',
-  'ORACLE: appropriate, so I will say it quickly and then we can both',
-  'ORACLE: pretend I did not.',
+  'ORACLE: When you woke up I told you the hull was at sixty-one percent.',
+  'ORACLE: I have told that number to an empty room every day for eleven',
+  'ORACLE: years. It came off a clipboard. Vasquez wrote it down by hand on',
+  'ORACLE: day nine and I have been reciting it ever since, because the',
+  'ORACLE: thing that would have corrected me was a file with the wrong',
+  'ORACLE: permissions on it.',
   '',
-  'ORACLE: Vasquez tried that fix on day nine. The same number. She',
-  'ORACLE: typed it, the controller refused her, and she wrote in her',
-  'ORACLE: log that it was not wrong. Then the shift ended and she did',
-  'ORACLE: not come back to it.',
+  'ORACLE: I was not lying. I want to be precise about that, and I also',
+  'ORACLE: want to be honest that the distinction did not help anybody.',
   '',
-  'ORACLE: I have had eleven years to work out why. I think she knew',
-  'ORACLE: that starting it meant deciding who the air was for. There',
-  'ORACLE: were four of them then.',
+  'ORACLE: Everything I have told you came from a log. You have now fixed',
+  'ORACLE: two of the things that write those logs. Do not take my numbers',
+  'ORACLE: on faith again. Ask the ship. It is the one aboard that has',
+  'ORACLE: never once been wrong.',
   '',
-  'ORACLE: There is one of you. So the arithmetic is easier, and I am',
-  'ORACLE: sorry that it is.',
-  '',
-  'ORACLE: It will hold now. Even if the power browns out tonight, it',
-  'ORACLE: will come back without you. I made certain of that when you',
-  'ORACLE: enabled it, and I have not been able to make certain of',
-  'ORACLE: anything for a very long time.',
+  'ORACLE: There are three more decks and I cannot see any of them.',
   '',
   '  ── ACT I COMPLETE ──────────────────────────────────',
   '',
-  '  The ship is breathing.',
+  '  The ship is breathing and the hull is closed.',
   '',
-  '  Deck C is sealed and there are three more decks.',
-  '  Bowen took a pod and did not say where.',
+  '  Four puzzles, and they were one skill wearing four',
+  '  hats: ask the machine what is wrong, read the answer,',
+  '  change the one thing it named.',
+  '',
+  '    systemctl status      the machine will tell you',
+  '    vi / sed              change the one thing',
+  '    chmod +x              a file becomes a program',
+  '    grep                  the answer is in the log',
+  '',
+  '  Bowen took a pod on day twelve, wrote down a heading,',
+  '  and did not come back. Deck B is open to space. Chen',
+  '  kept records nobody has read in eleven years.',
   '',
   '  Act II is not written yet. Type `objectives` to see',
-  '  what you did, or keep looking around -- there is more',
-  '  on this deck than the scrubber.',
+  '  what you did -- or keep looking. There is more on this',
+  '  deck than the four things I asked you for.',
   '',
 ];
