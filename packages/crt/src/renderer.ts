@@ -1,4 +1,5 @@
 import { GlyphAtlas, scaleFont } from './atlas.js';
+import { faceFont } from './faces.js';
 import type { LineKind, Row, TerminalBuffer } from './buffer.js';
 import { backingSize, gridFor, visibleRange, type GridSize } from './metrics.js';
 
@@ -142,6 +143,11 @@ export class TerminalRenderer {
     return this.grid.rows;
   }
 
+  /** One buffer row in CSS pixels. */
+  get rowHeight(): number {
+    return this.atlas.cell.height;
+  }
+
   /** Re-measure for a new viewport. Rebuilds the atlas only if the scale changed. */
   resize(width: number, height: number, dpr: number): void {
     const backing = backingSize({ width, height, dpr });
@@ -191,7 +197,6 @@ export class TerminalRenderer {
 
     // Only the fallback path draws text directly, but the font has to be set
     // before it is needed, not inside the per-glyph loop.
-    ctx.font = scaleFont(this.font, this.scale);
     ctx.textBaseline = 'top';
 
     for (let i = start; i < end; i++) {
@@ -226,6 +231,7 @@ export class TerminalRenderer {
 
       // Outside the atlas — a box-drawing character we did not pre-render, or
       // an emoji in a log. Slower, but a missing glyph would be worse.
+      this.ctx.font = scaleFont(faceFont(this.font, color), this.scale);
       this.ctx.fillStyle = onCursor ? this.palette.background : this.palette[color];
       this.ctx.fillText(ch, x, top);
     }

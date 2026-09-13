@@ -1,3 +1,4 @@
+import { faceFont } from './faces.js';
 import { atlasCodepoints, atlasColumns, slotPosition, type CellSize } from './metrics.js';
 
 export interface AtlasOptions {
@@ -68,7 +69,7 @@ export class GlyphAtlas {
     const ctx = sheet.getContext('2d');
     if (!ctx) throw new Error('GlyphAtlas: 2d context unavailable');
 
-    ctx.font = scaleFont(this.font, this.scale);
+    ctx.font = scaleFont(faceFont(this.font, name), this.scale);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = color;
 

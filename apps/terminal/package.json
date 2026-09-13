@@ -10,6 +10,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
     "android:sync": "pnpm build && cap sync android",
     "android:open": "cap open android",
     "android:debug": "pnpm android:sync && cd android && ./gradlew assembleDebug",
@@ -30,7 +32,9 @@
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",
     "pyodide": "^0.28.3",
+    "@playwright/test": "^1.55.0",
     "typescript": "^5.7.2",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11"
   }
 }

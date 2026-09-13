@@ -16,8 +16,39 @@
   --glow: 0 0 8px rgba(110, 231, 160, 0.45);
 
   --gutter: 16px;
-  --mono: "SFMono-Regular", ui-monospace, "Cascadia Mono", "Roboto Mono", Menlo,
-    Consolas, monospace;
+  --mono: "IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./assets/fonts/IBMPlexMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./assets/fonts/IBMPlexMono-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./assets/fonts/IBMPlexMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./assets/fonts/IBMPlexMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 * {
@@ -58,12 +89,110 @@ body {
  * canvas is a picture rather than a document -- see the wheel and touch
  * handlers in main.ts.
  */
+#stage {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+  display: flex;
+}
+
 #screen {
   flex: 1 1 auto;
   position: relative;
   overflow: hidden;
   min-height: 0;
   touch-action: pan-y;
+}
+
+#scroll-rail {
+  flex: 0 0 10px;
+  position: relative;
+  background: rgba(110, 231, 160, 0.06);
+}
+
+#scroll-thumb {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  min-height: 18px;
+  border-radius: 2px;
+  background: rgba(110, 231, 160, 0.35);
+}
+
+#turn,
+#fold {
+  flex: 0 0 auto;
+  max-height: 34vh;
+  overflow: hidden;
+  border-top: 1px solid var(--phosphor-faint);
+  background: rgba(4, 12, 8, 0.96);
+  padding: 8px var(--gutter) 10px;
+}
+
+#turn[hidden],
+#fold[hidden] {
+  display: none;
+}
+
+#turn-cmd {
+  color: var(--phosphor-hot);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 6px;
+}
+
+#turn-out,
+#fold-body {
+  margin: 0;
+  max-height: 22vh;
+  overflow: auto;
+  color: var(--phosphor);
+  font-size: 12.5px;
+  font-family: var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overscroll-behavior: contain;
+}
+
+#turn-out.art,
+#fold-body.art {
+  white-space: pre;
+  overflow-x: auto;
+}
+
+#turn-out.err {
+  color: var(--alarm);
+  font-style: italic;
+}
+
+#fold-body {
+  color: #dceaff;
+}
+
+#fold-next {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  background: transparent;
+  border: 1px solid var(--phosphor-faint);
+  border-radius: 3px;
+  padding: 8px;
+  min-height: 36px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#fold-next:active {
+  color: var(--phosphor-hot);
+  background: rgba(110, 231, 160, 0.12);
 }
 
 .crt-screen {

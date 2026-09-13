@@ -7,9 +7,16 @@ import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/ma
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
 import { whatNow, type BeatLine } from '@sigkill/quest';
-import { bootWreck, coldOpen, epilogue } from '@sigkill/wreck';
+import { bootWreck, restoreWreck, coldOpen, epilogue } from '@sigkill/wreck';
+import { clearSave, readSave, writeSave, type LastTurn } from './save.js';
+import { beatText, pageIsArt, paginateBeats } from './turn.js';
 
-const { machine, questbook } = bootWreck();
+const saved = readSave();
+const session = saved
+  ? restoreWreck({ machine: saved.machine, quest: saved.quest })
+  : bootWreck();
+const machine = session.machine;
+const questbook = session.questbook;
 
 // A host command: the Machine has no screen and must not learn what a colour
 // is, so this is registered onto the shell from out here.
@@ -35,6 +42,30 @@ const { machine, questbook } = bootWreck();
  * only honest way to pick one is to look at each in turn on the screen it will
  * be played on.
  */
+/** Set by `newgame` so the post-command persist does not write the wipe back. */
+let wiping = false;
+
+function newgameCommand(): CommandSpec {
+  return {
+    name: 'newgame',
+    summary: 'wipe the save and begin again',
+    manual:
+      'newgame\n\n' +
+      'Erase the saved run and reload the cold open. The ship forgets you.\n' +
+      'Autosave writes after every command; this is the only way back to berth 3.',
+    plain:
+      'Starts the game over from the beginning.\n' +
+      'Your save is erased. Type it only if you mean it.',
+    run: (_ctx, _argv, io) => {
+      wiping = true;
+      clearSave();
+      io.out('newgame: the ship is forgetting.\n');
+      window.setTimeout(() => window.location.reload(), 80);
+      return 0;
+    },
+  };
+}
+
 function crtCommand(): CommandSpec {
   return {
     name: 'crt',
@@ -243,7 +274,7 @@ const savedPalette = ((): string | null => {
 })();
 
 const view = new TerminalView(screen, {
-  font: '13.5px "SFMono-Regular", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
+  font: '13.5px "IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
   gutter: 16,
   plain: query.has('plain'),
   palette: paletteByName(savedPalette),
@@ -273,9 +304,17 @@ const form = document.querySelector<HTMLFormElement>('#line')!;
 const chips = document.querySelector<HTMLDivElement>('#chips')!;
 const symbols = document.querySelector<HTMLDivElement>('#symbols')!;
 const tabButton = document.querySelector<HTMLButtonElement>('#tab')!;
+const turnEl = document.querySelector<HTMLElement>('#turn')!;
+const turnCmd = document.querySelector<HTMLElement>('#turn-cmd')!;
+const turnOut = document.querySelector<HTMLElement>('#turn-out')!;
+const foldEl = document.querySelector<HTMLElement>('#fold')!;
+const foldBody = document.querySelector<HTMLElement>('#fold-body')!;
+const foldNext = document.querySelector<HTMLButtonElement>('#fold-next')!;
+const scrollThumb = document.querySelector<HTMLElement>('#scroll-thumb')!;
+const scrollRail = document.querySelector<HTMLElement>('#scroll-rail')!;
 
-const history: string[] = [];
-let historyIndex = -1;
+const history: string[] = saved?.history ?? [];
+let historyIndex = history.length;
 
 /**
  * Commands are async now, and some of them (Python, a remote host) take real
@@ -372,7 +411,8 @@ async function submit(raw: string): Promise<void> {
   // right to. This is the first one that reliably happens.
   void sound.resume();
   sound.play('submit');
-  write(machine.prompt + command, 'echo');
+  const echoed = machine.prompt + command;
+  write(echoed, 'echo');
 
   if (command.length > 0) {
     history.push(command);
@@ -405,10 +445,18 @@ async function submit(raw: string): Promise<void> {
       }
       if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
+      const lastTurn = {
+        command: echoed,
+        output: result.segments.map((s) => s.text).join(''),
+        error: result.stderr,
+      };
+      showTurn(lastTurn);
       playBeats();
       checkActComplete();
+      persist(lastTurn);
       sound.setState(shipSound());
       refreshTube();
+      refreshScrollRail();
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
       if (command.startsWith('python')) pythonWarmed = true;
@@ -484,17 +532,24 @@ function shipSound(): AudioState {
 
 function playBeats(): void {
   let closed = false;
+  const spoken: BeatLine[] = [];
   for (const objective of questbook.drainCompleted(machine)) {
     // The hull turning out to be open is the one piece of good news that is
     // also bad news, so it gets the alarm rather than the chime.
     sound.play(objective.id === 'hull-watch' ? 'alarm' : 'resolve');
-    sayBeat(objective.onComplete ?? []);
+    spoken.push(...(objective.onComplete ?? []));
     closed = true;
   }
   // Finishing one thing is exactly the moment a player asks "so now what".
   // Answering unprompted is the difference between a board they have to know
   // to ask for and one they cannot miss.
-  if (closed && !questbook.complete(machine)) sayBeat(whatNow(questbook, machine));
+  if (closed && !questbook.complete(machine)) spoken.push(...whatNow(questbook, machine));
+  // History still gets the beat — looking back must work — but the player
+  // reads it in the fold, so the last command stays on the turn strip.
+  if (spoken.length > 0) {
+    sayBeat(spoken);
+    enqueueFold(spoken);
+  }
 }
 
 /**
@@ -504,12 +559,89 @@ function playBeats(): void {
  * the objectives are solution-agnostic: the player can finish the act with
  * `sed`, with vi, or from Python, and the ending has to land either way.
  */
-let actEnded = false;
+let actEnded = saved?.actEnded ?? false;
+const foldPages: BeatLine[][] = [];
+
+let currentTurn: LastTurn | undefined = saved?.lastTurn;
+
+function persist(lastTurn = currentTurn): void {
+  if (wiping) return;
+  try {
+    writeSave({
+      version: 1,
+      machine: machine.snapshot(),
+      quest: questbook.snapshot(),
+      actEnded,
+      history,
+      ...(lastTurn ? { lastTurn } : {}),
+    });
+  } catch {
+    // Private window. The run still holds for this session.
+  }
+}
+
+function showTurn(turn: LastTurn): void {
+  currentTurn = turn;
+  turnEl.hidden = false;
+  turnCmd.textContent = turn.command;
+  const body = turn.error.length > 0 ? turn.error : turn.output;
+  turnOut.textContent = body.replace(/\n$/, '');
+  turnOut.classList.toggle('err', turn.error.length > 0);
+  turnOut.classList.toggle('art', turn.output.includes('\n') && !turn.error);
+  turnOut.scrollTop = 0;
+}
+
+function refreshScrollRail(): void {
+  const max = view.scrollMax;
+  if (max === 0) {
+    scrollRail.style.visibility = 'hidden';
+    return;
+  }
+  scrollRail.style.visibility = 'visible';
+  const track = scrollRail.clientHeight;
+  const thumb = Math.max(18, (view.rows / (view.rows + max)) * track);
+  const travel = Math.max(0, track - thumb);
+  // scroll=0 is pinned to the newest line, so the thumb sits at the bottom.
+  const top = travel * (1 - view.scrollRows / max);
+  scrollThumb.style.height = `${thumb}px`;
+  scrollThumb.style.top = `${top}px`;
+}
+
+function showFoldPage(page: readonly BeatLine[]): void {
+  foldEl.hidden = false;
+  foldBody.textContent = page.map(beatText).join('\n');
+  foldBody.classList.toggle('art', pageIsArt(page));
+  foldBody.scrollTop = 0;
+  foldNext.textContent = foldPages.length > 0 ? 'tap to continue' : 'tap to close';
+}
+
+function enqueueFold(lines: readonly BeatLine[]): void {
+  const pages = paginateBeats(lines);
+  if (pages.length === 0) return;
+  foldPages.push(...pages);
+  if (foldEl.hidden) {
+    const first = foldPages.shift();
+    if (first) showFoldPage(first);
+  } else {
+    foldNext.textContent = 'tap to continue';
+  }
+}
+
+function advanceFold(): void {
+  const next = foldPages.shift();
+  if (next) {
+    showFoldPage(next);
+    return;
+  }
+  foldEl.hidden = true;
+  foldBody.textContent = '';
+}
+
 function checkActComplete(): void {
   if (actEnded || !questbook.complete(machine)) return;
   actEnded = true;
   sound.play('act');
-  sayBeat(epilogue(machine));
+  enqueueFold(epilogue(machine));
 }
 
 // ---------------------------------------------------------------- full screen
@@ -523,6 +655,8 @@ function checkActComplete(): void {
  */
 function enterScreen(program: ScreenProgram): void {
   screenProgram = program;
+  turnEl.hidden = true;
+  foldEl.hidden = true;
   program.resize(view.rows, view.columns);
 
   // The input stays in the DOM and stays focused, only collapsed out of sight.
@@ -573,6 +707,7 @@ function screenKey(key: string, ctrl = false): void {
   screenProgram = undefined;
   form.classList.remove('screen-mode');
   symbols.hidden = false;
+  if (currentTurn) showTurn(currentTurn);
   input.value = '';
 
   if (done.write) {
@@ -794,6 +929,18 @@ form.addEventListener('submit', (event) => {
   event.preventDefault();
   if (screenProgram || busy) return;
   const value = input.value;
+  // Empty Enter pages the fold. A typed command is a command — the fold
+  // yields. On a phone the send key is how you run, and the cold-open
+  // nudge must not eat the first `ls`.
+  if (!foldEl.hidden && value.trim().length === 0) {
+    advanceFold();
+    return;
+  }
+  if (!foldEl.hidden) {
+    foldPages.length = 0;
+    foldEl.hidden = true;
+    foldBody.textContent = '';
+  }
   input.value = '';
   void submit(value);
 });
@@ -886,7 +1033,8 @@ screen.addEventListener(
   'wheel',
   (event) => {
     event.preventDefault();
-    view.scrollBy(Math.sign(event.deltaY) * 3);
+    view.scrollBy(Math.sign(event.deltaY));
+    refreshScrollRail();
   },
   { passive: false },
 );
@@ -897,18 +1045,26 @@ screen.addEventListener('touchmove', (e) => {
   const y = e.touches[0]?.clientY;
   if (y === undefined || touchY === null) return;
   const delta = touchY - y;
-  // One row per ~18px of drag, which is roughly one line height.
-  if (Math.abs(delta) >= 18) {
-    view.scrollBy(Math.trunc(delta / 18));
+  const row = Math.max(14, view.rowHeight);
+  if (Math.abs(delta) >= row) {
+    view.scrollBy(Math.trunc(delta / row));
     touchY = y;
+    refreshScrollRail();
   }
 }, { passive: true });
 screen.addEventListener('touchend', () => { touchY = null; }, { passive: true });
+
+holdFocusOnTap(foldNext);
+foldNext.addEventListener('click', () => {
+  advanceFold();
+  keepFocus();
+});
 
 // A rotation or a keyboard appearing changes the grid; the program has to be
 // told, or it keeps drawing to the old geometry.
 window.addEventListener('resize', () => {
   if (screenProgram) paintScreen();
+  refreshScrollRail();
 });
 
 /*
@@ -921,14 +1077,29 @@ window.addEventListener('resize', () => {
 machine.shell.commands.set('palette', paletteCommand());
 machine.shell.commands.set('sound', soundCommand());
 machine.shell.commands.set('crt', crtCommand());
+machine.shell.commands.set('newgame', newgameCommand());
 refreshTube();
 
-sayBeat(coldOpen(machine));
-sayBeat(whatNow(questbook, machine));
+if (saved) {
+  write('NAV-7 session restored. The ship has not forgotten.', 'system');
+  write('Type:  objectives      start over:  newgame', 'system');
+  showTurn(
+    saved.lastTurn ?? {
+      command: 'session restored',
+      output: 'Type:  objectives      start over:  newgame',
+      error: '',
+    },
+  );
+} else {
+  sayBeat(coldOpen(machine));
+  enqueueFold(whatNow(questbook, machine));
+  sayBeat(whatNow(questbook, machine));
+}
 refreshPrompt();
 buildSymbolRow();
 refreshChips();
 scrollToEnd();
+refreshScrollRail();
 input.focus();
 
 // Exported for the console during development.
