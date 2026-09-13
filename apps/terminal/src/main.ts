@@ -608,6 +608,10 @@ function refreshScrollRail(): void {
 }
 
 function showFoldPage(page: readonly BeatLine[]): void {
+  // The fold is the thing being read. Stacking it on the last-turn strip
+  // ate the CRT on a phone (two 34vh panels). The dock stays; the strip
+  // comes back when the fold closes.
+  turnEl.hidden = true;
   foldEl.hidden = false;
   foldBody.textContent = page.map(beatText).join('\n');
   foldBody.classList.toggle('art', pageIsArt(page));
@@ -635,6 +639,7 @@ function advanceFold(): void {
   }
   foldEl.hidden = true;
   foldBody.textContent = '';
+  if (currentTurn) showTurn(currentTurn);
 }
 
 function checkActComplete(): void {

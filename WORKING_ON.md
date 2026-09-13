@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| apps/terminal + packages/crt + games/wreck | Cursor | 2026-09-13 | Pass 0 phone screen |
+| _(none)_ | | | |
 
 ## Conventions
 
