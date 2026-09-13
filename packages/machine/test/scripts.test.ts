@@ -208,3 +208,125 @@ describe('redirection and pipes reach a script', () => {
     expect((await m.exec('./emit.sh | wc -l')).stdout.trim()).toBe('2');
   });
 });
+
+/**
+ * Formatting travels with the output, not with the shell.
+ *
+ * The first version of this raised a flag on the ShellContext and read it off
+ * the result afterwards. Codex pointed out that cannot describe compound
+ * output, and it was right twice: the flag stayed true across a `;` so the
+ * next command's prose got clipped, and it was lost inside a subshell so the
+ * drawing got wrapped and shredded. It is a property of the command now.
+ */
+describe('preformatted output', () => {
+  /** A machine with one command that declares its output preformatted. */
+  function withArt(): Machine {
+    const m = new Machine({
+      hostname: 'nav7',
+      commands: [
+        {
+          name: 'draw',
+          summary: 'draw a box',
+          preformatted: true,
+          run: (_ctx, _argv, io) => {
+            io.out('┌──┐\n│  │\n└──┘\n');
+            return 0;
+          },
+        },
+      ],
+    });
+    m.vfs.mkdirp('/tmp', ROOT_USER);
+    m.vfs.chmod('/tmp', 0o777, ROOT_USER);
+    m.vfs.mkdirp('/home/survivor', ROOT_USER);
+    m.shell.cwd = '/home/survivor';
+    return m;
+  }
+
+  const art = (r: { segments: Array<{ text: string; preformatted: boolean }> }): string =>
+    r.segments.filter((s) => s.preformatted).map((s) => s.text).join('');
+  const prose = (r: { segments: Array<{ text: string; preformatted: boolean }> }): string =>
+    r.segments.filter((s) => !s.preformatted).map((s) => s.text).join('');
+
+  it('tags a declaring command', async () => {
+    const m = withArt();
+    expect(art(await m.exec('draw'))).toContain('┌──┐');
+  });
+
+  it('does not tag anything else', async () => {
+    const m = withArt();
+    expect(art(await m.exec('echo hello'))).toBe('');
+  });
+
+  it('splits a compound line into its parts, in order', async () => {
+    const m = withArt();
+    const r = await m.exec('draw; echo plain');
+    expect(art(r)).toContain('┌──┐');
+    expect(art(r)).not.toContain('plain');
+    expect(prose(r)).toBe('plain\n');
+    // Order is preserved, which is what a terminal needs.
+    expect(r.stdout).toBe('┌──┐\n│  │\n└──┘\nplain\n');
+  });
+
+  it('splits it the other way round too', async () => {
+    const m = withArt();
+    const r = await m.exec('echo plain; draw');
+    expect(prose(r)).toBe('plain\n');
+    expect(art(r)).toContain('└──┘');
+  });
+
+  it('interleaves three segments without merging them', async () => {
+    const m = withArt();
+    const r = await m.exec('echo one; draw; echo two');
+    expect(r.segments.map((s) => s.preformatted)).toEqual([false, true, false]);
+  });
+
+  it('merges adjacent runs of the same kind rather than fragmenting', async () => {
+    const m = withArt();
+    const r = await m.exec('echo one; echo two');
+    expect(r.segments).toHaveLength(1);
+  });
+
+  it('keeps the tag inside a subshell', async () => {
+    const m = withArt();
+    expect(art(await m.exec('(draw)'))).toContain('┌──┐');
+  });
+
+  it('keeps the tag inside && and ||', async () => {
+    const m = withArt();
+    expect(art(await m.exec('true && draw'))).toContain('┌──┐');
+  });
+
+  it('drops the tag for output on its way through a pipe', async () => {
+    const m = withArt();
+    const r = await m.exec('draw | wc -l');
+    expect(art(r)).toBe('');
+    expect(r.stdout.trim()).toBe('3');
+  });
+
+  it('drops the tag for output on its way into a file', async () => {
+    const m = withArt();
+    const r = await m.exec('draw > /tmp/box.txt');
+    expect(art(r)).toBe('');
+    expect(m.vfs.readText('/tmp/box.txt', ROOT_USER)).toContain('┌──┐');
+  });
+
+  it('keeps the tag when a later stage of a pipeline is the art', async () => {
+    const m = withArt();
+    expect(art(await m.exec('echo ignored | draw'))).toContain('┌──┐');
+  });
+
+  it('leaves segments empty for a syntax error rather than undefined', async () => {
+    const m = withArt();
+    const r = await m.exec('draw |');
+    expect(r.segments).toEqual([]);
+    expect(r.stderr).toContain('syntax error');
+  });
+
+  it('never disagrees with stdout', async () => {
+    const m = withArt();
+    for (const line of ['draw', 'echo x', 'draw; echo x', 'echo x; draw; echo y', '(draw)']) {
+      const r = await m.exec(line);
+      expect(r.segments.map((s) => s.text).join(''), line).toBe(r.stdout);
+    }
+  });
+});

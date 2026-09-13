@@ -94,19 +94,131 @@ describe('the pressure panel', () => {
   });
 });
 
+/** Start the hull monitor the way a player does, so the drawings unlock. */
+async function withMonitor(): Promise<ReturnType<typeof bootWreck>> {
+  const booted = bootWreck();
+  await booted.machine.exec('sudo chmod +x /usr/local/bin/hull-check');
+  await booted.machine.exec('sudo systemctl start hull-monitor');
+  return booted;
+}
+
 describe('the commands that draw', () => {
   it('deck and pressure both mark their output preformatted', async () => {
-    const { machine } = bootWreck();
+    const { machine } = await withMonitor();
     for (const command of ['deck', 'pressure']) {
       const r = await machine.exec(command);
       expect(r.stderr, command).toBe('');
-      expect(r.preformatted, `${command} must not be reflowed`).toBe(true);
+      expect(r.segments.every((seg) => seg.preformatted), `${command}`).toBe(true);
     }
   });
 
   it('ordinary output is not marked preformatted', async () => {
     const { machine } = bootWreck();
-    expect((await machine.exec('cat README')).preformatted).toBe(false);
+    const r = await machine.exec('cat README');
+    expect(r.segments.some((seg) => seg.preformatted)).toBe(false);
+  });
+
+  /*
+   * Both found by Codex on the first version, and both real. A single
+   * result-wide boolean cannot describe compound output: it stayed true across
+   * a `;` and clipped the README, and it was lost entirely inside a subshell
+   * so the drawing got wrapped and shredded -- the exact failure the art path
+   * exists to prevent. Formatting is now a property of the command, tagged
+   * where the command is invoked.
+   */
+  it('tags only the drawing in `deck; cat README`', async () => {
+    const { machine } = await withMonitor();
+    const r = await machine.exec('deck; cat README');
+    expect(r.stderr).toBe('');
+    const art = r.segments.filter((seg) => seg.preformatted);
+    const prose = r.segments.filter((seg) => !seg.preformatted);
+    expect(art.map((s) => s.text).join('')).toContain('DECK C');
+    expect(prose.map((s) => s.text).join('')).toContain('Vasquez');
+    // The README must not be inside a preformatted segment, or it gets clipped.
+    expect(art.map((s) => s.text).join('')).not.toContain('Vasquez');
+  });
+
+  it('keeps the tag in the other order too', async () => {
+    const { machine } = await withMonitor();
+    const r = await machine.exec('cat README; deck');
+    const art = r.segments.filter((seg) => seg.preformatted).map((s) => s.text).join('');
+    expect(art).toContain('DECK C');
+    expect(art).not.toContain('Vasquez');
+  });
+
+  it('keeps the tag through a subshell', async () => {
+    const { machine } = await withMonitor();
+    const r = await machine.exec('(deck)');
+    expect(r.stdout).toContain('DECK C');
+    expect(r.segments.every((seg) => seg.preformatted)).toBe(true);
+  });
+
+  it('keeps the tag through a shell script', async () => {
+    const { machine } = await withMonitor();
+    machine.vfs.writeText('/tmp/draw.sh', '#!/bin/sh\ndeck\n', ROOT_USER);
+    machine.vfs.chmod('/tmp/draw.sh', 0o755, ROOT_USER);
+    const r = await machine.exec('/tmp/draw.sh');
+    expect(r.stdout).toContain('DECK C');
+    expect(r.segments.every((seg) => seg.preformatted)).toBe(true);
+  });
+
+  it('does not tag a drawing that is only passing through a pipe', async () => {
+    const { machine } = await withMonitor();
+    const r = await machine.exec('deck | wc -l');
+    expect(r.segments.some((seg) => seg.preformatted)).toBe(false);
+  });
+
+  it('does not tag a drawing on its way into a file', async () => {
+    const { machine } = await withMonitor();
+    const r = await machine.exec('deck > /tmp/map.txt');
+    expect(r.segments.some((seg) => seg.preformatted)).toBe(false);
+    expect(machine.vfs.readText('/tmp/map.txt', ROOT_USER)).toContain('DECK C');
+  });
+
+  /*
+   * The other Codex finding: `/var/log/hull.log` is seeded at boot, so
+   * `pressure` on the very first command handed over the flagged C7 row and
+   * skipped the two puzzles that teach finding it. The cold open had already
+   * promised the drawings arrive "once the hull monitor is running", so the
+   * ship was breaking its word -- which matters more than the spoiler.
+   */
+  describe('the drawings do not exist until the monitor does', () => {
+    it('refuses on a fresh boot', async () => {
+      const { machine } = bootWreck();
+      for (const command of ['deck', 'pressure']) {
+        const r = await machine.exec(command);
+        expect(r.code, command).not.toBe(0);
+        expect(r.stdout, command).toBe('');
+        expect(r.stderr, command).toContain('hull-monitor is not running');
+      }
+    });
+
+    it('does not leak the answer in the refusal', async () => {
+      const { machine } = bootWreck();
+      const said = (await machine.exec('pressure')).stderr;
+      expect(said).not.toContain('C7');
+      expect(said).not.toContain('96');
+    });
+
+    it('points at the diagnostic that is the lesson', async () => {
+      const { machine } = bootWreck();
+      const said = (await machine.exec('deck')).stderr;
+      expect(said).toContain('systemctl status hull-monitor');
+    });
+
+    it('works the moment the monitor is started', async () => {
+      const { machine } = await withMonitor();
+      expect(machine.services.get('hull-monitor')?.state).toBe('active');
+      const r = await machine.exec('deck');
+      expect(r.stderr).toBe('');
+      expect(r.stdout).toContain('DECK C');
+    });
+
+    it('stops again if the monitor is stopped', async () => {
+      const { machine } = await withMonitor();
+      await machine.exec('sudo systemctl stop hull-monitor');
+      expect((await machine.exec('deck')).code).not.toBe(0);
+    });
   });
 
   it('both have a manual on both tracks, like everything else aboard', async () => {
