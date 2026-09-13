@@ -53,9 +53,14 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     [
       '[0000.00] NAV-7 cold start',
       '[0000.412] reactor: output nominal',
-      '[0000.884] scrubber: FAIL - configuration rejected',
+      // The number, in the log, at boot. The README tells the player this
+      // machine writes everything down; it has to be true before they look.
+      '[0000.881] scrubber: reading /etc/life_support.conf',
+      '[0000.884] scrubber: FAIL - O2_TARGET=16 outside breathable range 19-23',
+      '[0000.884] scrubber: refusing to run; entering failed state',
       '[0001.002] atmosphere: O2 below crew minimum',
       '[0001.310] comms: no carrier',
+      '[0001.900] init: 1 unit failed. See: systemctl status scrubber',
       '[4112.000] console: session opened',
       '',
     ].join('\n'),
@@ -67,27 +72,27 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     [
       'If you are reading this, the ship woke you and not me.',
       '',
-      'The scrubber will not start. Ask it why yourself:',
+      'The scrubber will not start. It has not started in a very long time.',
+      'Ask it why -- it has been saying the same thing the whole time:',
       '',
       '    systemctl status scrubber',
       '',
-      'It will tell you the number it objects to. That number lives in a',
-      "config file over in /etc -- that is where this ship keeps every",
-      'setting it has. Look for yourself:',
+      'It objects to a number. That number is in a config file over in /etc,',
+      'which is where this ship keeps every setting it has:',
       '',
       '    ls /etc',
       '',
-      'Open the life support one and put the number back into the range it',
-      'wants. Any editor on board will do:',
+      'Open the life support one and put the number back inside the range it',
+      'asks for. Any editor aboard will do:',
       '',
-      '    vi /etc/life_support.conf      (:wq to save and quit)',
-      '    nano /etc/life_support.conf    (^O to save, ^X to quit)',
+      '    vi /etc/life_support.conf      (press i to type, :wq to save)',
+      '    nano /etc/life_support.conf    (^O saves, ^X leaves)',
       '',
       'Then start the service. That part needs sudo.',
       '',
-      'I set the target low to stretch the reserve. The controller has',
-      'refused it ever since and I have had a long time to think about',
-      'whether that was clever of me.',
+      'I set the target low to stretch the reserve. I thought I was buying',
+      'us weeks. The controller refused it inside of a second and I spent',
+      'eleven years deciding whether to be grateful.',
       '',
       '  - Vasquez, engineering',
       '',
@@ -209,6 +214,21 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
 
   m.services.startEnabled();
 
+  /*
+   * The ship has been failing to start this thing for eleven years, so it is
+   * already in a failed state before the player arrives -- and that state is
+   * produced by genuinely attempting the start, not by hand-writing a fake
+   * error onto the unit.
+   *
+   * This is the fix for the bug that made Act I unfinishable. The README and
+   * the first hint both tell the player that `systemctl status scrubber` will
+   * name the number it objects to. Before this, status said only "inactive"
+   * until the player had already guessed the step they were trying to find,
+   * and the hint's "I have been reading that same line for eleven years"
+   * pointed at a line that did not exist.
+   */
+  m.services.start('scrubber');
+
   m.shell.cwd = '/home/survivor';
   m.shell.env['PWD'] = '/home/survivor';
   return { machine: m, questbook };
@@ -222,11 +242,65 @@ export const COLD_OPEN = [
   '  O2 reserve ............. 9h 14m',
   '  crew aboard ............ 1',
   '',
-  "ORACLE: You're awake. Good. I'm what's left of the maintenance",
-  "ORACLE: daemon. I can't move, I can't see, and I can't fix",
-  "ORACLE: anything myself.",
-  'ORACLE: You can. Start with: ls',
-  'ORACLE: There is a note in your home directory. Read it: cat README',
-  "ORACLE: Lost? Type: hint. It costs nothing and I do not keep score.",
+  "ORACLE: You're awake.",
+  'ORACLE: I did not expect that. I want to be careful about how much',
+  'ORACLE: I expect, now.',
+  '',
+  "ORACLE: I am what is left of the maintenance daemon. I can't move.",
+  "ORACLE: I can't see. I have read the same four hundred lines of log",
+  'ORACLE: every day for eleven years and not one of them has ever',
+  'ORACLE: changed.',
+  '',
+  'ORACLE: You can change them.',
+  '',
+  'ORACLE: Start with: ls',
+  'ORACLE: Vasquez left you a note. Read it: cat README',
+  'ORACLE: If you get lost, type: hint. It costs nothing. I am not',
+  'ORACLE: keeping score. I stopped keeping score a long time ago.',
+  '',
+];
+
+/**
+ * What ORACLE says when the act is finished.
+ *
+ * Act I ended in silence before this: both objectives would go green and
+ * nothing would happen, which is why a playthrough felt like it stopped
+ * rather than ended.
+ */
+export const EPILOGUE = [
+  '',
+  'ORACLE: It is running.',
+  '',
+  'ORACLE: I want to tell you something and I am not certain it is',
+  'ORACLE: appropriate, so I will say it quickly and then we can both',
+  'ORACLE: pretend I did not.',
+  '',
+  'ORACLE: Vasquez tried that fix on day nine. The same number. She',
+  'ORACLE: typed it, the controller refused her, and she wrote in her',
+  'ORACLE: log that it was not wrong. Then the shift ended and she did',
+  'ORACLE: not come back to it.',
+  '',
+  'ORACLE: I have had eleven years to work out why. I think she knew',
+  'ORACLE: that starting it meant deciding who the air was for. There',
+  'ORACLE: were four of them then.',
+  '',
+  'ORACLE: There is one of you. So the arithmetic is easier, and I am',
+  'ORACLE: sorry that it is.',
+  '',
+  'ORACLE: It will hold now. Even if the power browns out tonight, it',
+  'ORACLE: will come back without you. I made certain of that when you',
+  'ORACLE: enabled it, and I have not been able to make certain of',
+  'ORACLE: anything for a very long time.',
+  '',
+  '  ── ACT I COMPLETE ──────────────────────────────────',
+  '',
+  '  The ship is breathing.',
+  '',
+  '  Deck C is sealed and there are three more decks.',
+  '  Bowen took a pod and did not say where.',
+  '',
+  '  Act II is not written yet. Type `objectives` to see',
+  '  what you did, or keep looking around -- there is more',
+  '  on this deck than the scrubber.',
   '',
 ];

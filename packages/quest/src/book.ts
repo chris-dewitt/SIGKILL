@@ -83,6 +83,17 @@ export class Questbook {
       .filter((row) => !this.objectives.find((o) => o.id === row.id)?.secret || row.blockedBy.length === 0);
   }
 
+  /**
+   * Is every objective finished?
+   *
+   * The host uses this to fire an act's ending exactly once. Without it, an
+   * adventure simply stops when the last objective goes green, which reads as
+   * the game breaking rather than the act closing.
+   */
+  complete(world: World): boolean {
+    return this.objectives.every((objective) => objective.done(world));
+  }
+
   /** The objective a bare `hint` is about: first unlocked and unfinished. */
   current(world: World): Objective | undefined {
     return this.objectives.find(

@@ -2,7 +2,7 @@ import { TerminalView } from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
-import { bootWreck, COLD_OPEN } from '@sigkill/wreck';
+import { bootWreck, COLD_OPEN, EPILOGUE } from '@sigkill/wreck';
 
 const { machine, questbook } = bootWreck();
 
@@ -107,6 +107,7 @@ async function submit(raw: string): Promise<void> {
       }
       if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
+      checkActComplete();
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
       if (command.startsWith('python')) pythonWarmed = true;
@@ -125,6 +126,20 @@ async function submit(raw: string): Promise<void> {
   refreshChips();
   scrollToEnd();
   if (!input.disabled) input.focus();
+}
+
+/**
+ * Play the act's ending, once.
+ *
+ * Checked after every command rather than tied to a particular one, because
+ * the objectives are solution-agnostic: the player can finish the act with
+ * `sed`, with vi, or from Python, and the ending has to land either way.
+ */
+let actEnded = false;
+function checkActComplete(): void {
+  if (actEnded || !questbook.complete(machine)) return;
+  actEnded = true;
+  for (const line of EPILOGUE) write(line, 'system');
 }
 
 // ---------------------------------------------------------------- full screen
