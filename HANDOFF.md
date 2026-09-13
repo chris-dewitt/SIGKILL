@@ -15,12 +15,23 @@ game 1, act by act, no deadlines**. See §8.
 |---|---|---|
 | Branch / PR | State | Contains |
 |---|---|---|
-| `main` @ `94653cb` | **current** | everything below |
+| `main` @ `434bafd` | **current** | everything below |
 | PR #1–#11 | merged | phases 0–1, Android wrap, renderer, hints, editors, the coreutils sweep, the Act I blocker |
 | PR #12 | merged | Deck C, puzzles 3–4, shell scripts, 32 manual pages |
+| PR #13 | merged | ASCII art: `packages/ascii`, `deck`, `pressure`, the three set pieces |
+| PR #14 | merged | the two Codex fixes that missed #13 by seconds |
 
-`pnpm -r test` on `main`: **489 tests** — 214 machine, 130 editor, 36 crt,
-29 quest, 27 python, 53 wreck. Typecheck clean, build clean. No open branches.
+`pnpm -r test` on `main`: **597 tests** — 227 machine, 130 editor, 87 wreck,
+55 ascii, 42 crt, 29 quest, 27 python. Typecheck clean, build clean. No open
+branches.
+
+**One known issue, deliberately unfixed:** `TerminalBuffer` has no notion of an
+open logical line, so output that arrives without a trailing newline gets an
+implicit break when the next write lands (`echo -n x; deck`, or any partial
+stdout followed by stderr). Predates the art work. Found by Codex on #14 and
+left open there, because fixing it needs a design call first: bash puts the
+prose and the drawing's first row on the same line, which leaves the art
+crooked, so byte-faithfulness and a legible picture disagree.
 
 ---
 
