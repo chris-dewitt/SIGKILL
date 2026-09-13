@@ -131,10 +131,13 @@ async function submit(raw: string): Promise<void> {
       if (result.cleared) {
         view.clear();
       } else {
-        // `preformatted` is the Machine saying "do not reflow this" without
-        // knowing what a drawing is. stderr is always prose.
-        if (result.preformatted) writeArt(result.stdout, 'out');
-        else writeBlock(result.stdout, 'out');
+        // Walked per segment rather than read once off the result: one command
+        // line can mix a drawing and a paragraph, and the two need opposite
+        // treatment. stderr is always prose.
+        for (const segment of result.segments) {
+          if (segment.preformatted) writeArt(segment.text, 'out');
+          else writeBlock(segment.text, 'out');
+        }
         writeBlock(result.stderr, 'err');
       }
       if (result.screen) enterScreen(result.screen);

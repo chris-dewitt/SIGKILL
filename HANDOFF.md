@@ -52,7 +52,11 @@ rows look like an emergency. It also carries a 5x3 block font, because all
 thirteen games need their name up front.
 
 **Art in the wreck** — `src/act1/art.ts` is the live diagrams (`deck`,
-`pressure`), `src/act1/cards.ts` is the three set pieces. The division of
+`pressure`), `src/act1/cards.ts` is the three set pieces. Both diagrams are
+gated on `hull-monitor` being active, because the cold open promises they
+arrive "once the hull monitor is running" and a promise the ship breaks is
+worse than a missing feature. The refusal hands over
+`systemctl status hull-monitor`, so being turned away teaches the lesson. The division of
 labour is by job, not taste: **typography is a logo** (cold open only, or it
 becomes a watermark), **the schematic is the ship's condition** (cold open and
 ending, drawn from `/etc/hull` so it can never disagree with `deck`), and
@@ -61,8 +65,13 @@ turn, the ending). Chris chose all three styles and "act boundaries only".
 
 Two rules that are load-bearing:
 
-1. Art goes through `view.writeArt` / `asArt`, never `write`. The Machine says
-   which output that is via `preformatted`, modelled on `clearRequested`.
+1. Art goes through `view.writeArt` / `asArt`, never `write`. A command that
+   draws declares `preformatted: true` on its `CommandSpec`, and `RunResult`
+   comes back as ordered `segments` the host walks. **Not** a flag on the
+   shell read once afterwards -- that version could not describe
+   `deck; cat README` (stayed true, clipped the note) or `(deck)` (lost the
+   tag, shredded the drawing). Formatting is a property of the command and
+   travels with its output chunks.
 2. Only one number on the schematic is hearsay: `hullClaim`. It is a literal on
    purpose -- the epilogue turns on ORACLE having recited 61% off Vasquez's
    clipboard for eleven years -- while the sealed count beside it is measured.
