@@ -1,10 +1,23 @@
 import type { ShellContext, ExecIO } from '../shell/exec.js';
+import { isFsError } from '../errors.js';
 
 /** Split argv into flags and operands, honouring `--` and clustered short flags. */
 export function parseArgs(
   argv: string[],
   opts: { flags?: string[]; valued?: string[] } = {},
-): { flags: Set<string>; values: Map<string, string>; operands: string[] } {
+): {
+  flags: Set<string>;
+  values: Map<string, string>;
+  operands: string[];
+  /**
+   * Index in `operands` where the arguments after `--` begin.
+   *
+   * Everything from here on was explicitly protected by the caller and must
+   * never be reinterpreted as an option -- `head -- -5` means the file named
+   * `-5`. Equals `operands.length` when there was no `--`.
+   */
+  separator: number;
+} {
   const flags = new Set<string>();
   const values = new Map<string, string>();
   const operands: string[] = [];
@@ -12,9 +25,10 @@ export function parseArgs(
   const valued = new Set(opts.valued ?? []);
 
   let i = 1;
+  let separator = -1;
   for (; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (arg === '--') { i++; break; }
+    if (arg === '--') { separator = operands.length; i++; break; }
     if (arg.length > 1 && arg.startsWith('-') && !/^-\d+$/.test(arg)) {
       if (arg.startsWith('--')) {
         const [name, inline] = arg.slice(2).split('=', 2);
@@ -42,7 +56,7 @@ export function parseArgs(
   }
   for (; i < argv.length; i++) operands.push(argv[i]!);
 
-  return { flags, values, operands };
+  return { flags, values, operands, separator: separator < 0 ? operands.length : separator };
 }
 
 /** Join lines back into text with a trailing newline, the way coreutils do. */
@@ -93,4 +107,129 @@ export function formatMode(kind: string, mode: number): string {
   const rwx = (bits: number): string =>
     `${bits & 4 ? 'r' : '-'}${bits & 2 ? 'w' : '-'}${bits & 1 ? 'x' : '-'}`;
   return type + rwx((mode >> 6) & 7) + rwx((mode >> 3) & 7) + rwx(mode & 7);
+}
+
+/**
+ * Pull a bare `-N` count out of the operands, as `head -5` and `tail -20` use.
+ *
+ * `parseArgs` deliberately leaves `-5` alone -- it cannot know whether a lone
+ * negative number is a flag or an argument -- so the commands that accept the
+ * historical form ask for it here. Without this, `head -5 file` tries to open
+ * a file called `-5`, which is the error a player sees the first time they
+ * reach for the form every other system accepts.
+ *
+ * Returns the count and the operands with it removed.
+ */
+export function takeCountOperand(
+  operands: string[],
+  separator = operands.length,
+): { count: number | undefined; rest: string[] } {
+  const rest: string[] = [];
+  let count: number | undefined;
+  for (const [index, operand] of operands.entries()) {
+    const numeric = /^-(\d+)$/.exec(operand);
+    // Only the first one, only before any filename, and never past `--`:
+    // after that boundary the caller has said `-5` is a filename and meant it.
+    if (numeric && count === undefined && rest.length === 0 && index < separator) {
+      count = Number(numeric[1]);
+      continue;
+    }
+    rest.push(operand);
+  }
+  return { count, rest };
+}
+
+/**
+ * Parse a chmod mode: octal, or symbolic like `+x`, `u+w`, `go-rwx`, `a=r`.
+ *
+ * Symbolic modes are how anyone actually makes a script executable, and
+ * `chmod +x` is one of the first real things a person learns to type. Octal
+ * only is a teaching gap, not a simplification.
+ *
+ * Returns the new mode, or null if the spec is not a mode at all.
+ */
+/**
+ * Does this argument look like a chmod mode rather than an option?
+ *
+ * `chmod -x file` is a real command and `-x` is the mode, but a generic flag
+ * parser sees an option and eats it. chmod has to decide before parsing, which
+ * is exactly what the real one does.
+ */
+export function looksLikeMode(arg: string): boolean {
+  if (/^[0-7]{3,4}$/.test(arg)) return true;
+  return arg.split(',').every((clause) => /^[ugoa]*[+\-=][rwxX]*$/.test(clause)) && arg !== '';
+}
+
+export function parseMode(spec: string, current: number, isDir = false): number | null {
+  if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
+
+  let mode = current & 0o7777;
+  // Comma-separated clauses, as in `u+rw,go-w`.
+  for (const clause of spec.split(',')) {
+    const m = /^([ugoa]*)([+\-=])([rwxX]*)$/.exec(clause);
+    if (!m) return null;
+
+    const [, whoSpec = '', op = '', permSpec = ''] = m;
+    const who = whoSpec === '' || whoSpec.includes('a') ? 'ugo' : whoSpec;
+
+    let bits = 0;
+    if (permSpec.includes('r')) bits |= 0o4;
+    if (permSpec.includes('w')) bits |= 0o2;
+    // `X` sets execute on directories, and on files that already have an
+    // execute bit somewhere. That pair is the whole point: `chmod -R a+X`
+    // makes a tree traversable without making every text file runnable.
+    const executable = isDir || (mode & 0o111) !== 0;
+    if (permSpec.includes('x') || (permSpec.includes('X') && executable)) bits |= 0o1;
+
+    for (const [target, shift] of [['u', 6], ['g', 3], ['o', 0]] as const) {
+      if (!who.includes(target)) continue;
+      const field = bits << shift;
+      const mask = 0o7 << shift;
+      if (op === '+') mode |= field;
+      else if (op === '-') mode &= ~field;
+      else mode = (mode & ~mask) | field;
+    }
+  }
+  return mode;
+}
+
+/**
+ * Every regular file at or under a path, for `grep -r`.
+ *
+ * Unreadable directories are skipped rather than fatal: a player running
+ * `grep -r secret /etc` should get the matches they *can* see, exactly as on
+ * a real system, not one permission error and nothing else.
+ */
+export function expandTree(ctx: ShellContext, start: string): { files: string[]; errors: string[] } {
+  const files: string[] = [];
+  const errors: string[] = [];
+
+  const walk = (path: string): void => {
+    let kind: string;
+    try {
+      kind = ctx.vfs.lstat(ctx.resolve(path), ctx.user).kind;
+    } catch {
+      // Let the caller report it the way it reports any unopenable operand.
+      files.push(path);
+      return;
+    }
+    if (kind !== 'dir') {
+      files.push(path);
+      return;
+    }
+    let entries: string[];
+    try {
+      entries = ctx.vfs.readdir(ctx.resolve(path), ctx.user);
+    } catch (e) {
+      // A directory that cannot be read is an error, not an empty directory.
+      // Swallowing it would let `grep -r` report "no matches" for a tree it
+      // never actually looked inside.
+      errors.push(`${path}: ${isFsError(e) ? e.reason : 'cannot be read'}`);
+      return;
+    }
+    for (const entry of entries.sort()) walk(`${path.replace(/\/$/, '')}/${entry}`);
+  };
+
+  walk(start);
+  return { files, errors };
 }

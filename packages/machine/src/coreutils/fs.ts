@@ -1,9 +1,66 @@
 import { FsError, isFsError } from '../errors.js';
 import * as p from '../vfs/path.js';
 import type { CommandSpec } from '../shell/exec.js';
-import { emit, formatMode, parseArgs, usage } from './helpers.js';
+import { emit, formatMode, looksLikeMode, parseArgs, parseMode, usage } from './helpers.js';
 
 export const fsCommands: CommandSpec[] = [
+  {
+    name: 'basename',
+    summary: 'strip the directory from a path',
+    manual:
+      'basename PATH [SUFFIX]\n\n' +
+      'Print PATH with any leading directories removed, and SUFFIX removed\n' +
+      'from the end if it is there.',
+    plain:
+      'Gives you just the file name out of a long path.\n' +
+      '  basename /etc/life_support.conf        -> life_support.conf\n' +
+      '  basename /etc/life_support.conf .conf  -> life_support',
+    run: (_ctx, argv, io) => {
+      const { operands } = parseArgs(argv);
+      const path = operands[0];
+      if (path === undefined) return usage(io, 'basename: missing operand');
+
+      // Trailing slashes are not part of the name: basename /etc/ is "etc".
+      const trimmed = path.replace(/\/+$/, '');
+      let name = trimmed.slice(trimmed.lastIndexOf('/') + 1);
+      const suffix = operands[1];
+      if (suffix !== undefined && name !== suffix && name.endsWith(suffix)) {
+        name = name.slice(0, -suffix.length);
+      }
+      io.out((name === '' ? '/' : name) + '\n');
+      return 0;
+    },
+  },
+
+  {
+    name: 'dirname',
+    summary: 'strip the file name from a path',
+    manual: 'dirname PATH\n\nPrint PATH with its last component removed.',
+    plain:
+      'Gives you the folder a path is in.\n' +
+      '  dirname /etc/life_support.conf  -> /etc',
+    run: (_ctx, argv, io) => {
+      const { operands } = parseArgs(argv);
+      const path = operands[0];
+      if (path === undefined) return usage(io, 'dirname: missing operand');
+
+      const trimmed = path.replace(/\/+$/, '');
+      // An all-slash path trims to nothing and is the root. Answering "." there
+      // would send `cd "$(dirname "$p")"` somewhere else entirely once a script
+      // walked up to /.
+      if (trimmed === '') {
+        io.out((path.startsWith('/') ? '/' : '.') + '\n');
+        return 0;
+      }
+      const cut = trimmed.lastIndexOf('/');
+      // No slash at all means "here", which is what makes `cd $(dirname x)`
+      // safe on a bare filename.
+      if (cut < 0) io.out('.\n');
+      else io.out((cut === 0 ? '/' : trimmed.slice(0, cut)) + '\n');
+      return 0;
+    },
+  },
+
   {
     name: 'pwd',
     summary: 'print the current working directory',
@@ -308,17 +365,33 @@ export const fsCommands: CommandSpec[] = [
     name: 'chmod',
     summary: 'change file mode bits',
     run: (ctx, argv, io) => {
-      const { operands } = parseArgs(argv);
+      // `chmod -x file` is a real command and `-x` is the mode, so the mode is
+      // taken before any flag parsing -- otherwise the parser eats it and the
+      // command reports a missing operand for an argument that was right there.
+      const first = argv[1];
+      const modeFirst = first !== undefined && looksLikeMode(first);
+      const operands = modeFirst ? argv.slice(1) : parseArgs(argv).operands;
+
       if (operands.length < 2) return usage(io, 'chmod: missing operand');
       const spec = operands[0]!;
-      if (!/^[0-7]{3,4}$/.test(spec)) {
-        return usage(io, `chmod: invalid mode: '${spec}' (octal only, e.g. 755)`);
+      if (!looksLikeMode(spec)) {
+        return usage(io, `chmod: invalid mode: '${spec}'  (try 755, +x, u+w, go-rwx)`);
       }
-      const mode = parseInt(spec, 8);
+
       let code = 0;
       for (const operand of operands.slice(1)) {
+        const path = ctx.resolve(operand);
         try {
-          ctx.vfs.chmod(ctx.resolve(operand), mode, ctx.user);
+          // `stat`, not `lstat`: vfs.chmod follows a symlink to its target, so
+          // the mode must be read from the same inode it will be written to.
+          // Reading the link's own fixed 0777 and writing that through would
+          // hand out write and execute on whatever it points at.
+          const target = ctx.vfs.stat(path, ctx.user);
+          const mode = parseMode(spec, target.mode, target.kind === 'dir');
+          if (mode === null) {
+            return usage(io, `chmod: invalid mode: '${spec}'  (try 755, +x, u+w, go-rwx)`);
+          }
+          ctx.vfs.chmod(path, mode, ctx.user);
         } catch (e) {
           io.err(`chmod: ${operand}: ${isFsError(e) ? e.reason : String(e)}\n`);
           code = 1;

@@ -161,7 +161,7 @@ push, playable web terminal.
 
 - [x] VFS — inodes, POSIX permissions, symlinks with loop detection, errno
 - [x] Shell — quoting, globbing, pipes, `&&`/`||`, redirection, subshells, expansion
-- [x] 50 commands
+- [x] 57 commands
 - [x] Snapshot/restore round-tripping exactly; virtual clock
 - [x] Determinism harness and solution-agnostic goal tests
 - [x] Command substitution `$(...)` and backticks

@@ -17,7 +17,7 @@ packages/machine       THE MACHINE. A deterministic virtual computer.
        |
        +-- vfs/        Filesystem: inodes, permissions, symlinks, snapshots
        +-- shell/      Lexer -> parser -> expansion -> executor
-       +-- coreutils/  50 commands written against the above
+       +-- coreutils/  57 commands written against the above
        +-- proc/       Processes, systemd units, jobs, cron
        +-- net/        Hosts, each of which is another Machine
        +-- lang/       PythonRuntime *interface* (no implementation)

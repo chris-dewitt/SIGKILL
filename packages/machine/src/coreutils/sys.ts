@@ -27,7 +27,145 @@ function isSudoer(ctx: ShellContext, name: string): boolean {
     });
 }
 
+/**
+ * The adventure's own calendar, as a Date.
+ *
+ * Built from the epoch plus the virtual clock and nothing else -- never
+ * `new Date()`. `date` run twice at the same tick gives the same answer on
+ * every machine, which is what lets a whole playthrough be replayed in CI.
+ */
+function shipTime(ctx: ShellContext): Date {
+  return new Date(ctx.epoch + ctx.clock());
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+
 export const sysCommands: CommandSpec[] = [
+  {
+    name: 'date',
+    summary: 'print the date and time',
+    manual:
+      'date [+FORMAT]\n\n' +
+      'Print the current date and time. With a leading +, print it in the\n' +
+      'given format: %Y %m %d %H %M %S %j %s, and %% for a literal percent.\n\n' +
+      "This clock is the ship's, not yours. It moves when the ship's time\n" +
+      'moves -- `sleep 60` advances it by a minute -- and never otherwise.',
+    plain:
+      'Shows the date and time aboard the ship.\n' +
+      'It is not the time where you are. It only moves when ship time moves.\n' +
+      '  date            the whole thing\n' +
+      '  date +%H:%M     just the hour and minute',
+    run: (ctx, argv, io) => {
+      const now = shipTime(ctx);
+      const format = argv.slice(1).find((a) => a.startsWith('+'));
+
+      if (format) {
+        const seconds = Math.floor((ctx.epoch + ctx.clock()) / 1000);
+        const startOfYear = Date.UTC(now.getUTCFullYear(), 0, 0);
+        const dayOfYear = Math.floor((now.getTime() - startOfYear) / 86_400_000);
+        const out = format.slice(1).replace(/%(.)/g, (whole, code: string) => {
+          switch (code) {
+            case 'Y': return String(now.getUTCFullYear());
+            case 'm': return pad(now.getUTCMonth() + 1);
+            case 'd': return pad(now.getUTCDate());
+            case 'H': return pad(now.getUTCHours());
+            case 'M': return pad(now.getUTCMinutes());
+            case 'S': return pad(now.getUTCSeconds());
+            case 'j': return String(dayOfYear).padStart(3, '0');
+            case 's': return String(seconds);
+            case '%': return '%';
+            default: return whole;
+          }
+        });
+        io.out(out + '\n');
+        return 0;
+      }
+
+      io.out(
+        `${DAYS[now.getUTCDay()]} ${MONTHS[now.getUTCMonth()]} ${pad(now.getUTCDate())} ` +
+          `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())} ` +
+          `UTC ${now.getUTCFullYear()}\n`,
+      );
+      return 0;
+    },
+  },
+
+  {
+    name: 'uname',
+    summary: 'print system information',
+    manual:
+      'uname [-asnrm]\n\n' +
+      '  -s  kernel name (the default)    -n  hostname\n' +
+      '  -r  release                      -m  machine\n' +
+      '  -a  all of it',
+    plain: 'Says what kind of machine this is. `uname -a` prints everything it knows.',
+    run: (ctx, argv, io) => {
+      const { flags } = parseArgs(argv, { flags: ['-a', '-s', '-n', '-r', '-m'] });
+      const all = flags.has('-a');
+      const parts: string[] = [];
+      if (all || flags.has('-s') || flags.size === 0) parts.push('NAV-OS');
+      if (all || flags.has('-n')) parts.push(ctx.hostname);
+      if (all || flags.has('-r')) parts.push('2.3.1-degraded');
+      if (all || flags.has('-m')) parts.push('mk4');
+      io.out(parts.join(' ') + '\n');
+      return 0;
+    },
+  },
+
+  {
+    name: 'df',
+    summary: 'report filesystem disk space',
+    manual: 'df [-h]\n\nShow space on the mounted filesystems. -h for human-readable sizes.',
+    plain: 'Shows how full the disk is. Add -h to get sizes you can read at a glance.',
+    run: (ctx, argv, io) => {
+      const { flags } = parseArgs(argv, { flags: ['-h'] });
+      const human = flags.has('-h');
+
+      // Measured, not invented: walking the tree keeps this honest as the
+      // player writes files, and a made-up number would be the one piece of
+      // furniture in here that does not respond to anything.
+      let used = 0;
+      const walk = (path: string): void => {
+        let entries: string[];
+        try {
+          entries = ctx.vfs.readdir(path, ROOT_USER);
+        } catch {
+          return;
+        }
+        for (const entry of entries) {
+          const full = path === '/' ? `/${entry}` : `${path}/${entry}`;
+          try {
+            const stat = ctx.vfs.lstat(full, ROOT_USER);
+            if (stat.kind === 'dir') walk(full);
+            else used += stat.size;
+          } catch {
+            // A node that vanished mid-walk is simply not counted.
+          }
+        }
+      };
+      walk('/');
+
+      const total = 64 * 1024 * 1024;
+      const fmt = (bytes: number): string =>
+        human
+          ? bytes >= 1024 * 1024
+            ? `${(bytes / 1024 / 1024).toFixed(1)}M`
+            : `${Math.max(1, Math.round(bytes / 1024))}K`
+          : String(Math.ceil(bytes / 1024));
+
+      const percent = Math.min(100, Math.round((used / total) * 100));
+      emit(io, [
+        'Filesystem      Size  Used Avail Use% Mounted on',
+        `/dev/nav0       ${fmt(total).padStart(4)}  ${fmt(used).padStart(4)} ` +
+          `${fmt(total - used).padStart(5)} ${String(percent).padStart(3)}% /`,
+      ]);
+      return 0;
+    },
+  },
+
   {
     name: 'whoami',
     summary: 'print the current user name',

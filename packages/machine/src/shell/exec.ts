@@ -99,6 +99,14 @@ export interface ShellContextOptions {
   jobs: JobTable;
   /** Reads the virtual clock. Commands must never reach for wall time. */
   clock: () => number;
+  /**
+   * Instant the virtual clock counts from, in ms since the Unix epoch.
+   *
+   * `date` needs it as much as cron does: the adventure has its own calendar,
+   * and the answer must be the same on every machine that replays the same
+   * commands.
+   */
+  epoch?: number;
   /** Advances the virtual clock. `sleep` is the only ordinary caller. */
   advance: (ms: number) => Promise<void>;
   cwd?: string;
@@ -119,6 +127,8 @@ export class ShellContext {
   readonly services: ServiceManager;
   readonly jobs: JobTable;
   readonly clock: () => number;
+  /** Start of the adventure's calendar. See `ShellContextOptions.epoch`. */
+  readonly epoch: number;
   readonly advance: (ms: number) => Promise<void>;
   user: User;
   cwd: string;
@@ -159,6 +169,7 @@ export class ShellContext {
     this.services = opts.services;
     this.jobs = opts.jobs;
     this.clock = opts.clock;
+    this.epoch = opts.epoch ?? 0;
     this.advance = opts.advance;
     this.user = opts.user;
     this.home = opts.home ?? `/home/${opts.user.name}`;
