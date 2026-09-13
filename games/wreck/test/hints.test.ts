@@ -36,7 +36,7 @@ describe('the ladders', () => {
       }
 
       expect(questbook.complete(machine), 'the ladders should finish the act').toBe(true);
-      process.stdout.write(lines.join('\n') + '\n');
+      console.log(lines.join('\n'));
     });
   }
 

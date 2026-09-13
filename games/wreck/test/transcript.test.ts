@@ -3,7 +3,10 @@
  *
  * Not a test -- a reading tool. Run it with:
  *
- *     pnpm --filter @sigkill/wreck exec vitest run transcript
+ *     pnpm --filter @sigkill/wreck exec vitest run transcript \
+ *       --disable-console-intercept
+ *
+ * The flag is what stops vitest swallowing the output of a passing test.
  *
  * Every content bug so far was found by looking at output rather than
  * asserting on it: the stale status line, the silent success, the act that
@@ -47,7 +50,10 @@ const SCRIPT = [
 
 it('prints a transcript', async () => {
   const { machine, questbook } = bootWreck();
-  const say = (text: string): void => { process.stdout.write(text); };
+  // console rather than process.stdout: this package has no node types, and
+  // vitest prints console output with the test it came from either way.
+  const lines: string[] = [];
+  const say = (text: string): void => { lines.push(text); };
 
   say(COLD_OPEN.join('\n') + '\n');
 
@@ -64,4 +70,6 @@ it('prints a transcript', async () => {
   if (questbook.complete(machine)) say('\n' + EPILOGUE.join('\n') + '\n');
   else say('\n!!! ACT NOT COMPLETE: ' +
     JSON.stringify(questbook.status(machine).filter((o) => !o.done).map((o) => o.id)) + '\n');
+
+  console.log(lines.join(''));
 });

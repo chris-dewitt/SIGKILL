@@ -525,7 +525,13 @@ by unit tests:
   wrong fails CI instead of turning ORACLE into a liar.
 - `games/wreck/test/transcript.test.ts` — not a test, a reading tool. Prints a
   full session. Run it and *read it*; that is how 5 of the 9 engine bugs above
-  were found.
+  were found. Needs `--disable-console-intercept`, or vitest swallows the output
+  of a passing test:
+
+  ```
+  pnpm --filter @sigkill/wreck exec vitest run transcript --disable-console-intercept
+  pnpm --filter @sigkill/wreck exec vitest run hints --disable-console-intercept
+  ```
 - `games/wreck/test/hints.test.ts` — prints every rung of every ladder on both
   tracks, and asserts no rung repeats another and no nudge contains its own
   answer. That last one caught the operator ladder naming C7 before it had
