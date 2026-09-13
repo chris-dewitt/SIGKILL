@@ -610,3 +610,47 @@ describe('every required command is discoverable without the hint system', () =>
     }
   });
 });
+
+/**
+ * The board prints titles, so the titles have to be what the player types.
+ * Found by Codex on the colour pass.
+ */
+describe('the board and the hint command agree on names', () => {
+  it('takes a title from the board', async () => {
+    const { machine } = bootWreck();
+    expect((await machine.exec('hint Get the atmosphere scrubber running')).code).toBe(0);
+  });
+
+  it('takes a prefix of one', async () => {
+    const { machine } = bootWreck();
+    expect((await machine.exec('hint Get the atmosphere')).code).toBe(0);
+  });
+
+  it('every title on the board can be asked about once it is unlocked', async () => {
+    const { machine } = bootWreck();
+    const route = [
+      "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
+      'sudo systemctl start scrubber',
+      'sudo systemctl enable scrubber',
+      'sudo chmod +x /usr/local/bin/hull-check',
+      'sudo systemctl start hull-monitor',
+      'sudo systemctl enable hull-monitor',
+    ];
+    // Walk the act, and at each point the objective the board marks as
+    // current must be askable by the exact words the board printed.
+    for (const step of ['', ...route]) {
+      if (step !== '') await machine.exec(step);
+      const board = (await machine.exec('objectives')).stdout;
+      const current = /^> \[ \] (.+)$/m.exec(board)?.[1];
+      if (current === undefined) continue;
+      const asked = await machine.exec(`hint ${current}`);
+      expect(asked.code, `hint ${current}`).toBe(0);
+    }
+  });
+
+  it('suggests real titles when the name is wrong', async () => {
+    const { machine } = bootWreck();
+    const r = await machine.exec('hint whatever');
+    expect(r.stderr).toContain('Get the atmosphere scrubber running');
+  });
+});

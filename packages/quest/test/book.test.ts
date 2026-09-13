@@ -304,3 +304,68 @@ describe('the commands', () => {
     expect(r.stderr).toContain('content bug');
   });
 });
+
+
+/**
+ * The board shows titles, so titles have to be typeable.
+ *
+ * Found by Codex: printing only titles left `hint <id>` addressable by a name
+ * the player had never been shown, while the unknown-name error pointed them
+ * back at the very board that no longer contained it. What is on screen is
+ * what you can type, or it is not an address.
+ */
+describe('asking about a particular objective', () => {
+  const boot = (): { m: Machine; book: Questbook } => {
+    const book = new Questbook(OBJECTIVES);
+    const m = new Machine({ user: ROOT_USER, commands: questCommands(book, { speaker: 'ORACLE' }) });
+    return { m, book };
+  };
+
+  it('takes the title exactly as the board prints it', async () => {
+    const { m } = boot();
+    const r = await m.exec('hint Open the door');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('ORACLE:');
+  });
+
+  it('takes enough of the start of a title to be unambiguous', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint Open the')).code).toBe(0);
+  });
+
+  it('is not case sensitive', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint open THE DOOR')).code).toBe(0);
+  });
+
+  it('still takes the id, for anything that already used one', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint door')).code).toBe(0);
+  });
+
+  it('still respects locks when asked by title', async () => {
+    const { m } = boot();
+    const r = await m.exec('hint Walk out');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('waiting on');
+  });
+
+  it('names what is addressable when the name is wrong', async () => {
+    const { m } = boot();
+    const r = await m.exec('hint nonsense');
+    expect(r.stderr).toContain('hint Open the door');
+    expect(r.stderr).toContain('Or just:  hint');
+  });
+
+  it('falls back to the current objective for an empty argument', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint    ')).code).toBe(0);
+  });
+
+  it('does not match a title fragment from the middle', async () => {
+    // A prefix is a shorthand somebody can predict; a substring match would
+    // pick a different objective than the one they meant.
+    const { m } = boot();
+    expect((await m.exec('hint the door')).code).toBe(1);
+  });
+});

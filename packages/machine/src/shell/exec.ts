@@ -530,7 +530,14 @@ export async function execArgv(ctx: ShellContext, argv: string[], io: ExecIO): P
   // makes `chmod +x` and `./thing` mean something aboard.
   const program = resolveProgram(ctx, name);
   if (program.kind === 'error') {
-    io.err(`sh: ${name}: ${program.reason}\n${didYouMean(ctx, argv)}`);
+    // Only a bare name that resolved to nothing at all can be a transposition.
+    // A path that exists and will not run has a real, specific reason -- a
+    // mode bit, a missing file, a directory -- and telling somebody to
+    // reorder their words points them away from it. In this adventure that is
+    // actively harmful: the execute bit is a puzzle, and a wrong suggestion
+    // would teach exactly the wrong lesson at exactly the wrong moment.
+    const guess = program.code === 127 && !name.includes('/') ? didYouMean(ctx, argv) : '';
+    io.err(`sh: ${name}: ${program.reason}\n${guess}`);
     return program.code;
   }
   if (program.kind === 'script') {

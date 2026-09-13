@@ -53,15 +53,25 @@ export function questCommands(book: Questbook, opts: QuestCommandOptions = {}): 
         'hint [objective]\n\n' +
         'Ask for help. Each hint is a little more specific than the last, and\n' +
         'the last one in a ladder is the command itself. Hints cost nothing.\n' +
-        'With no argument, asks about the objective you are on.',
+        'With no argument, asks about the objective you are on.\n\n' +
+        'To ask about a different one, name it the way the board does -- the\n' +
+        'title, or enough of the start of it to be unambiguous:\n' +
+        '  hint Get the hull monitor running\n' +
+        '  hint Get the hull\n' +
+        'See the board with:  objectives',
       plain:
         'Ask for help when you are stuck.\n' +
         'Type it again for a bigger hint. Keep going and it will eventually\n' +
         'just tell you the command. That is allowed -- you still have to\n' +
-        'understand it to do the next one.',
+        'understand it to do the next one.\n\n' +
+        'It asks about whatever you are on. To ask about something else,\n' +
+        'type its name from the  objectives  list after it.',
       run: (ctx, argv, io) => {
         book.track = ctx.track;
-        const outcome = book.hint(ctx, argv[1]);
+        // Joined, not argv[1]: the board shows titles and a title has spaces
+        // in it. Taking only the first word made the displayed name unusable.
+        const asked = argv.slice(1).join(' ').trim();
+        const outcome = book.hint(ctx, asked.length > 0 ? asked : undefined);
 
         switch (outcome.kind) {
           case 'hint':
@@ -79,9 +89,24 @@ export function questCommands(book: Questbook, opts: QuestCommandOptions = {}): 
             io.err(`hint: ${outcome.objective.id} is waiting on: ${outcome.blockedBy.join(', ')}\n`);
             return 1;
 
-          case 'unknown':
-            io.err(`hint: no objective called '${outcome.id}'\nTry: objectives\n`);
+          case 'unknown': {
+            // Name what *is* addressable. Sending somebody back to a screen
+            // and making them guess the format again is how a help command
+            // becomes another dead end.
+            const open = book.objectives
+              .filter((o) => !o.done(ctx))
+              .map((o) => `  hint ${o.title}`);
+            io.err(
+              [
+                `hint: no objective called '${outcome.id}'`,
+                ...(open.length > 0 ? ['', 'Try one of:', ...open] : []),
+                '',
+                'Or just:  hint',
+                '',
+              ].join('\n'),
+            );
             return 1;
+          }
 
           // Not reachable from well-formed content, which is why it names the
           // objective: whoever sees this is the one who can fix it.

@@ -367,3 +367,45 @@ describe('did you mean', () => {
     expect((await m.exec('echo hi')).stderr).toBe('');
   });
 });
+
+/**
+ * The suggestion has to know when to keep quiet.
+ *
+ * A path that exists and will not run fails for a specific reason, and telling
+ * somebody to reorder their words points them away from it. Here that is not
+ * merely noise: the execute bit is a puzzle, so a bogus reorder hint would
+ * teach the wrong lesson at the exact moment the right one was available.
+ */
+describe('did you mean keeps quiet when reordering cannot help', () => {
+  function withScript(mode: number): Machine {
+    const m = new Machine({ hostname: 'nav7' });
+    m.vfs.mkdirp('/home/survivor', ROOT_USER);
+    m.vfs.writeText('/home/survivor/script.sh', '#!/bin/sh\necho hi\n', ROOT_USER);
+    m.vfs.chmod('/home/survivor/script.sh', mode, ROOT_USER);
+    m.shell.cwd = '/home/survivor';
+    return m;
+  }
+
+  it('says nothing when the real problem is the execute bit', async () => {
+    const r = await withScript(0o644).exec('./script.sh echo');
+    expect(r.stderr).toContain('Permission denied');
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+
+  it('says nothing when the path simply is not there', async () => {
+    const r = await withScript(0o755).exec('./nope.sh cat');
+    expect(r.stderr).toContain('No such file or directory');
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+
+  it('says nothing when the target is a directory', async () => {
+    const r = await withScript(0o755).exec('./.. ls');
+    expect(r.stderr).toContain('Is a directory');
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+
+  it('still speaks up for a bare name that is nowhere', async () => {
+    const r = await withScript(0o755).exec('start systemctl');
+    expect(r.stderr).toContain('Did you mean:  systemctl start');
+  });
+});
