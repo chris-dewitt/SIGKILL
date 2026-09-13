@@ -9,27 +9,43 @@ import { backingSize, gridFor, visibleRange, type GridSize } from './metrics.js'
  * colour is a compile error rather than a character that silently draws in the
  * wrong one. What each name *means* is documented on `LINE_KINDS`.
  *
- * Green phosphor is the ground and everything else is an accent, because a
- * terminal that uses a dozen colours equally just reads as confetti. The
- * accents are the other colours a real tube ever came in -- amber, and the
- * cyan-white of a cold screen -- so it still reads as one object.
+ * Loud on purpose. The first pass at this was a restrained green phosphor with
+ * two quiet accents, which is historically accurate and hard to read: on a
+ * phone, in daylight, a wall of one hue is a wall. These are the sixteen
+ * colours a terminal has always had, at the brightness people actually set
+ * them to -- distinct hues for distinct meanings, so a glance finds the
+ * command, the path and the number without reading a word.
  */
 export type Palette = Record<LineKind, string> & { background: string };
 
 export const PHOSPHOR: Palette = {
-  background: '#050806',
-  out: '#6ee7a0',
-  err: '#e0705a',
-  echo: '#c8f7dd',
-  system: '#4e9c74',
-  speaker: '#2f6b4e',
-  command: '#6fd8ff',
-  path: '#9fb8ff',
-  value: '#f0d98a',
-  heading: '#ffd479',
-  good: '#5fe08a',
-  warn: '#e8b04a',
-  muted: '#2f5f47',
+  background: '#06080b',
+  /** Ordinary output: the classic terminal green, turned up. */
+  out: '#4dff91',
+  /** The adventure's prose. Near-white, because it is *writing* and gets read. */
+  system: '#dceaff',
+  /** Who is speaking. Magenta marks the name without shouting the sentence. */
+  speaker: '#ff6ac1',
+  /** Something you could type. The brightest thing on the screen, deliberately. */
+  command: '#3ff0ff',
+  /** A path or filename. */
+  path: '#7aa2ff',
+  /** A number that matters. */
+  value: '#ffe066',
+  /** A flag or option. */
+  flag: '#c792ea',
+  /** A title, a rule, the frame of a box. */
+  heading: '#ffa24a',
+  /** Done, running, sealed, healthy. */
+  good: '#3dff6e',
+  /** Worth your attention, not yet an error. */
+  warn: '#ffb01f',
+  /** Something went wrong. */
+  err: '#ff5f56',
+  /** The line you typed, echoed back. */
+  echo: '#ffffff',
+  /** Present but deliberately quiet. */
+  muted: '#5f7f70',
 };
 
 export interface RendererOptions {

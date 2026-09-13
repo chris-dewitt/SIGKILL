@@ -51,7 +51,10 @@ wire it into the app; the Worker is what keeps player code away from the DOM.
 **`packages/crt`** — the phosphor renderer. Colour is semantic: `LineKind` is
 the source of truth (`command`, `path`, `value`, `good`, `warn`, `heading`…)
 and `Palette` is typed off it, so a kind without a colour will not compile.
-Names are *meanings*, never hues. Lines carry optional `spans` — coloured runs
+Names are *meanings*, never hues. The palette is the classic sixteen at the
+brightness people actually set them to -- the first pass was a restrained
+phosphor green with two quiet accents, which is historically accurate and hard
+to read on a phone in daylight. Lines carry optional `spans` — coloured runs
 that are remapped through word wrapping, so one sentence can hold a cyan
 command and a periwinkle path. `highlight()` finds those runs by reading the
 text rather than by markup, because there are thousands of authored lines

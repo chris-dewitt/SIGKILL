@@ -32,27 +32,106 @@ const SPEAKER = /^(\s*)([A-Z][A-Z0-9_]{2,}):/;
 /** An absolute path, or a bare dotted filename. Conservative on both ends. */
 const PATH = /(?<![\w/])(\/[A-Za-z0-9._\-*]+(?:\/[A-Za-z0-9._\-*]+)*\/?)/g;
 
-/** A number that carries a unit or a percent, plus bare NAME=value settings. */
+/** A number that carries a unit or a percent. */
 const VALUE = /(?<![\w.])(\d+(?:\.\d+)?(?:%|kPa|h|m|s)?)(?![\w.])/g;
 
-/** An indented line that is a command the player could type. */
-const INDENTED = /^(\s{2,})(\S.*?)\s*$/;
+/**
+ * An indented line that might be a command the player could type.
+ *
+ * The optional speaker prefix matters: every hint ORACLE gives is emitted as
+ * `ORACLE: <line>`, so without it the one place a command most needs to stand
+ * out -- the bottom rung of a ladder -- was the one place it never did.
+ */
+const INDENTED = /^(?:[A-Z][A-Z0-9_]{2,}:)?(\s{2,})(\S.*?)\s*$/;
+
+/**
+ * Where a command stops and its description begins.
+ *
+ * Two spaces. It is how every table in this game is laid out --
+ * `deck        the nine compartments` -- and without it the rule painted the
+ * description cyan too, promising the player they could type an English
+ * sentence.
+ */
+const GAP = /\s{2,}/;
+
+/**
+ * A command introduced by a colon, mid-sentence.
+ *
+ * `Start with: ls` / `Read it: cat README` / `type: hint`. Bare command words
+ * cannot be coloured on sight -- `cat`, `man`, `find`, `sort`, `date` and
+ * `which` are all ordinary English -- but a colon followed by one is a
+ * reliable tell, and it is how every instruction in this game is written.
+ */
+// Stops at the next colon as well as at punctuation, or the first colon on
+// a line swallows every later one -- `ORACLE: Start with: ls` would be read
+// as a single clause beginning with the word `Start`.
+const AFTER_COLON = /:[ \t]+([^.,;:\n]+)/g;
+
+/**
+ * Punctuation that means the line is a sentence, whatever it starts with.
+ *
+ * `find which compartment is losing air, and seal it` begins with the name of
+ * a real command, and every word of it was coming out cyan. A comma or a
+ * closing full stop is the cheapest reliable tell that prose is what this is.
+ */
+const PROSE = /,\s|\.$/;
 
 /** A `NAME=value` setting, as it appears in every config file aboard. */
 const SETTING = /\b([A-Z][A-Z0-9_]*)=(\S*)/g;
+
+/** A short or long option: `-l`, `-rf`, `--failed`, `--audit-level`. */
+const FLAG = /(?<=^|\s)(--?[A-Za-z][A-Za-z0-9-]*)(?=$|[\s,.)])/g;
+
+/** A quoted string, either kind. Non-greedy so two on a line stay two. */
+const QUOTED = /('[^']*'|"[^"]*")/g;
+
+/** A SCREAMING_SNAKE token on its own: the vocabulary of every log aboard. */
+const SCREAMED = /(?<![\w=])([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?![\w=])/g;
+
+/** Box drawing. Frames are chrome and get the chrome colour. */
+const FRAME = /[─-╿]+/g;
+
+/** A checklist mark, as the objectives board draws it. */
+const MARK = /^(\s*)(>?)\s*\[([x\- ])\]/;
+
+/** A section rule: `-- OBJECTIVES ---` or a run of dashes carrying a label. */
+const RULE = /^\s*(--+|──+)/;
+
+/**
+ * Words a machine says about the state of something.
+ *
+ * Mapped by meaning rather than by hue, which is the whole reason a glance at
+ * `systemctl` output can find the broken unit without reading it. Matched
+ * whole-word and case-sensitively in the forms these actually appear in --
+ * loose matching here would paint half of ordinary prose.
+ */
+const STATE: ReadonlyArray<readonly [RegExp, LineKind]> = [
+  // Deliberately excluded: `refused`, `refusing`, `broken`, `wrong`. They are
+  // the vocabulary of the machine *and* of ORACLE's prose, and painting half a
+  // sentence red because it contains the word is noise, not information.
+  [/(?<![\w-])(FAIL|FAILED|failed|ERROR|CRITICAL|ALARM|DENIED|Denied|denied)(?![\w-])/g, 'err'],
+  [/(?<![\w-])(OK|ACTIVE|active|enabled|DONE|PASS|RISING|SEALED|sealed|CLEARED|nominal|holding)(?![\w-])/g, 'good'],
+  [/(?<![\w-])(WARN|WARNING|DEGRADED|degraded|inactive|disabled|unknown|PRESSURE_DROP|SENSOR_FAULT)(?![\w-])/g, 'warn'],
+];
 
 export function highlight(text: string, opts: HighlightOptions = {}): Span[] {
   const spans: Span[] = [];
   const add = (start: number, end: number, kind: LineKind): void => {
     if (end > start) spans.push({ start, end, kind });
   };
+  const all = (re: RegExp, kind: LineKind): void => {
+    for (const match of text.matchAll(re)) {
+      const at = match.index ?? 0;
+      add(at, at + match[0].length, kind);
+    }
+  };
 
   // --- least specific first; later spans win where they overlap ------------
 
-  for (const match of text.matchAll(VALUE)) {
-    const at = match.index ?? 0;
-    add(at, at + match[0].length, 'value');
-  }
+  all(VALUE, 'value');
+  all(SCREAMED, 'warn');
+
+  for (const [re, kind] of STATE) all(re, kind);
 
   for (const match of text.matchAll(SETTING)) {
     const at = match.index ?? 0;
@@ -61,6 +140,10 @@ export function highlight(text: string, opts: HighlightOptions = {}): Span[] {
     add(at, at + (match[1] ?? '').length, 'muted');
     add(at + (match[1] ?? '').length + 1, at + match[0].length, 'value');
   }
+
+  all(QUOTED, 'value');
+  all(FLAG, 'flag');
+  all(FRAME, 'heading');
 
   for (const match of text.matchAll(PATH)) {
     const at = match.index ?? 0;
@@ -72,17 +155,60 @@ export function highlight(text: string, opts: HighlightOptions = {}): Span[] {
     add(at, end, 'path');
   }
 
-  // An indented command line: the whole thing, so flags and arguments read as
-  // part of the one typeable unit rather than three different colours.
+  /*
+   * An indented command line, coloured as one typeable unit so that flags and
+   * arguments read as part of the thing you type rather than three colours.
+   *
+   * Trimmed at the first double space, because that is where this game's
+   * tables put the description, and rejected outright when the line carries
+   * sentence punctuation -- otherwise a step label that happens to begin with
+   * the word `find` becomes a cyan promise that you can type it.
+   */
   const indented = INDENTED.exec(text);
   if (indented) {
-    const body = indented[2] ?? '';
-    const first = body.split(/\s+/)[0] ?? '';
-    const verb = first === 'sudo' ? (body.split(/\s+/)[1] ?? '') : first;
-    if (opts.commands?.has(verb) === true) {
-      const at = (indented[1] ?? '').length;
-      add(at, at + body.length, 'command');
+    const body = (indented[2] ?? '').split(GAP)[0] ?? '';
+    const words = body.split(/\s+/);
+    const verb = words[0] === 'sudo' ? (words[1] ?? '') : (words[0] ?? '');
+    if (opts.commands?.has(verb) === true && !PROSE.test(body)) {
+      const at = text.indexOf(body);
+      if (at >= 0) add(at, at + body.length, 'command');
     }
+  }
+
+  /*
+   * A command named after a colon, which is how ORACLE phrases every
+   * instruction. Trimmed at a double space so `type:  hint     the whole
+   * board:  objectives` colours two commands and not the words between them.
+   */
+  if (opts.commands !== undefined) {
+    for (const match of text.matchAll(AFTER_COLON)) {
+      const clause = (match[1] ?? '').split(GAP)[0]?.trimEnd() ?? '';
+      const words = clause.split(/\s+/);
+      const verb = words[0] === 'sudo' ? (words[1] ?? '') : (words[0] ?? '');
+      if (clause.length === 0 || !opts.commands.has(verb)) continue;
+      const at = (match.index ?? 0) + match[0].indexOf(clause);
+      add(at, at + clause.length, 'command');
+    }
+  }
+
+  // A rule under a section title is chrome, like a box edge.
+  const ruled = RULE.exec(text);
+  if (ruled) add(0, text.length, 'heading');
+
+  /*
+   * The objectives board's marks, which are the fastest thing on the screen to
+   * read and so are worth the most colour: done is green, open is the colour
+   * of something you could act on, locked is quiet, and the `>` saying "you
+   * are here" is the brightest mark in the list.
+   */
+  const mark = MARK.exec(text);
+  if (mark) {
+    const indent = (mark[1] ?? '').length;
+    const arrow = mark[2] ?? '';
+    const state = mark[3] ?? ' ';
+    if (arrow.length > 0) add(indent, indent + 1, 'warn');
+    const box = text.indexOf('[', indent);
+    add(box, box + 3, state === 'x' ? 'good' : state === '-' ? 'muted' : 'command');
   }
 
   // The speaker's name recedes so the sentence carries. Last, because it sits
