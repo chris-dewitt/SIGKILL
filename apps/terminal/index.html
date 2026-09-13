@@ -21,7 +21,18 @@
         TerminalView alongside the canvas it mirrors -- two nested log regions
         would announce everything twice.
       -->
-      <div id="screen"></div>
+      <div id="stage">
+        <div id="screen"></div>
+        <div id="scroll-rail" aria-hidden="true"><div id="scroll-thumb"></div></div>
+      </div>
+      <section id="turn" hidden>
+        <div id="turn-cmd"></div>
+        <pre id="turn-out"></pre>
+      </section>
+      <section id="fold" hidden>
+        <pre id="fold-body"></pre>
+        <button type="button" id="fold-next">tap to continue</button>
+      </section>
       <div id="dock">
         <div id="chips" role="toolbar" aria-label="Command suggestions"></div>
         <div id="symbols" role="toolbar" aria-label="Symbol keys"></div>

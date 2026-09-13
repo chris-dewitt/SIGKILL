@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROOT_USER } from '@sigkill/machine';
 import { validateObjectives } from '@sigkill/quest';
-import { bootWreck, coldOpen, epilogue } from '../src/world.js';
+import { bootWreck, restoreWreck, coldOpen, epilogue } from '../src/world.js';
 import type { BeatLine } from '@sigkill/quest';
 
 /** A beat as plain text, art rows included, for asserting on what it says. */
@@ -130,6 +130,26 @@ describe('Act I can actually be finished', () => {
       const isLast = index === route.length - 1;
       expect(questbook.complete(machine), `after: ${command}`).toBe(isLast);
     }
+  });
+
+  it('a save that has started the scrubber still refuses a bad target after restore', async () => {
+    const live = bootWreck();
+    await live.machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    await live.machine.exec('sudo systemctl start scrubber');
+    live.questbook.hint(live.machine);
+
+    const saved = restoreWreck({
+      machine: live.machine.snapshot(),
+      quest: live.questbook.snapshot(),
+    });
+
+    expect(saved.machine.services.get('scrubber')?.state).toBe('active');
+    expect(saved.questbook.hintsTaken).toBe(1);
+
+    await saved.machine.exec('sudo systemctl stop scrubber');
+    await saved.machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=16/' /etc/life_support.conf");
+    const start = await saved.machine.exec('sudo systemctl start scrubber');
+    expect(start.stderr).toContain('19-23');
   });
 
   /**

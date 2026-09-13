@@ -1,6 +1,6 @@
-import { Machine, ROOT_USER, type Track } from '@sigkill/machine';
+import { Machine, ROOT_USER, type MachineSnapshot, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
-import { Questbook, questCommands, type BeatLine } from '@sigkill/quest';
+import { Questbook, questCommands, type BeatLine, type QuestSnapshot } from '@sigkill/quest';
 import { artCommands } from './act1/commands.js';
 import {
   ORACLE_AWAKE, ORACLE_CANDID, ORACLE_DORMANT, art, shipSchematic, titleCard,
@@ -32,6 +32,59 @@ export interface Wreck {
   questbook: Questbook;
 }
 
+/** Adventure commands that must be re-attached after a restore. */
+export function wreckCommands(questbook: Questbook) {
+  return [
+    ...questCommands(questbook, { speaker: 'ORACLE' }),
+    ...editorCommands(),
+    ...artCommands(),
+  ];
+}
+
+/**
+ * Preconditions live on the Machine as callbacks, not in the snapshot.
+ *
+ * A save that forgot to put them back would restore a world where the
+ * scrubber starts on O2_TARGET=16 — which is the whole of puzzle one,
+ * quietly deleted.
+ */
+export function wireWreck(m: Machine): void {
+  m.setPrecondition('scrubber', (vfs) => {
+    const target = oxygenTarget({ vfs, services: m.services });
+    if (target === null) {
+      return { ok: false, reason: 'O2_TARGET missing or unreadable in /etc/life_support.conf' };
+    }
+    if (target < 19 || target > 23) {
+      return { ok: false, reason: `O2_TARGET=${target} outside breathable range 19-23; refusing to run` };
+    }
+    return { ok: true };
+  });
+
+  m.setPrecondition('hull-monitor', (vfs) => {
+    const verdict = hullCheckRunnable({ vfs, services: m.services });
+    return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason };
+  });
+}
+
+/**
+ * Bring a saved run back. Same commands, same refusals, same calendar.
+ */
+export function restoreWreck(
+  snap: { machine: MachineSnapshot; quest: QuestSnapshot },
+  opts: WreckOptions = {},
+): Wreck {
+  const track = opts.track ?? 'operator';
+  const questbook = new Questbook(WRECK_OBJECTIVES, { track });
+  questbook.restore(snap.quest);
+  const machine = Machine.restore(snap.machine, {
+    hostname: 'nav7',
+    track,
+    commands: wreckCommands(questbook),
+  });
+  wireWreck(machine);
+  return { machine, questbook };
+}
+
 /**
  * The opening state of NAV-7 — Act I, Deck C.
  *
@@ -47,11 +100,7 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     hostname: 'nav7',
     epoch: WAKE_MS,
     track,
-    commands: [
-      ...questCommands(questbook, { speaker: 'ORACLE' }),
-      ...editorCommands(),
-      ...artCommands(),
-    ],
+    commands: wreckCommands(questbook),
   });
   const v = m.vfs;
 
@@ -266,34 +315,7 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
   // which is a more legible starting picture than everything being dead.
   m.services.enable('reactor');
 
-  // Authored by the adventure, never by the Machine: a real atmosphere
-  // controller refuses a target outside the breathable band, and says why.
-  // It reads the number through the same helper the objectives do, so the
-  // hint and the refusal can never disagree about what counts as breathable.
-  m.setPrecondition('scrubber', (vfs) => {
-    const target = oxygenTarget({ vfs, services: m.services });
-    if (target === null) {
-      return { ok: false, reason: 'O2_TARGET missing or unreadable in /etc/life_support.conf' };
-    }
-    if (target < 19 || target > 23) {
-      return { ok: false, reason: `O2_TARGET=${target} outside breathable range 19-23; refusing to run` };
-    }
-    return { ok: true };
-  });
-
-  /*
-   * The hull monitor's only problem is a mode bit.
-   *
-   * A real init system does not care what a unit's ExecStart *says*, it cares
-   * whether the kernel will run it, and it will not run a file nobody marked
-   * executable. This is the whole of puzzle three, and the reason it is worth
-   * a puzzle is that `ls -l` is the only way to see it -- `cat` shows a
-   * perfectly good script.
-   */
-  m.setPrecondition('hull-monitor', (vfs) => {
-    const verdict = hullCheckRunnable({ vfs, services: m.services });
-    return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason };
-  });
+  wireWreck(m);
 
   m.services.startEnabled();
 

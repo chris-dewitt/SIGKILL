@@ -484,7 +484,7 @@ that. Depth over breadth. Epics, not days:
 | E3 | Act I — Breathe. Deck C | **4 puzzles; 5th is LUNA** |
 | E4–E6 | Acts II–IV | not started; do not start |
 | E7 | Procedural audio — Web Audio, state-driven, zero assets | **core shipped** (PR #17) |
-| E8 | Ship — Play Store | not started |
+| E8 | Ship — Play Store | wrap exists; listing is later. Paid-or-free is open. |
 
 ### 5c. Story and feel — settled 2026-09-13
 
@@ -697,19 +697,15 @@ by unit tests:
 Three passes. Then stop. Chris is already playtesting; Pass 0 is the note
 from that chair.
 
-### Pass 0 — The screen
+### Pass 0 — The screen — in
 
-- Last-turn strip above the dock: the command just typed, then its output.
-  Older history stays on the CRT; scroll is for looking back.
-- Beats do not shove the turn off screen. Fold or page them.
-- Scroll that feels like a phone (row snap, a thumb affordance).
-- Bundle a terminal mono (OFL, in the app, no Google Fonts). Atlas sheets
-  already paint by `LineKind` — that is where bold, italic, and size go.
-  ORACLE and LUNA must not look like the same mouth.
-- Save/load: `Machine.snapshot()` and `Questbook.snapshot()` exist; the
-  app never calls them. Wire them so a playtest survives a refresh.
-- Playwright on a touch viewport. The editor taught us that unit tests
-  cannot see the dock.
+- Last-turn strip above the dock. History stays on the CRT.
+- Beats page in a fold; tap to continue. The command stays put.
+- Scroll snaps to rows; a thumb on the rail shows where you are.
+- IBM Plex Mono, OFL, bundled. Weight and italic follow `LineKind`.
+- Autosave after every command. `newgame` wipes it. Refresh keeps the run.
+- Playwright phone viewport in `apps/terminal/e2e`. Vitest covers save
+  and paging without a browser.
 
 ### Pass 1 — Deck C additions
 

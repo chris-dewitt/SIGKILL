@@ -133,6 +133,21 @@ export class TerminalView {
     return this.renderer.rows;
   }
 
+  /** CSS pixels per buffer row — used to snap phone scroll to a line. */
+  get rowHeight(): number {
+    return this.renderer.rowHeight;
+  }
+
+  /** How far from the bottom the view is sitting, in rows. */
+  get scrollRows(): number {
+    return this.scroll;
+  }
+
+  /** Rows of scrollback above the visible window. */
+  get scrollMax(): number {
+    return Math.max(0, this.buffer.height(this.renderer.columns) - this.renderer.rows);
+  }
+
   /** True while a full-screen program owns the screen. */
   get showingScreen(): boolean {
     return this.overlay !== undefined;
