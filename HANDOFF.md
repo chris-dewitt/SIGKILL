@@ -7,7 +7,8 @@ This file is the state of play; the others are the rules.
 **Latest:** Act I is four puzzles and finishable without a hint. Chris is
 playtesting it on a phone — the Phase 2 gate is notes, not a waiting room.
 Voice is **2, Wounded Machine**. The second ghost is **LUNA** (process
-`LUNA V42`). Scope is **Act I on Deck C: additions, then enrich, then stop.**
+`LUNA V42`) — killable, not gone, the buddy for a multi-game arc. Scope
+is **Act I on Deck C: additions, then enrich, then stop.**
 No Act II, no Archive, until that pass is done. See §5c and §8.
 
 ---
@@ -490,8 +491,8 @@ that. Depth over breadth. Epics, not days:
 Locked from playtest notes. Do not relitigate in a content PR.
 
 **The player cannot lose, and no human dies on screen.** It is a journey.
-Penalties and a fail state can wait. LUNA is a process: she is killable,
-and her first clone dies. That is not a death screen. It is `kill`.
+Penalties and a fail state can wait. LUNA is a process: `kill` works.
+That is not a death screen, and it is not how you get rid of her.
 
 **The player is unnamed.** `whoami` is `survivor`. Berth 3. Not in Chen's
 dying numbers. A name in a medical file is allowed as furniture; nothing
@@ -508,9 +509,16 @@ in the game should require it.
 - Authored lines. State-aware. A process and a directory. Not a network
   call, not a chat model, not the finale's bundled LLM. Game 1 teaches
   that a model is a process and a folder, and that `kill` is not `rm`.
-- Killable. Companion if left running. After she is awake, `hint` is two
-  speakers taking turns butting in. If you kill her, hints revert to
-  ORACLE alone, and he does not gloat.
+- **Needed.** She is the companion until the end — this game, and at
+  least the arc that faces the breakout model. She may be the one who
+  helps you in *The Containment*. Do not write a route that leaves the
+  series without her.
+- Killable, not gone. `kill` and `kill -9` stop the process. She comes
+  back: you can start her again from the directory (`kill` is not `rm`),
+  and if you do not, she pops back anyway — a new pid, a file that was
+  not there, a line in `hint`. The lesson is the signal, not a goodbye.
+  After she is awake, `hint` is two speakers taking turns. A kill may
+  give ORACLE one turn alone. Then she butts back in.
 - Face: one arrival picture, scarce like ORACLE's. A small terminal
   companion — moon and dog, original glyphs in `packages/ascii`. The
   *feeling* of a CLI that has a character (the way Claude Code has one).
@@ -535,9 +543,9 @@ says his name once after C7 is sealed. Heading `114 mark 9` is a locked
 door, same shape as the directory above forty-two. Whether the relay
 exists is a later game.
 
-**Game 1 ending (not this pass):** choice of which ghost stays, plus those
-two locked doors, plus the option to give LUNA a body if her files
-survived. Do not write that scene in Act I.
+**Game 1 ending (not this pass):** two locked doors, and the option to
+give LUNA a body. She is not a ghost you leave behind. Do not write that
+scene in Act I.
 
 **Screen (playtest):** the dock stays at the bottom. Pin the last command
 and its output above it. History stays on the CRT. Beats must not bury
@@ -709,7 +717,7 @@ from that chair.
 |---|---|
 | `less` | `/var/log/hull.log` is 540 lines. Full-screen seam is in `docs/FULLSCREEN.md`. |
 | Signals | `kill -15` asks; `kill -9` does not. The process table must mean that. |
-| Puzzle 5 | After hull-watch: a process ORACLE did not start. LUNA. `ps`. Talk, leave, `kill`, `kill -9`. Goal is world state, not the keystroke. |
+| Puzzle 5 | After hull-watch: a process ORACLE did not start. LUNA. `ps`. Talk, `kill`, `kill -9`. She comes back. Goal is world state, not a goodbye. |
 | Her files | Weights, a version file, the dog and the number in one note. `kill` ≠ `rm`. |
 | Locked dir | Name visible. Every open refused, including root. Becomes a path in game 4. |
 | Clone | First `cp` + run: a second LUNA speaks and dies. Further copies are pointless. |
@@ -724,11 +732,11 @@ Deck B. No death. No live O2. Operator only.
 
 Both voices on the four completions that already exist, without making
 every beat a duet. Epilogue keeps two locked doors (the heading, the
-directory). No-hint transcript still passes. A second transcript: LUNA
-lives.
+directory). No-hint transcript still passes. A second transcript: you
+`kill` her and she comes back.
 
-Then pause. Play it. The game-1 ending (which ghost stays, the body, the
-breakout) is written after she has been heard on a phone.
+Then pause. Play it. The game-1 ending (the body, the breakout, LUNA
+still with you) is written after she has been heard on a phone.
 
 ### Not this work
 
