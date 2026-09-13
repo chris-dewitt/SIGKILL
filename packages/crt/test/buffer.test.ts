@@ -130,3 +130,61 @@ describe('TerminalBuffer', () => {
     expect(b.height(8)).toBe(4);
   });
 });
+
+/**
+ * Art is not prose and must not be treated like it.
+ *
+ * `wrap` breaks on spaces and trims the trailing ones — which in a drawing are
+ * the spaces holding its columns in line. A picture that goes through the
+ * prose path comes out as confetti, so art takes a different one.
+ */
+describe('art does not reflow', () => {
+  const ART = [
+    '┌────────────┐',
+    '│ ▓▓  ▓▓     │',
+    '│            │',
+    '└────────────┘',
+  ];
+
+  it('keeps every row on one row, however narrow the screen', () => {
+    const buffer = new TerminalBuffer();
+    buffer.writeArt(ART);
+    for (const cols of [80, 20, 8]) {
+      expect(buffer.layout(cols), `at ${cols} columns`).toHaveLength(ART.length);
+    }
+  });
+
+  it('clips to the width instead of breaking', () => {
+    const buffer = new TerminalBuffer();
+    buffer.writeArt(ART);
+    const rows = buffer.layout(6);
+    expect(rows.map((r) => r.text)).toEqual(['┌─────', '│ ▓▓  ', '│     ', '└─────']);
+  });
+
+  it('keeps trailing spaces, because in a drawing they are pixels', () => {
+    const buffer = new TerminalBuffer();
+    buffer.writeArt(['##   ', '  #  ']);
+    expect(buffer.layout(40).map((r) => r.text)).toEqual(['##   ', '  #  ']);
+  });
+
+  it('leaves prose reflowing exactly as it did', () => {
+    const buffer = new TerminalBuffer();
+    buffer.write('the quick brown fox jumps over the lazy dog\n');
+    expect(buffer.layout(20).length).toBeGreaterThan(1);
+  });
+
+  it('scrambles the same art if it goes through the prose path', () => {
+    // The bug this exists to prevent, asserted so nobody "simplifies"
+    // writeArt back into write.
+    const buffer = new TerminalBuffer();
+    for (const row of ART) buffer.push(row);
+    const rows = buffer.layout(6);
+    expect(rows.length).toBeGreaterThan(ART.length);
+  });
+
+  it('marks every art row as a first row, so no continuation marker is drawn', () => {
+    const buffer = new TerminalBuffer();
+    buffer.writeArt(ART);
+    expect(buffer.layout(6).every((r) => r.first)).toBe(true);
+  });
+});

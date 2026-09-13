@@ -132,15 +132,21 @@ export class Machine {
   }
 
   /** Run one command line. Returns captured output; never throws for user error. */
-  async exec(input: string): Promise<RunResult & { cleared: boolean; screen: ScreenProgram | undefined }> {
+  async exec(
+    input: string,
+  ): Promise<RunResult & { cleared: boolean; screen: ScreenProgram | undefined; preformatted: boolean }> {
     const target = this.active;
     target.shell.clearRequested = false;
     target.shell.screenRequest = undefined;
+    target.shell.preformatted = false;
     const result = await run(target.shell, input);
     return {
       ...result,
       cleared: target.shell.clearRequested,
       screen: target.shell.screenRequest,
+      // See `ShellContext.preformatted`: columns are load-bearing in this
+      // output, so a host with a width must clip rather than wrap it.
+      preformatted: target.shell.preformatted,
     };
   }
 

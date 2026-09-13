@@ -75,6 +75,21 @@ function writeBlock(text: string, kind: LineKind): void {
   view.write(text, kind);
 }
 
+/**
+ * Write output whose columns are load-bearing.
+ *
+ * A drawing that goes through the prose path gets word-wrapped and its
+ * trailing spaces trimmed, which is precisely the information holding it
+ * together. `writeArt` clips instead, so a picture too wide for a phone loses
+ * its right edge rather than becoming confetti.
+ */
+function writeArt(text: string, kind: LineKind): void {
+  if (text.length === 0) return;
+  const rows = text.split('\n');
+  if (rows[rows.length - 1] === '') rows.pop();
+  view.writeArt(rows, kind);
+}
+
 function scrollToEnd(): void {
   view.scrollToBottom();
 }
@@ -102,7 +117,10 @@ async function submit(raw: string): Promise<void> {
       if (result.cleared) {
         view.clear();
       } else {
-        writeBlock(result.stdout, 'out');
+        // `preformatted` is the Machine saying "do not reflow this" without
+        // knowing what a drawing is. stderr is always prose.
+        if (result.preformatted) writeArt(result.stdout, 'out');
+        else writeBlock(result.stdout, 'out');
         writeBlock(result.stderr, 'err');
       }
       if (result.screen) enterScreen(result.screen);

@@ -16,6 +16,16 @@ export interface Line {
    * is what makes the mapping below exact.
    */
   cursor?: number;
+  /**
+   * Never reflow this line: clip it to the width instead.
+   *
+   * For art. Wrapping prose is a kindness and wrapping a picture is vandalism
+   * -- `wrap` breaks on spaces and trims the trailing ones, which are exactly
+   * the spaces holding a drawing's columns in line. A clipped drawing is a
+   * drawing with its right edge missing, which a player can read; a wrapped
+   * one is confetti.
+   */
+  nowrap?: boolean;
 }
 
 /** One row as displayed, after wrapping to a given width. */
@@ -70,7 +80,18 @@ export class TerminalBuffer {
 
   /** Append one line. A trailing newline in `text` does not create a blank. */
   push(text: string, kind: LineKind = 'out', cursor?: number): void {
-    this.lines.push(cursor === undefined ? { text, kind } : { text, kind, cursor });
+    this.pushLine(cursor === undefined ? { text, kind } : { text, kind, cursor });
+  }
+
+  /**
+   * Append a line with every field spelled out.
+   *
+   * The flag-carrying path, for art and anything else that needs more than
+   * text and a colour. `push` stays the short form because almost everything
+   * is text and a colour.
+   */
+  pushLine(line: Line): void {
+    this.lines.push(line);
     if (this.lines.length > this.scrollback) {
       this.lines.splice(0, this.lines.length - this.scrollback);
     }
@@ -88,6 +109,16 @@ export class TerminalBuffer {
     const parts = text.split('\n');
     if (parts[parts.length - 1] === '') parts.pop();
     for (const part of parts) this.push(part, kind);
+  }
+
+  /**
+   * Append a block of art: every row clipped rather than wrapped.
+   *
+   * Rows are pushed exactly as given, trailing spaces and all, because in a
+   * drawing a trailing space is a pixel.
+   */
+  writeArt(rows: readonly string[], kind: LineKind = 'out'): void {
+    for (const row of rows) this.pushLine({ text: row, kind, nowrap: true });
   }
 
   clear(): void {
@@ -117,6 +148,13 @@ export class TerminalBuffer {
         // A cursor on an empty line still has to be drawn, at column zero.
         if (line.cursor !== undefined) blank.cursor = line.cursor;
         rows.push(blank);
+        continue;
+      }
+      if (line.nowrap === true) {
+        // Clipped, not wrapped. See `Line.nowrap`.
+        const row: Row = { text: line.text.slice(0, cols), kind: line.kind, line: index, first: true };
+        if (line.cursor !== undefined) row.cursor = line.cursor;
+        rows.push(row);
         continue;
       }
       for (const [n, chunk] of wrap(line.text, cols).entries()) {

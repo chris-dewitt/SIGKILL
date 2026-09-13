@@ -43,6 +43,13 @@ off.
 
 **`packages/quest`** — objectives and hint ladders. See §4.
 
+**`packages/ascii`** — the art toolkit. Frames, gauges, sparklines and block
+layout, no dependencies, shared by all thirteen games. `SAFE_COLS` is 34,
+which is what a portrait phone really gives you. Two rules worth knowing:
+art goes through `view.writeArt` (clipped) and never `write` (reflowed, which
+scrambles it), and a column of sparklines must share an axis or the healthy
+rows look like an emergency.
+
 **`packages/editor`** (PR #6) — `vi`/`vim` and `nano` over one shared
 `TextBuffer` with a real undo stack. Pure state machines: keys in, frames out,
 no DOM, so every keystroke is unit-tested. See §4b and `docs/FULLSCREEN.md`.

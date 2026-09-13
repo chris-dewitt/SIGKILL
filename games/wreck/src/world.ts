@@ -1,6 +1,7 @@
 import { Machine, ROOT_USER, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
 import { Questbook, questCommands } from '@sigkill/quest';
+import { artCommands } from './act1/commands.js';
 import { HULL_CHECK, seedDeckC } from './act1/deck-c.js';
 import { hullCheckRunnable, oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
 
@@ -43,7 +44,11 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     hostname: 'nav7',
     epoch: WAKE_MS,
     track,
-    commands: [...questCommands(questbook, { speaker: 'ORACLE' }), ...editorCommands()],
+    commands: [
+      ...questCommands(questbook, { speaker: 'ORACLE' }),
+      ...editorCommands(),
+      ...artCommands(),
+    ],
   });
   const v = m.vfs;
 
