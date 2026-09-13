@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROOT_USER } from '@sigkill/machine';
 import { validateObjectives } from '@sigkill/quest';
-import { bootWreck, COLD_OPEN } from '../src/world.js';
+import { bootWreck, COLD_OPEN, EPILOGUE } from '../src/world.js';
 import { WRECK_OBJECTIVES, oxygenTarget } from '../src/objectives.js';
 
 describe('Act I content', () => {
@@ -60,6 +60,65 @@ describe('every command hint actually works', () => {
   }
 });
 
+/**
+ * The bug that made Act I unfinishable, and the one that made it end in
+ * silence. Both were content, both were found by playing rather than testing,
+ * and both now have a test that would have caught them.
+ */
+describe('Act I can actually be finished', () => {
+  it('tells the player the number on a cold boot, as the README promises', async () => {
+    const { machine } = bootWreck();
+
+    // This is the exact command the README and the first hint send them to,
+    // before they have done anything else.
+    const status = await machine.exec('systemctl status scrubber');
+    expect(status.stdout).toContain('O2_TARGET=16');
+    expect(status.stdout).toContain('19-23');
+    expect(status.stdout).toContain('failed');
+  });
+
+  it('has the refusal in the boot log too, with the number', async () => {
+    const { machine } = bootWreck();
+    const log = (await machine.exec('grep O2 /var/log/boot.log')).stdout;
+    expect(log).toContain('O2_TARGET=16');
+    expect(log).toContain('19-23');
+  });
+
+  it('the README does not promise anything the ship will not say', async () => {
+    const { machine } = bootWreck();
+    const readme = (await machine.exec('cat README')).stdout;
+    // Every command the note tells the player to run has to work from a
+    // cold boot and tell them something.
+    for (const cmd of ['systemctl status scrubber', 'ls /etc']) {
+      expect(readme, `README should send them to: ${cmd}`).toContain(cmd);
+      const r = await machine.exec(cmd);
+      expect(r.code, `${cmd} should run`).toBeLessThan(4);
+      expect(r.stdout.length, `${cmd} should say something`).toBeGreaterThan(0);
+    }
+  });
+
+  it('reports the act finished once both objectives are done', async () => {
+    const { machine, questbook } = bootWreck();
+    expect(questbook.complete(machine)).toBe(false);
+
+    await machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    await machine.exec('sudo systemctl start scrubber');
+    expect(questbook.complete(machine)).toBe(false);
+
+    await machine.exec('sudo systemctl enable scrubber');
+    expect(questbook.complete(machine)).toBe(true);
+  });
+
+  it('has an ending to play, in ORACLE\'s voice', () => {
+    expect(EPILOGUE.length).toBeGreaterThan(10);
+    const text = EPILOGUE.join('\n');
+    expect(text).toContain('ORACLE:');
+    expect(text).toContain('ACT I COMPLETE');
+    // It closes the story it opened: Vasquez, and why she stopped.
+    expect(text).toContain('Vasquez');
+  });
+});
+
 describe('the ladder follows the player, not a script', () => {
   // The line the first rung walks: telling the player how to *diagnose* is not
   // a spoiler and is the whole lesson; telling them the fix ends the puzzle.
@@ -82,7 +141,7 @@ describe('the ladder follows the player, not a script', () => {
     // Three asks on the opening step; each one should name something typeable.
     for (let i = 0; i < 3; i++) {
       const r = await machine.exec('hint');
-      expect(r.stdout, `rung ${i + 1}`).toMatch(/systemctl|ls |cat |vi |nano |sed /);
+      expect(r.stdout, `rung ${i + 1}`).toMatch(/systemctl|ls |cat |grep |vi |nano |sed /);
     }
   });
 

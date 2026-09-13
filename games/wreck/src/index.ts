@@ -5,7 +5,7 @@
  * Phase 3 is the rest of the acts, the authored snapshots that replace
  * `bootWreck`'s hand-built filesystem, and the full ORACLE dialogue bank.
  */
-export { bootWreck, COLD_OPEN } from './world.js';
+export { bootWreck, COLD_OPEN, EPILOGUE } from './world.js';
 export type { Wreck, WreckOptions } from './world.js';
 export { WRECK_OBJECTIVES, oxygenTarget } from './objectives.js';
 
