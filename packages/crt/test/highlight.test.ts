@@ -156,7 +156,16 @@ describe('settings and values', () => {
 
 describe('what it must never do', () => {
   it('returns no spans for ordinary prose', () => {
-    expect(highlight('It did not break. It refused.', { commands: COMMANDS })).toEqual([]);
+    expect(highlight('I have had a long time to think of something better.', { commands: COMMANDS }))
+      .toEqual([]);
+  });
+
+  it('leaves words that are both prose and machine vocabulary alone', () => {
+    // "It refused" is ORACLE telling a story. Painting it red because a log
+    // also uses the word is noise, and the story is most of what gets read.
+    for (const line of ['It did not break. It refused.', 'it is refusing to run']) {
+      expect(highlight(line, { commands: COMMANDS }), line).toEqual([]);
+    }
   });
 
   it('returns no spans for an empty line', () => {
@@ -200,5 +209,226 @@ describe('a real line from the game', () => {
     expect(found).toContain('speaker');
     expect(found).toContain('path');
     expect(covered(line, 'path')).toBe('/etc/life_support.conf');
+  });
+});
+
+
+describe('flags', () => {
+  it('colours a short flag', () => {
+    expect(covered('grep -c PRESSURE_DROP file', 'flag')).toBe('-c');
+  });
+
+  it('colours a long flag', () => {
+    expect(covered('systemctl --failed', 'flag')).toBe('--failed');
+  });
+
+  it('colours a cluster', () => {
+    expect(covered('rm -rf /tmp/x', 'flag')).toBe('-rf');
+  });
+
+  it('does not colour a negative number', () => {
+    expect(kinds('the delta was -5 kPa')).not.toContain('flag');
+  });
+
+  it('does not colour a dash between words', () => {
+    expect(kinds('a well-known problem')).not.toContain('flag');
+  });
+});
+
+describe('state words', () => {
+  it('paints failure red', () => {
+    expect(covered('[0000.884] scrubber: FAIL - refusing to run', 'err')).toBe('FAIL');
+  });
+
+  it('paints health green', () => {
+    expect(covered('reactor.service   active    enabled', 'good')).toContain('active');
+  });
+
+  it('paints a warning amber', () => {
+    expect(covered('C7 96.1kPa PRESSURE_DROP', 'warn')).toBe('PRESSURE_DROP');
+  });
+
+  it('does not match inside a longer word', () => {
+    expect(kinds('the inactivity timer')).not.toContain('good');
+  });
+});
+
+describe('quoted strings and screamed tokens', () => {
+  it('colours a quoted string', () => {
+    expect(covered("sed -i 's/no/yes/' file", 'value')).toBe("'s/no/yes/'");
+  });
+
+  it('keeps two quoted strings apart', () => {
+    const line = `echo "one" and "two"`;
+    expect(covered(line, 'value')).toBe('"one" "two"');
+  });
+
+  it('colours a SCREAMING_SNAKE token', () => {
+    expect(covered('grep PRESSURE_DROP /var/log/hull.log', 'warn')).toBe('PRESSURE_DROP');
+  });
+
+  it('does not scream at a single capitalised word', () => {
+    expect(kinds('ORACLE is talking')).not.toContain('warn');
+  });
+});
+
+describe('chrome', () => {
+  it('colours a box frame', () => {
+    expect(covered('┌───┐', 'heading')).toBe('┌───┐');
+  });
+
+  it('leaves block elements alone, because those are the data', () => {
+    // Frames are chrome; fills and sparklines are content and keep the line's
+    // own colour.
+    expect(kinds('C7 ▅▅▄▄▃ 96.1')).not.toContain('heading');
+  });
+
+  it('colours a section rule', () => {
+    expect(covered('-- OBJECTIVES ------------ 2 of 4 done', 'heading'))
+      .toContain('-- OBJECTIVES');
+  });
+});
+
+describe('the objectives marks', () => {
+  it('paints a done mark green', () => {
+    expect(covered('  [x] Get the atmosphere scrubber running', 'good')).toBe('[x]');
+  });
+
+  it('paints an open mark as something you can act on', () => {
+    expect(covered('> [ ] Get the hull monitor running', 'command')).toBe('[ ]');
+  });
+
+  it('paints a locked mark quiet', () => {
+    expect(covered('  [-] Find the leak and close it', 'muted')).toBe('[-]');
+  });
+
+  it('makes the you-are-here arrow the brightest mark in the list', () => {
+    expect(covered('> [ ] Get the hull monitor running', 'warn')).toBe('>');
+  });
+
+  it('does not fire on a bracket mid-sentence', () => {
+    expect(kinds('an array [x] is not a checkbox')).not.toContain('good');
+  });
+});
+
+/**
+ * Both found by screenshotting the real renderer on a phone, not by a test.
+ * The rule was painting whole English sentences cyan — which promises the
+ * player they can type them.
+ */
+describe('what counts as a command line', () => {
+  it('stops at the description in a two-column table', () => {
+    expect(covered('    deck        the nine compartments, as they are', 'command')).toBe('deck');
+  });
+
+  it('refuses a sentence that merely starts with a command name', () => {
+    // `find` is a real command aboard, and this is a step label.
+    expect(kinds('      find which compartment is losing air, and seal it'))
+      .not.toContain('command');
+  });
+
+  it('refuses a sentence ending in a full stop', () => {
+    expect(kinds('    cat the note before you do anything else.')).not.toContain('command');
+  });
+
+  it('still takes a real command with flags and a path', () => {
+    expect(covered('    grep -c PRESSURE_DROP /var/log/hull.log', 'command'))
+      .toBe('grep -c PRESSURE_DROP /var/log/hull.log');
+  });
+
+  it('colours a command inside a hint, past the speaker prefix', () => {
+    // Every hint is emitted as `ORACLE: <line>`, so without this the bottom
+    // rung of a ladder was the one place a command never stood out.
+    expect(covered('ORACLE:     sudo systemctl start scrubber', 'command'))
+      .toBe('sudo systemctl start scrubber');
+  });
+
+  it('still marks the speaker on that same line', () => {
+    expect(covered('ORACLE:     sudo systemctl start scrubber', 'speaker')).toBe('ORACLE:');
+  });
+
+  it('does not colour ORACLE prose as a command', () => {
+    expect(kinds('ORACLE: I have had a long time to think about it'))
+      .not.toContain('command');
+  });
+});
+
+/**
+ * Bare command words cannot be coloured on sight — `cat`, `man`, `find`,
+ * `sort`, `date` and `which` are all ordinary English. A colon in front of one
+ * is the tell, and it is how every instruction in this game is phrased.
+ */
+describe('a command named after a colon', () => {
+  it('colours it', () => {
+    expect(covered('ORACLE: Start with: ls', 'command')).toBe('ls');
+  });
+
+  it('takes the arguments with it', () => {
+    expect(covered('Vasquez left you a note. Read it: cat README', 'command'))
+      .toBe('cat README');
+  });
+
+  it('stops at the full stop', () => {
+    expect(covered('type: hint. It costs nothing.', 'command')).toBe('hint');
+  });
+
+  it('finds two on one line and not the words between them', () => {
+    const line = '      stuck? type:  hint      the whole board:  objectives';
+    expect(covered(line, 'command')).toBe('hint objectives');
+  });
+
+  it('ignores a colon followed by something that is not a command', () => {
+    expect(kinds('Loaded: loaded (/etc/systemd/system/scrubber.service)'))
+      .not.toContain('command');
+  });
+
+  it('does not fire on the speaker colon alone', () => {
+    expect(kinds('ORACLE: I am what is left of the maintenance daemon'))
+      .not.toContain('command');
+  });
+
+  it('handles sudo after a colon', () => {
+    expect(covered('Then: sudo systemctl start scrubber', 'command'))
+      .toBe('sudo systemctl start scrubber');
+  });
+});
+
+/**
+ * Both found by Codex, and both are boundary bugs: a rule that was right about
+ * what it matched and wrong about where it was allowed to start.
+ */
+describe('boundaries', () => {
+  it('does not let a contraction open a quoted string', () => {
+    const line = "python3: can't open file 'missing.py'";
+    expect(covered(line, 'value')).toBe("'missing.py'");
+  });
+
+  it('still colours a quoted sed script', () => {
+    expect(covered("sed -i 's/no/yes/' /etc/hull/c7.conf", 'value')).toBe("'s/no/yes/'");
+  });
+
+  it('leaves a lone contraction entirely alone', () => {
+    expect(kinds("it can't be helped")).not.toContain('value');
+  });
+
+  it('does not treat a documented long option as a section rule', () => {
+    // `man systemctl` prints exactly this. Every option in all 32 manual
+    // pages was being painted as a heading.
+    const line = '  --failed        show only the units that failed';
+    expect(kinds(line)).not.toContain('heading');
+    expect(covered(line, 'flag')).toBe('--failed');
+  });
+
+  it('still treats a real rule as a rule', () => {
+    expect(covered('-- OBJECTIVES ------------ 2 of 4 done', 'heading'))
+      .toBe('-- OBJECTIVES ------------ 2 of 4 done');
+  });
+
+  it('takes a bare run of dashes', () => {
+    expect(covered('------------', 'heading')).toBe('------------');
+  });
+
+  it('does not take a short option either', () => {
+    expect(kinds('  -l              long form')).not.toContain('heading');
   });
 });

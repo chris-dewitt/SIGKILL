@@ -2,12 +2,16 @@ export { TerminalBuffer, wrap, wrapChunks, spansFor, LINE_KINDS } from './buffer
 export type { Line, LineKind, Row, Span, Chunk, BufferOptions } from './buffer.js';
 
 export { TerminalRenderer, PHOSPHOR } from './renderer.js';
+export { PALETTES, PALETTE_NAMES, DEFAULT_PALETTE, paletteByName } from './palettes.js';
+export type { PaletteName } from './palettes.js';
 export type { Palette, RendererOptions } from './renderer.js';
 
 export { GlyphAtlas, measureCell, scaleFont } from './atlas.js';
 export type { AtlasOptions } from './atlas.js';
 
 export { CrtPass } from './crt.js';
+export { TUBES, TUBE_NAMES, DEFAULT_TUBE, tubeByName, degrade } from './tubes.js';
+export type { TubeName } from './tubes.js';
 export type { CrtOptions } from './crt.js';
 
 export { highlight } from './highlight.js';

@@ -180,6 +180,30 @@ export class TerminalView {
     });
   }
 
+  /**
+   * Swap the colour scheme without losing the session.
+   *
+   * The atlas bakes colour into its sheets, so this rebuilds the renderer --
+   * the buffer is untouched, which is what lets somebody compare two schemes
+   * against the same screenful instead of against their memory of it.
+   */
+  /**
+   * Retune the tube while it is running.
+   *
+   * No-op without WebGL2, which is the correct behaviour rather than an error:
+   * a device that cannot run the shader is already looking at plain text, and
+   * choosing a CRT preset for it is a wish, not a failure.
+   */
+  setCrt(options: CrtOptions): void {
+    this.crt?.configure(options);
+    this.draw();
+  }
+
+  setPalette(palette: Palette): void {
+    this.renderer.setPalette(palette);
+    this.draw();
+  }
+
   write(text: string, kind: LineKind = 'out'): void {
     const wasAtBottom = this.isAtBottom();
     this.writeLines(text, kind);

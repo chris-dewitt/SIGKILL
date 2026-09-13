@@ -25,6 +25,8 @@ export const LINE_KINDS = [
   'path',
   /** A number that matters: a target, a reading, a count. */
   'value',
+  /** A flag or option: `-l`, `--failed`. */
+  'flag',
   /** A title, a rule, the frame of a box. */
   'heading',
   /** Done, running, sealed, healthy. */

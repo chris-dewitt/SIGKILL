@@ -24,7 +24,8 @@
     "@sigkill/crt": "workspace:*",
     "@sigkill/quest": "workspace:*",
     "@sigkill/wreck": "workspace:*",
-    "@sigkill/editor": "workspace:*"
+    "@sigkill/editor": "workspace:*",
+    "@sigkill/audio": "workspace:*"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",
