@@ -1,8 +1,56 @@
 /**
- * What a line is for. The renderer maps these to colours; the Machine never
- * emits them, because the Machine has no screen.
+ * What a line, or a run inside one, is for.
+ *
+ * Every name is a *meaning* and never a hue, so the palette can be retuned
+ * without touching a single call site. The renderer maps these to colours; the
+ * Machine never emits them, because the Machine has no screen.
+ *
+ * This list is the source of truth: `Palette` is required to cover it, so
+ * adding a kind without giving it a colour will not compile.
  */
-export type LineKind = 'out' | 'err' | 'echo' | 'system';
+export const LINE_KINDS = [
+  /** Ordinary command output. */
+  'out',
+  /** Something went wrong. */
+  'err',
+  /** The line the player typed, echoed back. */
+  'echo',
+  /** The adventure speaking, rather than the machine. */
+  'system',
+  /** The `ORACLE:` prefix itself, so the name recedes and the words carry. */
+  'speaker',
+  /** A command the player could type right now. */
+  'command',
+  /** A path or filename. */
+  'path',
+  /** A number that matters: a target, a reading, a count. */
+  'value',
+  /** A title, a rule, the frame of a box. */
+  'heading',
+  /** Done, running, sealed, healthy. */
+  'good',
+  /** Worth your attention, not yet an error. */
+  'warn',
+  /** Present but deliberately quiet. */
+  'muted',
+] as const;
+
+export type LineKind = (typeof LINE_KINDS)[number];
+
+/**
+ * A coloured run inside a line.
+ *
+ * Offsets are into the line's own text, so a span survives the line being
+ * rewrapped at a different width -- which is the whole reason the buffer
+ * stores unwrapped text in the first place.
+ */
+export interface Span {
+  /** First character of the run. */
+  start: number;
+  /** One past the last. */
+  end: number;
+  kind: LineKind;
+}
 
 /** A line as written. Unwrapped — wrapping is a function of width. */
 export interface Line {
@@ -26,6 +74,14 @@ export interface Line {
    * one is confetti.
    */
   nowrap?: boolean;
+  /**
+   * Coloured runs within the line.
+   *
+   * Everything not covered by a span is drawn in the line's own `kind`. This
+   * is what lets one sentence of ORACLE's carry a command in cyan and a path
+   * in periwinkle without the author splitting it into three lines.
+   */
+  spans?: readonly Span[];
 }
 
 /** One row as displayed, after wrapping to a given width. */
@@ -38,6 +94,8 @@ export interface Row {
   first: boolean;
   /** Column within this row to draw the block cursor on. */
   cursor?: number;
+  /** Coloured runs, with offsets rebased onto this row. */
+  spans?: readonly Span[];
 }
 
 export interface BufferOptions {
@@ -152,14 +210,19 @@ export class TerminalBuffer {
       }
       if (line.nowrap === true) {
         // Clipped, not wrapped. See `Line.nowrap`.
-        const row: Row = { text: line.text.slice(0, cols), kind: line.kind, line: index, first: true };
+        const text = line.text.slice(0, cols);
+        const row: Row = { text, kind: line.kind, line: index, first: true };
         if (line.cursor !== undefined) row.cursor = line.cursor;
+        const spans = spansFor(line.spans, 0, text.length);
+        if (spans) row.spans = spans;
         rows.push(row);
         continue;
       }
-      for (const [n, chunk] of wrap(line.text, cols).entries()) {
-        const row: Row = { text: chunk, kind: line.kind, line: index, first: n === 0 };
+      for (const [n, chunk] of wrapChunks(line.text, cols).entries()) {
+        const row: Row = { text: chunk.text, kind: line.kind, line: index, first: n === 0 };
         if (line.cursor !== undefined && n === 0) row.cursor = line.cursor;
+        const spans = spansFor(line.spans, chunk.start, chunk.text.length);
+        if (spans) row.spans = spans;
         rows.push(row);
       }
     }
@@ -173,13 +236,27 @@ export class TerminalBuffer {
   }
 }
 
-/** Wrap one string to a width, preferring word boundaries. */
-export function wrap(text: string, cols: number): string[] {
-  if (cols < 1) return [];
-  if (text.length <= cols) return [text];
+/** One wrapped row, and where it began in the original string. */
+export interface Chunk {
+  text: string;
+  /** Offset of `text[0]` within the unwrapped line. */
+  start: number;
+}
 
-  const out: string[] = [];
+/**
+ * Wrap one string to a width, preferring word boundaries, reporting offsets.
+ *
+ * The offsets are what let coloured spans survive wrapping. Without them a
+ * span would have to be re-found in each row by searching for its text, which
+ * is both slower and wrong the moment the same word appears twice.
+ */
+export function wrapChunks(text: string, cols: number): Chunk[] {
+  if (cols < 1) return [];
+  if (text.length <= cols) return [{ text, start: 0 }];
+
+  const out: Chunk[] = [];
   let rest = text;
+  let consumed = 0;
 
   while (rest.length > cols) {
     const window = rest.slice(0, cols + 1);
@@ -188,13 +265,48 @@ export function wrap(text: string, cols: number): string[] {
     // No space to break on, or the break would emit an empty row: hard-break.
     if (cut <= 0) cut = cols;
 
-    out.push(rest.slice(0, cut).trimEnd());
-    rest = rest.slice(cut).replace(/^ +/, '');
+    // trimEnd only ever removes from the right, so the start offset stands.
+    out.push({ text: rest.slice(0, cut).trimEnd(), start: consumed });
+
+    const remainder = rest.slice(cut);
+    const stripped = remainder.replace(/^ +/, '');
+    consumed += cut + (remainder.length - stripped.length);
+    rest = stripped;
 
     // A line of nothing but spaces would otherwise loop forever.
     if (rest.length === 0) return out;
   }
 
-  out.push(rest);
+  out.push({ text: rest, start: consumed });
   return out;
+}
+
+/** Wrap one string to a width, preferring word boundaries. */
+export function wrap(text: string, cols: number): string[] {
+  return wrapChunks(text, cols).map((chunk) => chunk.text);
+}
+
+/**
+ * Clip spans to one wrapped row and rebase them onto it.
+ *
+ * Returns undefined rather than an empty array when nothing lands here, so a
+ * row with no colour carries no property at all.
+ */
+export function spansFor(
+  spans: readonly Span[] | undefined,
+  start: number,
+  length: number,
+): Span[] | undefined {
+  if (spans === undefined || spans.length === 0) return undefined;
+  const end = start + length;
+  const out: Span[] = [];
+
+  for (const span of spans) {
+    const from = Math.max(span.start, start);
+    const to = Math.min(span.end, end);
+    if (to <= from) continue;
+    out.push({ start: from - start, end: to - start, kind: span.kind });
+  }
+
+  return out.length > 0 ? out : undefined;
 }

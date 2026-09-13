@@ -21,6 +21,8 @@ const spoken = (lines: readonly BeatLine[]): string =>
   lines.map((line) => (typeof line === 'string' ? line : line.art)).join('\n');
 
 const SCRIPT = [
+  'objectives',
+  'start systemctl',
   'ls',
   'cat README',
   'systemctl --failed',

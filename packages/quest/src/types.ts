@@ -74,6 +74,18 @@ export interface Rung {
  */
 export interface HintStep {
   readonly id: string;
+  /**
+   * What the player is doing right now, in their words.
+   *
+   * The single most useful line the interface can show: an objective says
+   * where you are going and this says what is in front of you. Without it the
+   * board can only show a title the player has already read and an id like
+   * `make-it-runnable`, which is a name for the content, not for them.
+   *
+   * One short phrase, no trailing full stop. Optional so other adventures
+   * keep compiling, but write one.
+   */
+  readonly label?: string;
   /** True while this step is still undone. */
   readonly pending: (w: World) => boolean;
   readonly rungs: readonly Rung[];

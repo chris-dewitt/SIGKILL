@@ -330,3 +330,40 @@ describe('preformatted output', () => {
     }
   });
 });
+
+/**
+ * From a real playtest: `start systemctl` produced `sh: start: command not
+ * found` and nothing else. Correct, and useless — somebody who transposes two
+ * words is somebody still learning the shape of a command, and they are the
+ * person most worth answering.
+ */
+describe('did you mean', () => {
+  it('spots a transposition and says the right order', async () => {
+    const m = boot();
+    const r = await m.exec('start systemctl');
+    expect(r.stderr).toContain('command not found');
+    expect(r.stderr).toContain('Did you mean:  systemctl start');
+  });
+
+  it('keeps the rest of the arguments, in order', async () => {
+    const m = boot();
+    expect((await m.exec('status systemctl scrubber')).stderr)
+      .toContain('Did you mean:  systemctl status scrubber');
+  });
+
+  it('says nothing when there is nothing to say', async () => {
+    const m = boot();
+    const r = await m.exec('frobnicate the widget');
+    expect(r.stderr).toBe('sh: frobnicate: command not found\n');
+  });
+
+  it('does not guess from a bare unknown word', async () => {
+    const m = boot();
+    expect((await m.exec('systemctll')).stderr).not.toContain('Did you mean');
+  });
+
+  it('leaves a real command alone', async () => {
+    const m = boot();
+    expect((await m.exec('echo hi')).stderr).toBe('');
+  });
+});

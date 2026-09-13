@@ -530,7 +530,7 @@ export async function execArgv(ctx: ShellContext, argv: string[], io: ExecIO): P
   // makes `chmod +x` and `./thing` mean something aboard.
   const program = resolveProgram(ctx, name);
   if (program.kind === 'error') {
-    io.err(`sh: ${name}: ${program.reason}\n`);
+    io.err(`sh: ${name}: ${program.reason}\n${didYouMean(ctx, argv)}`);
     return program.code;
   }
   if (program.kind === 'script') {
@@ -551,6 +551,24 @@ function forCommand(io: ExecIO, spec: CommandSpec): ExecIO {
   if (spec.preformatted !== true) return io;
   const sink = io.outArt ?? io.out;
   return { ...io, out: (text) => sink.call(io, text) };
+}
+
+/**
+ * A guess at what somebody meant, when the first word is not a command.
+ *
+ * Only one guess, and only when it is nearly certain: a later word on the same
+ * line *is* a real command. That is a transposition -- `start systemctl` for
+ * `systemctl start` -- and it is the mistake a person makes while they are
+ * still learning the shape of a command, which is exactly the person who most
+ * needs to be told. Everything vaguer stays silent: a wrong suggestion costs
+ * more than none, because it sends a beginner off to debug the wrong thing.
+ */
+function didYouMean(ctx: ShellContext, argv: string[]): string {
+  const real = argv.slice(1).find((word) => ctx.commands.has(word));
+  if (real === undefined) return '';
+
+  const rest = argv.filter((word) => word !== real);
+  return `  Did you mean:  ${[real, ...rest].join(' ')}\n`;
 }
 
 /** Call a command and turn anything it throws into the error it should print. */

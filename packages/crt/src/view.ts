@@ -1,4 +1,4 @@
-import { TerminalBuffer, type LineKind } from './buffer.js';
+import { TerminalBuffer, type LineKind, type Span } from './buffer.js';
 import { CrtPass, type CrtOptions } from './crt.js';
 import { atBottom } from './metrics.js';
 import { TerminalRenderer, type Palette } from './renderer.js';
@@ -161,17 +161,44 @@ export class TerminalView {
     this.overlaySerial++;
   }
 
+  /**
+   * Colour runs inside every line this view writes.
+   *
+   * Set once by the host, because the rules need to know which words are real
+   * commands aboard and the view is the only thing that sees every line.
+   */
+  highlighter: ((text: string) => readonly Span[]) | undefined;
+
+  /** Push one line, colouring it if a highlighter is installed. */
+  private line(text: string, kind: LineKind, nowrap = false): void {
+    const spans = text.length > 0 ? this.highlighter?.(text) : undefined;
+    this.buffer.pushLine({
+      text,
+      kind,
+      ...(nowrap ? { nowrap: true } : {}),
+      ...(spans !== undefined && spans.length > 0 ? { spans } : {}),
+    });
+  }
+
   write(text: string, kind: LineKind = 'out'): void {
     const wasAtBottom = this.isAtBottom();
-    this.buffer.write(text, kind);
+    this.writeLines(text, kind);
     // New output only chases the bottom if the player was already there.
     // Yanking them forward mid-scroll is the classic terminal annoyance.
     if (wasAtBottom) this.scroll = 0;
   }
 
+  /** Split a block on newlines the way `TerminalBuffer.write` does. */
+  private writeLines(text: string, kind: LineKind): void {
+    if (text.length === 0) return;
+    const parts = text.split('\n');
+    if (parts[parts.length - 1] === '') parts.pop();
+    for (const part of parts) this.line(part, kind);
+  }
+
   push(text: string, kind: LineKind = 'out'): void {
     const wasAtBottom = this.isAtBottom();
-    this.buffer.push(text, kind);
+    this.line(text, kind);
     if (wasAtBottom) this.scroll = 0;
   }
 
@@ -183,7 +210,7 @@ export class TerminalView {
    */
   writeArt(rows: readonly string[], kind: LineKind = 'out'): void {
     const wasAtBottom = this.isAtBottom();
-    this.buffer.writeArt(rows, kind);
+    for (const row of rows) this.line(row, kind, true);
     if (wasAtBottom) this.scroll = 0;
   }
 

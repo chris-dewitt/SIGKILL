@@ -244,7 +244,8 @@ describe('the ladder follows the player, not a script', () => {
 
   it('hides the reboot objective behind the one that keeps you alive', async () => {
     const { machine } = bootWreck();
-    expect((await machine.exec('objectives')).stdout).toContain('waiting on atmosphere');
+    expect((await machine.exec('objectives')).stdout)
+      .toContain('locked until: Get the atmosphere scrubber running');
     expect((await machine.exec('hint survive-a-reboot')).code).toBe(1);
   });
 
@@ -254,9 +255,63 @@ describe('the ladder follows the player, not a script', () => {
     await machine.exec('sudo systemctl start scrubber');
 
     const board = (await machine.exec('objectives')).stdout;
-    expect(board).toContain('[x] atmosphere');
-    expect(board).toContain('[ ] survive-a-reboot');
+    expect(board).toContain('[x] Get the atmosphere scrubber running');
+    expect(board).toContain('[ ] Make the scrubber come back on its own');
     expect((await machine.exec('hint')).stdout).toContain('not safe');
+  });
+});
+
+/**
+ * From the playtest: Chris finished the first puzzle and asked *me* what to do
+ * next, while `hint` existed and the chip bar had quietly dropped it. A board
+ * the player has to know to ask for is a board most players never see.
+ */
+describe('the player can always tell what they are doing', () => {
+  it('names the objective in their words, not the content\'s id', async () => {
+    const { machine } = bootWreck();
+    const board = (await machine.exec('objectives')).stdout;
+    expect(board).toContain('Get the atmosphere scrubber running');
+    expect(board).not.toContain('[ ] atmosphere');
+  });
+
+  it('marks which one they are on', async () => {
+    const { machine } = bootWreck();
+    expect((await machine.exec('objectives')).stdout)
+      .toContain('> [ ] Get the atmosphere scrubber running');
+  });
+
+  it('says what is in front of them right now, not just the destination', async () => {
+    const { machine } = bootWreck();
+    expect((await machine.exec('objectives')).stdout).toContain('now: put O2_TARGET back');
+  });
+
+  it('moves "now" to the next step within the same objective', async () => {
+    const { machine } = bootWreck();
+    await machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    const board = (await machine.exec('objectives')).stdout;
+    expect(board).toContain('now: start the scrubber');
+    expect(board).not.toContain('now: put O2_TARGET back');
+  });
+
+  it('counts progress through the act', async () => {
+    const { machine } = bootWreck();
+    expect((await machine.exec('objectives')).stdout).toContain('0 of 4 done');
+  });
+
+  it('gives every step a label, or the board has nothing to say', () => {
+    for (const objective of WRECK_OBJECTIVES) {
+      for (const step of objective.steps) {
+        expect(step.label, `${objective.id}/${step.id}`).toBeTruthy();
+        expect((step.label ?? '').length, `${objective.id}/${step.id}`).toBeGreaterThan(8);
+        // A label is a phrase, not a sentence: it sits after "now:".
+        expect(step.label ?? '', `${objective.id}/${step.id}`).not.toMatch(/\.$/);
+      }
+    }
+  });
+
+  it('offers the way out of being stuck every time the board is drawn', async () => {
+    const { machine } = bootWreck();
+    expect((await machine.exec('objectives')).stdout).toContain('hint');
   });
 });
 

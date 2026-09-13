@@ -18,54 +18,78 @@ export interface AtlasOptions {
  * full-screen redraw affordable on a phone.
  *
  * Colour is baked in rather than tinted at draw time, because Canvas2D has no
- * cheap tint. The palette is four entries, the atlas is small, and four
- * copies cost less than one composite pass per frame.
+ * cheap tint -- one sheet per colour. With a four-colour palette that was free.
+ * With a dozen it would not be: each sheet is roughly 700 KB of canvas at 2×,
+ * so building them all up front would hand a phone eight megabytes, most of it
+ * for accents that a given screenful never uses.
+ *
+ * So sheets are built on first use and kept. An adventure that never prints a
+ * warning never pays for the warning colour, and one that uses everything pays
+ * exactly once, spread across the frames where each colour first appears.
  */
 export class GlyphAtlas {
   readonly cell: CellSize;
   readonly scale: number;
   private readonly sheets = new Map<string, HTMLCanvasElement>();
+  private readonly colors: Record<string, string>;
+  private readonly font: string;
   private readonly slots = new Map<number, number>();
   private readonly columns: number;
+  private readonly points: number[];
 
   constructor(opts: AtlasOptions) {
     this.scale = opts.scale;
+    this.colors = { ...opts.colors };
+    this.font = opts.font;
 
-    const points = atlasCodepoints();
-    this.columns = atlasColumns(points.length);
-    for (const [index, point] of points.entries()) this.slots.set(point, index);
+    this.points = atlasCodepoints();
+    this.columns = atlasColumns(this.points.length);
+    for (const [index, point] of this.points.entries()) this.slots.set(point, index);
 
     this.cell = measureCell(opts.font);
+  }
 
-    const rows = Math.ceil(points.length / this.columns);
+  /** Rasterise one colour's sheet, or return the one already built. */
+  private sheet(name: string): HTMLCanvasElement | undefined {
+    const existing = this.sheets.get(name);
+    if (existing) return existing;
+
+    const color = this.colors[name];
+    if (color === undefined) return undefined;
+
+    const rows = Math.ceil(this.points.length / this.columns);
     const cellW = Math.ceil(this.cell.width * this.scale);
     const cellH = Math.ceil(this.cell.height * this.scale);
 
-    for (const [name, color] of Object.entries(opts.colors)) {
-      const sheet = document.createElement('canvas');
-      sheet.width = this.columns * cellW;
-      sheet.height = rows * cellH;
+    const sheet = document.createElement('canvas');
+    sheet.width = this.columns * cellW;
+    sheet.height = rows * cellH;
 
-      const ctx = sheet.getContext('2d');
-      if (!ctx) throw new Error('GlyphAtlas: 2d context unavailable');
+    const ctx = sheet.getContext('2d');
+    if (!ctx) throw new Error('GlyphAtlas: 2d context unavailable');
 
-      ctx.font = scaleFont(opts.font, this.scale);
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = color;
+    ctx.font = scaleFont(this.font, this.scale);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = color;
 
-      // Sit the baseline where a monospace font expects it. Eyeballing this
-      // is what makes descenders clip, so it comes from the metrics.
-      const metrics = ctx.measureText('M');
-      const ascent = metrics.actualBoundingBoxAscent || this.cell.height * this.scale * 0.75;
-      const baseline = Math.round((cellH + ascent) / 2);
+    // Sit the baseline where a monospace font expects it. Eyeballing this
+    // is what makes descenders clip, so it comes from the metrics.
+    const metrics = ctx.measureText('M');
+    const ascent = metrics.actualBoundingBoxAscent || this.cell.height * this.scale * 0.75;
+    const baseline = Math.round((cellH + ascent) / 2);
 
-      for (const [index, point] of points.entries()) {
-        const { col, row } = slotPosition(index, this.columns);
-        ctx.fillText(String.fromCodePoint(point), col * cellW, row * cellH + baseline);
-      }
-
-      this.sheets.set(name, sheet);
+    for (const [index, point] of this.points.entries()) {
+      const { col, row } = slotPosition(index, this.columns);
+      ctx.fillText(String.fromCodePoint(point), col * cellW, row * cellH + baseline);
     }
+
+    this.sheets.set(name, sheet);
+    return sheet;
+  }
+
+  /** How many sheets have actually been rasterised. For tests and budgeting. */
+  get built(): number {
+    return this.sheets.size;
   }
 
   has(codepoint: number): boolean {
@@ -89,7 +113,7 @@ export class GlyphAtlas {
     if (point === undefined) return true;
 
     const index = this.slots.get(point);
-    const sheet = this.sheets.get(color);
+    const sheet = this.sheet(color);
     if (index === undefined || !sheet) return false;
 
     const cellW = Math.ceil(this.cell.width * this.scale);
