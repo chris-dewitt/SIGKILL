@@ -2,7 +2,8 @@ import { TerminalView } from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
-import { bootWreck, COLD_OPEN, EPILOGUE } from '@sigkill/wreck';
+import type { BeatLine } from '@sigkill/quest';
+import { bootWreck, coldOpen, epilogue } from '@sigkill/wreck';
 
 const { machine, questbook } = bootWreck();
 
@@ -73,6 +74,19 @@ function write(text: string, kind: LineKind = 'out'): void {
 
 function writeBlock(text: string, kind: LineKind): void {
   view.write(text, kind);
+}
+
+/**
+ * Say a beat: prose wraps, art clips.
+ *
+ * The distinction is per line rather than per beat because the beats that
+ * matter are prose with a picture in the middle of them.
+ */
+function sayBeat(lines: readonly BeatLine[], kind: LineKind = 'system'): void {
+  for (const line of lines) {
+    if (typeof line === 'string') write(line, kind);
+    else view.writeArt([line.art], kind);
+  }
 }
 
 /**
@@ -156,7 +170,7 @@ async function submit(raw: string): Promise<void> {
  */
 function playBeats(): void {
   for (const objective of questbook.drainCompleted(machine)) {
-    for (const line of objective.onComplete ?? []) write(line, 'system');
+    sayBeat(objective.onComplete ?? []);
   }
 }
 
@@ -171,7 +185,7 @@ let actEnded = false;
 function checkActComplete(): void {
   if (actEnded || !questbook.complete(machine)) return;
   actEnded = true;
-  for (const line of EPILOGUE) write(line, 'system');
+  sayBeat(epilogue(machine));
 }
 
 // ---------------------------------------------------------------- full screen
@@ -560,7 +574,7 @@ window.addEventListener('resize', () => {
   if (screenProgram) paintScreen();
 });
 
-for (const line of COLD_OPEN) write(line, 'system');
+sayBeat(coldOpen(machine));
 refreshPrompt();
 buildSymbolRow();
 refreshChips();

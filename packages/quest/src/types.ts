@@ -14,6 +14,23 @@ export interface World {
 }
 
 /**
+ * One line of something the adventure says.
+ *
+ * A bare string is prose: the host is free to wrap it to whatever width the
+ * screen happens to be. The object form is preformatted -- a drawing, a table,
+ * anything where columns are load-bearing -- and the host must clip it instead.
+ *
+ * The distinction has to be per line rather than per beat, because the beats
+ * that matter are prose with a picture in the middle of them.
+ */
+export type BeatLine = string | { readonly art: string };
+
+/** Mark a block of rows as preformatted. */
+export function asArt(rows: readonly string[]): BeatLine[] {
+  return rows.map((art) => ({ art }));
+}
+
+/**
  * How much a rung gives away.
  *
  * The ladder always ends at `command`. A hint system that stops short of the
@@ -85,6 +102,9 @@ export interface Objective {
    * fixes the thing the whole act is about, *something* has to answer them,
    * or the biggest beat in the story lands in silence. The machine stays
    * real; the character reacts.
+   *
+   * Lines may be prose or preformatted art -- see `BeatLine`. Wrap art rows
+   * with `asArt` so a narrow screen clips the picture rather than shredding it.
    */
-  readonly onComplete?: readonly string[];
+  readonly onComplete?: readonly BeatLine[];
 }

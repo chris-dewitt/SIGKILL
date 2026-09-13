@@ -48,7 +48,25 @@ layout, no dependencies, shared by all thirteen games. `SAFE_COLS` is 34,
 which is what a portrait phone really gives you. Two rules worth knowing:
 art goes through `view.writeArt` (clipped) and never `write` (reflowed, which
 scrambles it), and a column of sparklines must share an axis or the healthy
-rows look like an emergency.
+rows look like an emergency. It also carries a 5x3 block font, because all
+thirteen games need their name up front.
+
+**Art in the wreck** — `src/act1/art.ts` is the live diagrams (`deck`,
+`pressure`), `src/act1/cards.ts` is the three set pieces. The division of
+labour is by job, not taste: **typography is a logo** (cold open only, or it
+becomes a watermark), **the schematic is the ship's condition** (cold open and
+ending, drawn from `/etc/hull` so it can never disagree with `deck`), and
+**the face is the character** (three appearances an act -- waking, the story
+turn, the ending). Chris chose all three styles and "act boundaries only".
+
+Two rules that are load-bearing:
+
+1. Art goes through `view.writeArt` / `asArt`, never `write`. The Machine says
+   which output that is via `preformatted`, modelled on `clearRequested`.
+2. Only one number on the schematic is hearsay: `hullClaim`. It is a literal on
+   purpose -- the epilogue turns on ORACLE having recited 61% off Vasquez's
+   clipboard for eleven years -- while the sealed count beside it is measured.
+   Computing the percentage would destroy the reveal.
 
 **`packages/editor`** (PR #6) — `vi`/`vim` and `nano` over one shared
 `TextBuffer` with a real undo stack. Pure state machines: keys in, frames out,

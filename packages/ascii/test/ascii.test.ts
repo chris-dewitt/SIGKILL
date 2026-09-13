@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SAFE_COLS, GLYPHS, width, pad, clip, stack, beside, grid, centre, indent,
-  frame, caption, meter, sparkline, dial,
+  frame, caption, meter, sparkline, dial, blockWord, blockWidth, FONT_ROWS,
 } from '../src/index.js';
 
 /**
@@ -291,5 +291,65 @@ describe('the glyph vocabulary', () => {
         (point >= 0x2580 && point <= 0x259f);
       expect(known, `U+${point.toString(16)} '${glyph}' is not in the atlas`).toBe(true);
     }
+  });
+});
+
+describe('the block font', () => {
+  it('is five rows, whatever the word', () => {
+    for (const word of ['A', 'SIGKILL', 'NAV-7', '']) {
+      expect(blockWord(word), `"${word}"`).toHaveLength(FONT_ROWS);
+    }
+  });
+
+  it('predicts its own width before rendering', () => {
+    for (const word of ['A', 'AB', 'SIGKILL', 'NAV-7']) {
+      expect(width(blockWord(word)), word).toBeLessThanOrEqual(blockWidth(word));
+    }
+  });
+
+  it('fits the game title inside the safe width', () => {
+    expect(blockWidth('SIGKILL')).toBeLessThanOrEqual(SAFE_COLS);
+  });
+
+  it('upper-cases rather than refusing lower case', () => {
+    expect(blockWord('sig')).toEqual(blockWord('SIG'));
+  });
+
+  it('renders an unknown character as a gap rather than throwing', () => {
+    expect(() => blockWord('A@B')).not.toThrow();
+    expect(blockWord('A@B')).toHaveLength(FONT_ROWS);
+  });
+
+  it('has every letter and digit a title might need', () => {
+    for (const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') {
+      const rendered = blockWord(ch);
+      expect(rendered.join('').trim(), `'${ch}' is blank`).not.toBe('');
+    }
+  });
+
+  it('makes every glyph three columns wide, or letters drift apart', () => {
+    // Asserted on the padded form, which is what every composition helper
+    // uses. `blockWord` trims each row's trailing spaces, correctly -- the gap
+    // after the last stroke is not part of the drawing.
+    for (const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') {
+      expect(width(pad(blockWord(ch))), `'${ch}'`).toBe(3);
+    }
+  });
+
+  it('spaces letters evenly, so a word does not drift', () => {
+    expect(width(pad(blockWord('III')))).toBe(blockWidth('III'));
+  });
+
+  it('keeps every glyph distinct, so a title is readable', () => {
+    const seen = new Map<string, string>();
+    for (const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+      const shape = blockWord(ch).join('|');
+      expect(seen.get(shape), `'${ch}' looks identical to '${seen.get(shape)}'`).toBeUndefined();
+      seen.set(shape, ch);
+    }
+  });
+
+  it('respects tracking', () => {
+    expect(width(blockWord('AB', 2))).toBeGreaterThan(width(blockWord('AB', 1)));
   });
 });

@@ -13,7 +13,12 @@
  * could not be finished. This prints what a player would actually see.
  */
 import { it } from 'vitest';
-import { bootWreck, COLD_OPEN, EPILOGUE } from '../src/world.js';
+import { bootWreck, coldOpen, epilogue } from '../src/world.js';
+import type { BeatLine } from '@sigkill/quest';
+
+/** Beats as they read on screen; art rows pass through unchanged. */
+const spoken = (lines: readonly BeatLine[]): string =>
+  lines.map((line) => (typeof line === 'string' ? line : line.art)).join('\n');
 
 const SCRIPT = [
   'ls',
@@ -44,6 +49,8 @@ const SCRIPT = [
   'sudo chmod +x /home/vasquez/notes/seal.sh',
   'sudo /home/vasquez/notes/seal.sh c7',
   'systemctl list-units',
+  'deck',
+  'pressure',
   'objectives',
   'date',
 ];
@@ -55,7 +62,7 @@ it('prints a transcript', async () => {
   const lines: string[] = [];
   const say = (text: string): void => { lines.push(text); };
 
-  say(COLD_OPEN.join('\n') + '\n');
+  say(spoken(coldOpen(machine)) + '\n');
 
   for (const command of SCRIPT) {
     say(`\nsurvivor@nav7:${machine.shell.cwd}$ ${command}\n`);
@@ -63,11 +70,11 @@ it('prints a transcript', async () => {
     if (r.stdout) say(r.stdout);
     if (r.stderr) say(`[stderr] ${r.stderr}`);
     for (const objective of questbook.drainCompleted(machine)) {
-      say((objective.onComplete ?? []).join('\n') + '\n');
+      say(spoken(objective.onComplete ?? []) + '\n');
     }
   }
 
-  if (questbook.complete(machine)) say('\n' + EPILOGUE.join('\n') + '\n');
+  if (questbook.complete(machine)) say('\n' + spoken(epilogue(machine)) + '\n');
   else say('\n!!! ACT NOT COMPLETE: ' +
     JSON.stringify(questbook.status(machine).filter((o) => !o.done).map((o) => o.id)) + '\n');
 

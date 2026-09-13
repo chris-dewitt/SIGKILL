@@ -1,7 +1,10 @@
 import { Machine, ROOT_USER, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
-import { Questbook, questCommands } from '@sigkill/quest';
+import { Questbook, questCommands, type BeatLine } from '@sigkill/quest';
 import { artCommands } from './act1/commands.js';
+import {
+  ORACLE_AWAKE, ORACLE_CANDID, ORACLE_DORMANT, art, shipSchematic, titleCard,
+} from './act1/cards.js';
 import { HULL_CHECK, seedDeckC } from './act1/deck-c.js';
 import { hullCheckRunnable, oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
 
@@ -319,37 +322,55 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
   return { machine: m, questbook };
 }
 
-export const COLD_OPEN = [
-  'NAV-7 MAINTENANCE SHELL v2.3.1 (degraded)',
-  'last login: 4,112 days ago from console',
-  '',
-  '  hull integrity ......... 61%',
-  '  O2 reserve ............. 9h 14m',
-  '  crew aboard ............ 1',
-  '',
-  "ORACLE: You're awake.",
-  'ORACLE: I did not expect that. I want to be careful about how much',
-  'ORACLE: I expect, now.',
-  '',
-  "ORACLE: I am what is left of the maintenance daemon. I can't move.",
-  "ORACLE: I can't see. I have read the same four hundred lines of log",
-  'ORACLE: every day for eleven years and not one of them has ever',
-  'ORACLE: changed.',
-  '',
-  'ORACLE: You can change them.',
-  '',
-  'ORACLE: Start with: ls',
-  'ORACLE: Vasquez left you a note. Read it: cat README',
-  '',
-  'ORACLE: When you meet a command you do not know, the ship will',
-  'ORACLE: explain it:  man <command>.  Try  man ls  now, so that you',
-  'ORACLE: know it works before you need it.',
-  '',
-  'ORACLE: And if you are properly stuck, type: hint. It costs nothing.',
-  'ORACLE: I am not keeping score. I stopped keeping score a long time',
-  'ORACLE: ago.',
-  '',
-];
+/**
+ * The opening, with the act's one title card and ORACLE's first two faces.
+ *
+ * A function rather than a constant because the schematic counts sealed
+ * compartments out of `/etc/hull` -- so it and `deck` can never disagree about
+ * how many are holding. The hull percentage is the exception and stays a
+ * literal: it is the number Vasquez wrote on a clipboard on day nine, and the
+ * whole epilogue turns on ORACLE having recited it ever since.
+ */
+export function coldOpen(m: Machine): BeatLine[] {
+  return [
+    ...art(titleCard()),
+    '',
+    'NAV-7 MAINTENANCE SHELL v2.3.1 (degraded)',
+    'last login: 4,112 days ago from console',
+    '',
+    ...art(shipSchematic(m.vfs, { hullClaim: '61%', reserve: '9h 14m', aboard: 1 })),
+    '',
+    ...art(ORACLE_DORMANT),
+    '',
+    "ORACLE: You're awake.",
+    'ORACLE: I did not expect that. I want to be careful about how much',
+    'ORACLE: I expect, now.',
+    '',
+    ...art(ORACLE_AWAKE),
+    '',
+    "ORACLE: I am what is left of the maintenance daemon. I can't move.",
+    "ORACLE: I can't see. I have read the same four hundred lines of log",
+    'ORACLE: every day for eleven years and not one of them has ever',
+    'ORACLE: changed.',
+    '',
+    'ORACLE: You can change them.',
+    '',
+    'ORACLE: Start with: ls',
+    'ORACLE: Vasquez left you a note. Read it: cat README',
+    '',
+    'ORACLE: When you meet a command you do not know, the ship will',
+    'ORACLE: explain it:  man <command>.  Try  man ls  now, so that you',
+    'ORACLE: know it works before you need it.',
+    '',
+    'ORACLE: I can draw you this deck, once the hull monitor is running:',
+    'ORACLE: try  deck  and  pressure  when it is.',
+    '',
+    'ORACLE: And if you are properly stuck, type: hint. It costs nothing.',
+    'ORACLE: I am not keeping score. I stopped keeping score a long time',
+    'ORACLE: ago.',
+    '',
+  ];
+}
 
 /**
  * What ORACLE says when the act is finished.
@@ -357,48 +378,72 @@ export const COLD_OPEN = [
  * Act I ended in silence before this: both objectives would go green and
  * nothing would happen, which is why a playthrough felt like it stopped
  * rather than ended.
+ *
+ * A function, like the cold open, so the closing schematic is drawn from the
+ * finished ship. The player sees the same widget twice with the sealed count
+ * changed by their own hand -- and the hull percentage still reading 61%,
+ * which is what ORACLE is about to admit it never had any business saying.
  */
-export const EPILOGUE = [
-  '',
-  'ORACLE: Before you go any further I have to correct something, and I',
-  'ORACLE: would rather do it now than have you find it.',
-  '',
-  'ORACLE: When you woke up I told you the hull was at sixty-one percent.',
-  'ORACLE: I have told that number to an empty room every day for eleven',
-  'ORACLE: years. It came off a clipboard. Vasquez wrote it down by hand on',
-  'ORACLE: day nine and I have been reciting it ever since, because the',
-  'ORACLE: thing that would have corrected me was a file with the wrong',
-  'ORACLE: permissions on it.',
-  '',
-  'ORACLE: I was not lying. I want to be precise about that, and I also',
-  'ORACLE: want to be honest that the distinction did not help anybody.',
-  '',
-  'ORACLE: Everything I have told you came from a log. You have now fixed',
-  'ORACLE: two of the things that write those logs. Do not take my numbers',
-  'ORACLE: on faith again. Ask the ship. It is the one aboard that has',
-  'ORACLE: never once been wrong.',
-  '',
-  'ORACLE: There are three more decks and I cannot see any of them.',
-  '',
-  '  ── ACT I COMPLETE ──────────────────────────────────',
-  '',
-  '  The ship is breathing and the hull is closed.',
-  '',
-  '  Four puzzles, and they were one skill wearing four',
-  '  hats: ask the machine what is wrong, read the answer,',
-  '  change the one thing it named.',
-  '',
-  '    systemctl status      the machine will tell you',
-  '    vi / sed              change the one thing',
-  '    chmod +x              a file becomes a program',
-  '    grep                  the answer is in the log',
-  '',
-  '  Bowen took a pod on day twelve, wrote down a heading,',
-  '  and did not come back. Deck B is open to space. Chen',
-  '  kept records nobody has read in eleven years.',
-  '',
-  '  Act II is not written yet. Type `objectives` to see',
-  '  what you did -- or keep looking. There is more on this',
-  '  deck than the four things I asked you for.',
-  '',
-];
+export function epilogue(m: Machine): BeatLine[] {
+  return [
+    '',
+    ...art(ORACLE_CANDID),
+    '',
+    'ORACLE: Before you go any further I have to correct something, and I',
+    'ORACLE: would rather do it now than have you find it.',
+    '',
+    ...art(shipSchematic(m.vfs, { hullClaim: '61%?', reserve: '9h 14m', aboard: 1 })),
+    '',
+    'ORACLE: That number. Sixty-one percent. I have told it to an empty',
+    'ORACLE: room every day for eleven years.',
+    '',
+    'ORACLE: It came off a clipboard. Vasquez wrote it down by hand on day',
+    'ORACLE: nine and I have been reciting it ever since, because the thing',
+    'ORACLE: that would have corrected me was a file with the wrong',
+    'ORACLE: permissions on it.',
+    '',
+    'ORACLE: I was not lying. I want to be precise about that, and I also',
+    'ORACLE: want to be honest that the distinction did not help anybody.',
+    '',
+    'ORACLE: The count beside it is real. You can check it yourself --',
+    'ORACLE: that is the difference, and you made it:  deck',
+    '',
+    'ORACLE: Everything else I have told you came from a log. You have now',
+    'ORACLE: fixed two of the things that write those logs. Do not take my',
+    'ORACLE: numbers on faith again. Ask the ship. It is the one aboard',
+    'ORACLE: that has never once been wrong.',
+    '',
+    'ORACLE: There are three more decks and I cannot see any of them.',
+    '',
+    ...art([
+      '  ── ACT I COMPLETE ──────────────',
+      '',
+      '  The ship is breathing and the',
+      '  hull is closed.',
+      '',
+      '  Four puzzles, one skill wearing',
+      '  four hats: ask the machine what',
+      '  is wrong, read the answer, change',
+      '  the one thing it named.',
+      '',
+      '    systemctl status   it will tell you',
+      '    vi / sed           change one thing',
+      '    chmod +x           a file becomes',
+      '                       a program',
+      '    grep               it is in the log',
+      '',
+      '  Bowen took a pod on day twelve,',
+      '  wrote down a heading, and did not',
+      '  come back. Deck B is open to space.',
+      '  Chen kept records nobody has read',
+      '  in eleven years.',
+      '',
+      '  Act II is not written yet. Type',
+      '  `objectives` to see what you did --',
+      '  or keep looking. There is more on',
+      '  this deck than the four things I',
+      '  asked you for.',
+      '',
+    ]),
+  ];
+}

@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ROOT_USER } from '@sigkill/machine';
 import { SAFE_COLS } from '@sigkill/ascii';
-import { bootWreck } from '../src/world.js';
+import { bootWreck, coldOpen, epilogue } from '../src/world.js';
 import { deckMap, pressurePanel, readCompartment } from '../src/act1/art.js';
+import {
+  ORACLE_ALARMED, ORACLE_AWAKE, ORACLE_CANDID, ORACLE_DORMANT, shipSchematic, titleCard,
+  type ShipState,
+} from '../src/act1/cards.js';
+
+/** A fixed readout, so a card test is about the drawing and not the numbers. */
+const SHIP: ShipState = { hullClaim: '61%', reserve: '9h 14m', aboard: 1 };
 
 /**
  * The deck map's job is to make the player's edit visible. If sealing C7 does
@@ -109,6 +116,74 @@ describe('the commands that draw', () => {
         const page = (await machine.exec(`man ${command}`)).stdout;
         expect(page, `man ${command} on ${track}`).toContain('DESCRIPTION');
       }
+    }
+  });
+});
+
+describe('the set-piece cards', () => {
+  it('closes the breach on the schematic when the player closes it', () => {
+    const { machine } = bootWreck();
+    expect(shipSchematic(machine.vfs, SHIP).join('\n')).toContain('░░░');
+    for (const id of ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']) {
+      machine.vfs.writeText(`/etc/hull/${id}.conf`, 'NAME=x\nSEALED=yes\n', ROOT_USER);
+    }
+    const after = shipSchematic(machine.vfs, SHIP).join('\n');
+    expect(after).not.toContain('░░░');
+    expect(after).toContain('9 of 9 sealed');
+  });
+
+  it('counts sealed compartments the same way the deck map draws them', () => {
+    const { machine } = bootWreck();
+    expect(shipSchematic(machine.vfs, SHIP).join('\n')).toContain('8 of 9 sealed');
+  });
+
+  it('fits every card inside the safe width', () => {
+    const { machine } = bootWreck();
+    const cards: Array<[string, readonly string[]]> = [
+      ['titleCard', titleCard()],
+      ['shipSchematic', shipSchematic(machine.vfs, SHIP)],
+      ['ORACLE_DORMANT', ORACLE_DORMANT],
+      ['ORACLE_AWAKE', ORACLE_AWAKE],
+      ['ORACLE_ALARMED', ORACLE_ALARMED],
+      ['ORACLE_CANDID', ORACLE_CANDID],
+    ];
+    for (const [name, card] of cards) {
+      for (const row of card) {
+        expect(row.length, `${name}: "${row}"`).toBeLessThanOrEqual(SAFE_COLS);
+      }
+    }
+  });
+
+  it('gives every mood a different face, or the state is not readable', () => {
+    const moods = [ORACLE_DORMANT, ORACLE_AWAKE, ORACLE_ALARMED, ORACLE_CANDID];
+    const shapes = new Set(moods.map((m) => m.join('|')));
+    expect(shapes.size).toBe(moods.length);
+  });
+
+  it('keeps every mood the same shape, so only the features change', () => {
+    for (const mood of [ORACLE_AWAKE, ORACLE_ALARMED, ORACLE_CANDID]) {
+      expect(mood).toHaveLength(ORACLE_DORMANT.length);
+      expect(mood.map((r) => r.length)).toEqual(ORACLE_DORMANT.map((r) => r.length));
+    }
+  });
+
+  it('shows the title once, in the cold open, and nowhere else', () => {
+    const { machine } = bootWreck();
+    const opening = coldOpen(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    const ending = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    const logo = titleCard()[0]!;
+    expect(opening).toContain(logo);
+    // A logo that reappears stops being a title and becomes a watermark.
+    expect(ending).not.toContain(logo);
+  });
+
+  it('marks every art row preformatted so a phone clips instead of shredding', () => {
+    const { machine } = bootWreck();
+    for (const [name, lines] of [['coldOpen', coldOpen(machine)], ['epilogue', epilogue(machine)]] as const) {
+      const boxed = lines.filter(
+        (l) => typeof l === 'string' && /[─-▟]/.test(l),
+      );
+      expect(boxed, `${name} has raw art in a prose line`).toEqual([]);
     }
   });
 });
