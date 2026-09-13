@@ -82,20 +82,36 @@ const SETTING = /\b([A-Z][A-Z0-9_]*)=(\S*)/g;
 /** A short or long option: `-l`, `-rf`, `--failed`, `--audit-level`. */
 const FLAG = /(?<=^|\s)(--?[A-Za-z][A-Za-z0-9-]*)(?=$|[\s,.)])/g;
 
-/** A quoted string, either kind. Non-greedy so two on a line stay two. */
-const QUOTED = /('[^']*'|"[^"]*")/g;
+/**
+ * A quoted string, either kind.
+ *
+ * Guarded at both ends, and that guard is the whole rule: without it the
+ * apostrophe in a contraction opens a string, so `can't open file
+ * 'missing.py'` matched `'t open file '` -- painting the prose yellow and
+ * missing the filename it was there for. A quote that opens a string never
+ * follows a letter.
+ */
+const QUOTED = /(?<!\w)('[^']*'|"[^"]*")(?!\w)/g;
 
 /** A SCREAMING_SNAKE token on its own: the vocabulary of every log aboard. */
 const SCREAMED = /(?<![\w=])([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?![\w=])/g;
 
 /** Box drawing. Frames are chrome and get the chrome colour. */
-const FRAME = /[─-╿]+/g;
+const FRAME = /[\u2500-\u257f]+/g;
 
 /** A checklist mark, as the objectives board draws it. */
 const MARK = /^(\s*)(>?)\s*\[([x\- ])\]/;
 
-/** A section rule: `-- OBJECTIVES ---` or a run of dashes carrying a label. */
-const RULE = /^\s*(--+|──+)/;
+/**
+ * A section rule: `-- OBJECTIVES ---`, or a bare run of dashes.
+ *
+ * The trailing boundary matters more than it looks. Without it a documented
+ * long option at the head of a line is a rule -- and `man systemctl` prints
+ * `  --failed        show only the units that failed`, so every option in
+ * every one of the 32 manual pages was painted as a heading, overriding its
+ * own colour.
+ */
+const RULE = /^\s*(-{2,}|─{2,})(?=\s|$)/;
 
 /**
  * Words a machine says about the state of something.

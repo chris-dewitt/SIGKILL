@@ -392,3 +392,43 @@ describe('a command named after a colon', () => {
       .toBe('sudo systemctl start scrubber');
   });
 });
+
+/**
+ * Both found by Codex, and both are boundary bugs: a rule that was right about
+ * what it matched and wrong about where it was allowed to start.
+ */
+describe('boundaries', () => {
+  it('does not let a contraction open a quoted string', () => {
+    const line = "python3: can't open file 'missing.py'";
+    expect(covered(line, 'value')).toBe("'missing.py'");
+  });
+
+  it('still colours a quoted sed script', () => {
+    expect(covered("sed -i 's/no/yes/' /etc/hull/c7.conf", 'value')).toBe("'s/no/yes/'");
+  });
+
+  it('leaves a lone contraction entirely alone', () => {
+    expect(kinds("it can't be helped")).not.toContain('value');
+  });
+
+  it('does not treat a documented long option as a section rule', () => {
+    // `man systemctl` prints exactly this. Every option in all 32 manual
+    // pages was being painted as a heading.
+    const line = '  --failed        show only the units that failed';
+    expect(kinds(line)).not.toContain('heading');
+    expect(covered(line, 'flag')).toBe('--failed');
+  });
+
+  it('still treats a real rule as a rule', () => {
+    expect(covered('-- OBJECTIVES ------------ 2 of 4 done', 'heading'))
+      .toBe('-- OBJECTIVES ------------ 2 of 4 done');
+  });
+
+  it('takes a bare run of dashes', () => {
+    expect(covered('------------', 'heading')).toBe('------------');
+  });
+
+  it('does not take a short option either', () => {
+    expect(kinds('  -l              long form')).not.toContain('heading');
+  });
+});
