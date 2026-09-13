@@ -7,6 +7,8 @@ export type TokenType =
   | 'OR_IF'
   | 'AMP'
   | 'SEMI'
+  /** End of line. Separates statements, except where an operator wants more. */
+  | 'NEWLINE'
   | 'GT'
   | 'DGT'
   | 'LT'
@@ -98,7 +100,20 @@ export function lex(input: string): Token[] {
   while (i < input.length) {
     const c = peek();
 
-    if (c === ' ' || c === '\t' || c === '\n') {
+    // A backslash at end of line joins it to the next one, which is how any
+    // script longer than eighty columns is written.
+    if (c === '\\' && peek(1) === '\n') {
+      i += 2;
+      continue;
+    }
+
+    if (c === '\n') {
+      tokens.push({ type: 'NEWLINE', text: '\n' });
+      i++;
+      continue;
+    }
+
+    if (c === ' ' || c === '\t') {
       i++;
       continue;
     }
@@ -152,6 +167,9 @@ export function lex(input: string): Token[] {
       if (ch === '\\') {
         const next = peek(1);
         if (next === '') throw new ShellSyntaxError('unexpected end of input after \\');
+        // Line continuation: the backslash and the newline both disappear, and
+        // the word carries on across the break.
+        if (next === '\n') { i += 2; raw += ch + next; continue; }
         bare += next;
         raw += ch + next;
         i += 2;

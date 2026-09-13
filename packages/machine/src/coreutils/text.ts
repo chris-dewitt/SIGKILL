@@ -42,6 +42,26 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'echo',
     summary: 'write arguments to standard output',
+    manual:
+      'echo [ARG...]\n' +
+      '\n' +
+      'Write its arguments to standard output, separated by spaces.\n' +
+      '\n' +
+      'Mostly used to see what an expansion actually produced, and to put text\n' +
+      'into a file with a redirect:\n' +
+      '\n' +
+      '  echo O2_TARGET=21 >> /etc/life_support.conf\n' +
+      '  echo "$PATH"',
+    plain:
+      'Prints whatever you give it.\n' +
+      '\n' +
+      '  echo hello                     prints hello\n' +
+      '  echo $HOME                     prints your home directory\n' +
+      '  echo O2_TARGET=21 > file       puts that line INTO a file, replacing it\n' +
+      '  echo more >> file              adds a line to the END of a file\n' +
+      '\n' +
+      'One > replaces the whole file. Two >> adds to it. Getting those the\n' +
+      'wrong way round is how people lose work.',
     run: (_ctx, argv, io) => {
       const args = argv.slice(1);
       const noNewline = args[0] === '-n';
@@ -54,6 +74,35 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'grep',
     summary: 'search text for lines matching a pattern',
+    manual:
+      'grep [-i] [-v] [-c] [-n] [-l] [-r] PATTERN [FILE...]\n' +
+      '\n' +
+      'Print the lines of each FILE that match PATTERN. With no FILE, read\n' +
+      'standard input. PATTERN is a regular expression.\n' +
+      '\n' +
+      '  -i  ignore case\n' +
+      '  -v  invert: print the lines that do NOT match\n' +
+      '  -c  print how many lines matched, not the lines\n' +
+      '  -n  prefix each line with its number in the file\n' +
+      '  -l  print only the names of files with a match\n' +
+      '  -r  recurse into directories (defaults to . with no FILE)\n' +
+      '\n' +
+      'This is the command that makes a large file usable. `cat` a five hundred\n' +
+      'line log and you have learned nothing; grep one word out of it and you\n' +
+      'have an answer. -c and a pipe into `sort | uniq -c` turn matches into\n' +
+      'counts, which is how you tell a pattern from a coincidence.',
+    plain:
+      'Finds the lines in a file that contain a word, and prints just those.\n' +
+      '\n' +
+      '  grep FAIL /var/log/boot.log            the lines that say FAIL\n' +
+      '  grep -i fail /var/log/boot.log         ignore capital letters\n' +
+      '  grep -c FAIL /var/log/boot.log         just count them\n' +
+      '  grep -n FAIL /var/log/boot.log         show line numbers\n' +
+      '  grep -v OK /var/log/hull.log           the lines that DO NOT say OK\n' +
+      '  grep -r scrubber /etc                  search a whole directory\n' +
+      '\n' +
+      'This is the most useful command on the ship. A log with five hundred\n' +
+      'lines in it is unreadable and greppable at the same time.',
     run: (ctx, argv, io) => {
       const { flags, operands } = parseArgs(argv);
       if (operands.length === 0) return usage(io, 'usage: grep [-inv] PATTERN [FILE...]');
@@ -122,6 +171,17 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'head',
     summary: 'output the first lines of a file',
+    manual:
+      'head [-n COUNT] [FILE...]\n' +
+      '\n' +
+      'Print the first COUNT lines of each FILE. Default 10. `head -3` works as\n' +
+      'well as `head -n 3`.',
+    plain:
+      'Shows the beginning of a file -- the first ten lines, unless you ask for\n' +
+      'a different number.\n' +
+      '\n' +
+      '  head file          first 10 lines\n' +
+      '  head -3 file       first 3',
     run: (ctx, argv, io) => {
       const parsed = parseArgs(argv, { valued: ['-n'] });
       // `head -5` as well as `head -n 5`: the bare form is what people type.
@@ -142,6 +202,22 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'tail',
     summary: 'output the last lines of a file',
+    manual:
+      'tail [-n COUNT] [FILE...]\n' +
+      '\n' +
+      'Print the last COUNT lines of each FILE. Default 10.\n' +
+      '\n' +
+      'On a log this is usually the right question: the end is now, and the\n' +
+      'beginning is history. `grep X file | tail` answers "is it still\n' +
+      'happening" where `grep -c` only answers "did it ever".',
+    plain:
+      'Shows the END of a file -- the last ten lines, unless you ask for more.\n' +
+      '\n' +
+      '  tail file          last 10 lines\n' +
+      '  tail -20 file      last 20\n' +
+      '\n' +
+      'For a log, the end is what is happening now. That is usually the part\n' +
+      'you want.',
     run: (ctx, argv, io) => {
       const parsed = parseArgs(argv, { valued: ['-n'] });
       // `head -5` as well as `head -n 5`: the bare form is what people type.
@@ -163,6 +239,24 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'wc',
     summary: 'count lines, words and bytes',
+    manual:
+      'wc [-l] [-w] [-c] [FILE...]\n' +
+      '\n' +
+      'Count lines, words and bytes.\n' +
+      '\n' +
+      '  -l  lines only\n' +
+      '  -w  words only\n' +
+      '  -c  bytes only\n' +
+      '\n' +
+      '`wc -l` on the end of a pipe is how you find out how big the thing you\n' +
+      'just found actually is.',
+    plain:
+      'Counts things in a file.\n' +
+      '\n' +
+      '  wc -l file                 how many lines\n' +
+      '  grep FAIL log | wc -l      how many lines matched\n' +
+      '\n' +
+      'Useful for finding out whether "a few" is three or three hundred.',
     run: (ctx, argv, io) => {
       const { flags, operands } = parseArgs(argv);
       const { sources, code } = readInputs(ctx, io, operands, 'wc');
@@ -188,6 +282,26 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'sort',
     summary: 'sort lines of text',
+    manual:
+      'sort [-n] [-r] [-u] [FILE...]\n' +
+      '\n' +
+      'Sort lines.\n' +
+      '\n' +
+      '  -n  compare as numbers, so 9 comes before 10\n' +
+      '  -r  reverse\n' +
+      '  -u  drop duplicates\n' +
+      '\n' +
+      'Almost always paired with uniq, which only notices duplicates that are\n' +
+      'already next to each other.',
+    plain:
+      'Puts lines in order.\n' +
+      '\n' +
+      '  sort file            alphabetical\n' +
+      '  sort -n file         numerical (9 before 10, not after)\n' +
+      '  sort -r file         backwards\n' +
+      '\n' +
+      'Sorting first is what makes  uniq  work, because uniq only spots\n' +
+      'repeats that are already neighbours.',
     run: (ctx, argv, io) => {
       const { flags, operands } = parseArgs(argv);
       const { text, code } = readInputs(ctx, io, operands, 'sort');
@@ -205,6 +319,24 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'uniq',
     summary: 'filter adjacent duplicate lines',
+    manual:
+      'uniq [-c] [-d] [FILE...]\n' +
+      '\n' +
+      'Collapse repeated ADJACENT lines.\n' +
+      '\n' +
+      '  -c  prefix each line with the number of times it occurred\n' +
+      '  -d  print only the lines that repeated\n' +
+      '\n' +
+      'It only ever compares a line with the one before it, so sort first.\n' +
+      '`sort | uniq -c` is the standard way to count how often each distinct\n' +
+      'thing appears.',
+    plain:
+      'Removes repeated lines that are next to each other, and can count them.\n' +
+      '\n' +
+      '  sort names | uniq            each name once\n' +
+      '  sort names | uniq -c         each name, with how many times it appeared\n' +
+      '\n' +
+      'Always sort first. uniq only notices a repeat if it is directly above.',
     run: (ctx, argv, io) => {
       const { flags, operands } = parseArgs(argv);
       const { text, code } = readInputs(ctx, io, operands, 'uniq');
@@ -226,6 +358,27 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'cut',
     summary: 'extract fields from each line',
+    manual:
+      'cut -d DELIM -f LIST [FILE...]\n' +
+      '\n' +
+      'Print selected fields of each line.\n' +
+      '\n' +
+      '  -d  the character that separates fields (default tab)\n' +
+      '  -f  which fields, counting from 1: -f 2 or -f 1,3\n' +
+      '\n' +
+      '  cut -d, -f1 /etc/crew.csv\n' +
+      '  grep DROP log | cut -d\' \' -f2 | sort | uniq -c\n' +
+      '\n' +
+      'That last line is the shape of most real log work: find the lines, take\n' +
+      'the one column that matters, and count what is left.',
+    plain:
+      'Pulls one column out of each line.\n' +
+      '\n' +
+      '  cut -d, -f1 /etc/crew.csv        first column of a comma-separated file\n' +
+      '  cut -d\' \' -f2 file               second word of each line\n' +
+      '\n' +
+      '-d says what separates the columns, -f says which one you want. It is\n' +
+      'how you turn lines into a list of just the part you care about.',
     run: (ctx, argv, io) => {
       const { values, operands } = parseArgs(argv, { valued: ['-d', '-f'] });
       const delim = values.get('-d') ?? '\t';
@@ -245,6 +398,25 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'tr',
     summary: 'translate or delete characters',
+    manual:
+      'tr [-d] SET1 [SET2]\n' +
+      '\n' +
+      'Translate characters from SET1 to SET2, position by position.\n' +
+      '\n' +
+      '  -d  delete the characters in SET1 instead\n' +
+      '\n' +
+      '  tr a-z A-Z      upper-case everything\n' +
+      '  tr -d \' \'       remove every space\n' +
+      '\n' +
+      'Characters, not words: tr has no idea what a word is.',
+    plain:
+      'Swaps one set of characters for another, letter by letter.\n' +
+      '\n' +
+      '  tr a-z A-Z        make everything capitals\n' +
+      '  tr -d \' \'         delete all the spaces\n' +
+      '\n' +
+      'It works on single characters, so it cannot replace a whole word. For\n' +
+      'that, use sed.',
     run: (_ctx, argv, io) => {
       const { flags, operands } = parseArgs(argv);
       if (operands.length === 0) return usage(io, 'usage: tr [-d] SET1 [SET2]');
@@ -267,6 +439,37 @@ export const textCommands: CommandSpec[] = [
   {
     name: 'sed',
     summary: 'stream editor — supports s/pattern/replacement/[g]',
+    manual:
+      'sed [-i] s/PATTERN/REPLACEMENT/[g] [FILE...]\n' +
+      '\n' +
+      'Substitute. PATTERN is a regular expression; only the s command is\n' +
+      'implemented aboard.\n' +
+      '\n' +
+      '  -i  edit the file in place instead of printing the result\n' +
+      '  g   replace every match on a line, not just the first\n' +
+      '  i   match without regard to case\n' +
+      '\n' +
+      '  sed \'s/no/yes/\' /etc/hull/c7.conf                  print the change\n' +
+      '  sed -i \'s/^SEALED=.*/SEALED=yes/\' /etc/hull/c7.conf make it\n' +
+      '\n' +
+      'Run it without -i first. What it prints is exactly what it would have\n' +
+      'written, which is a free rehearsal of an edit you cannot undo. ^ anchors\n' +
+      'to the start of a line and .* means "the rest of it", so that pattern\n' +
+      'replaces a whole SEALED= line whatever it used to say.',
+    plain:
+      'Changes text in a file without opening an editor.\n' +
+      '\n' +
+      '  sed \'s/old/new/\' file        show the file with old swapped for new\n' +
+      '  sed -i \'s/old/new/\' file     actually change the file\n' +
+      '\n' +
+      'Without -i it only shows you what WOULD happen -- which is a good way to\n' +
+      'check before you commit to it. Add a g at the end to replace every\n' +
+      'match on a line instead of only the first:\n' +
+      '\n' +
+      '  sed -i \'s/16/21/g\' file\n' +
+      '\n' +
+      'It is the fast way to fix one number in a config file when you do not\n' +
+      'feel like using vi.',
     run: (ctx, argv, io) => {
       const { flags, operands } = parseArgs(argv);
       if (operands.length === 0) return usage(io, 'usage: sed [-i] s/PATTERN/REPLACEMENT/[g] [FILE...]');

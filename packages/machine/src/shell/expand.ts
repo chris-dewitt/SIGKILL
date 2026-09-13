@@ -12,6 +12,14 @@ export interface ExpandContext {
   /** Last exit status, for $?. */
   status: number;
   /**
+   * Positional parameters, `$0` first.
+   *
+   * A shell script's entire interface to its caller is `$1`, so a machine
+   * that cannot expand these cannot run a script anybody would have written.
+   * An interactive shell has only `$0`, which is why the default is short.
+   */
+  params: readonly string[];
+  /**
    * Runs a command substitution and returns its stdout.
    *
    * Injected rather than imported so expansion does not depend on the
@@ -105,13 +113,28 @@ function expandTilde(text: string, ctx: ExpandContext): string {
   return text;
 }
 
-const PARAM = /\$(\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*)|\?|\$)/g;
+const PARAM =
+  /\$(?:\{([A-Za-z_][A-Za-z0-9_]*|[0-9]+)\}|([A-Za-z_][A-Za-z0-9_]*)|([0-9])|([?$#@*]))/g;
 
+/**
+ * Substitute `$NAME`, `${NAME}`, `$1`, `$#`, `$@`, `$*`, `$?` and `$$`.
+ *
+ * One honest limitation: `"$@"` is joined with spaces rather than kept as
+ * separate fields, so a script passed an argument containing a space cannot
+ * tell it apart from two arguments. Getting that right means threading
+ * arity through field splitting, and nothing aboard needs it yet.
+ */
 function expandParams(text: string, ctx: ExpandContext): string {
-  return text.replace(PARAM, (_m, _braced, braceName, bareName) => {
-    if (_m === '$?') return String(ctx.status);
-    if (_m === '$$') return '1';
-    const name = (braceName ?? bareName) as string;
+  return text.replace(PARAM, (_m, braced?: string, bare?: string, digit?: string, sigil?: string) => {
+    if (sigil !== undefined) {
+      if (sigil === '?') return String(ctx.status);
+      if (sigil === '$') return '1';
+      // `$#` counts the arguments, so it does not count `$0`.
+      if (sigil === '#') return String(Math.max(0, ctx.params.length - 1));
+      return ctx.params.slice(1).join(' ');
+    }
+    const name = braced ?? bare ?? digit ?? '';
+    if (/^[0-9]+$/.test(name)) return ctx.params[Number(name)] ?? '';
     return ctx.env[name] ?? '';
   });
 }

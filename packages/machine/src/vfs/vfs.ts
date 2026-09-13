@@ -60,9 +60,19 @@ export class Vfs {
     return n;
   }
 
-  /** Permission check. uid 0 is root and bypasses, exactly like the real thing. */
+  /**
+   * Permission check. uid 0 is root and bypasses, exactly like the real thing.
+   *
+   * With one exception the real thing also makes: root may read and write
+   * anything, but it may not *execute* a file that nobody marked executable.
+   * At least one x bit has to be set somewhere. That is not a detail here --
+   * it is why `sudo ./script` on a 0644 file fails, which is the difference
+   * between "chmod +x is the fix" and "sudo is the fix".
+   */
   private can(node: Inode, user: User, bit: 'r' | 'w' | 'x'): boolean {
-    if (user.uid === 0) return true;
+    if (user.uid === 0) {
+      return bit !== 'x' || node.kind === 'dir' || (node.mode & 0o111) !== 0;
+    }
     const shift = node.uid === user.uid ? 6 : this.inGroup(node.gid, user) ? 3 : 0;
     const bits = (node.mode >> shift) & 0o7;
     const mask = bit === 'r' ? 0b100 : bit === 'w' ? 0b010 : 0b001;

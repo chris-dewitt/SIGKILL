@@ -14,6 +14,17 @@ import { ShellSyntaxError } from './types.js';
 /** Deep enough for anything honest, shallow enough to stop a runaway. */
 const MAX_SUBSTITUTION_DEPTH = 16;
 
+/** Same reasoning, for a script that runs a script that runs itself. */
+const MAX_SCRIPT_DEPTH = 16;
+
+/**
+ * Shebang interpreters that mean "this is a shell script".
+ *
+ * Anything else is looked up in the command table, so `#!/usr/bin/env python3`
+ * reaches the Python aboard rather than being told sh is the only language.
+ */
+const SHELL_INTERPRETERS = new Set(['sh', 'bash', 'dash', 'ash']);
+
 export interface ExecIO {
   stdin: string;
   out(text: string): void;
@@ -119,6 +130,10 @@ export interface ShellContextOptions {
   network?: Network;
   /** Shared across every machine the player hops through. */
   session?: Session;
+  /** Positional parameters, `$0` first. A script's arguments live here. */
+  params?: readonly string[];
+  /** How many scripts deep this shell is. Guards runaway recursion. */
+  scriptDepth?: number;
 }
 
 export class ShellContext {
@@ -141,6 +156,10 @@ export class ShellContext {
   readonly session: Session | undefined;
   /** Which interface the player chose. Cadet and Operator share one Machine. */
   track: Track;
+  /** `$0` onwards. An interactive shell has only `$0`; a script has its args. */
+  params: readonly string[];
+  /** Nesting depth of script execution. See MAX_SCRIPT_DEPTH. */
+  readonly scriptDepth: number;
   /** Set by the `exit` builtin so the session can close the terminal. */
   exited: number | null = null;
   /** Raised by `clear`. The renderer decides what clearing means; we do not. */
@@ -178,6 +197,8 @@ export class ShellContext {
     this.network = opts.network;
     this.session = opts.session;
     this.track = opts.track ?? 'operator';
+    this.params = opts.params ?? ['sh'];
+    this.scriptDepth = opts.scriptDepth ?? 0;
     this.commands = opts.commands ?? new Map();
     this.env = {
       HOME: this.home,
@@ -198,6 +219,7 @@ export class ShellContext {
       vfs: this.vfs,
       user: this.user,
       status: this.status,
+      params: this.params,
       run: (source) => this.runSubstitution(source),
     };
   }
@@ -401,11 +423,15 @@ async function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): Promise<n
       track: ctx.track,
     });
     inner.status = ctx.status;
-    return await withRedirects(ctx, node.redirects, io, (scoped) => runScript(inner, node.body, scoped));
+    try {
+      return await withRedirects(ctx, node.redirects, io, (scoped) => runScript(inner, node.body, scoped));
+    } finally {
+      adoptScreenState(ctx, inner);
+    }
   }
 
   const expand = ctx.expandContext();
-  const argv = await expandWords(node.words, expand);
+  let argv = await expandWords(node.words, expand);
 
   // `FOO=bar` with no command sets the variable for the rest of the session.
   if (argv.length === 0) {
@@ -413,13 +439,6 @@ async function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): Promise<n
       ctx.env[assignment.name] = (await expandWord(assignment.value, expand)).join(' ');
     }
     return 0;
-  }
-
-  const name = argv[0]!;
-  const spec = ctx.commands.get(name);
-  if (!spec) {
-    io.err(`sh: ${name}: command not found\n`);
-    return 127;
   }
 
   // `FOO=bar cmd` applies only for the duration of that command.
@@ -430,24 +449,231 @@ async function runSimple(ctx: ShellContext, node: Simple, io: ExecIO): Promise<n
   }
 
   try {
-    return await withRedirects(ctx, node.redirects, io, async (scoped) => {
-      try {
-        return await spec.run(ctx, argv, scoped);
-      } catch (e) {
-        if (isFsError(e)) {
-          scoped.err(`${name}: ${e.path ?? ''}: ${e.reason}\n`);
-          return 1;
-        }
-        scoped.err(`${name}: ${e instanceof Error ? e.message : String(e)}\n`);
-        return 1;
-      }
-    });
+    return await withRedirects(ctx, node.redirects, io, (scoped) => execArgv(ctx, argv, scoped));
   } finally {
     for (const [key, value] of saved) {
       if (value === undefined) delete ctx.env[key];
       else ctx.env[key] = value;
     }
   }
+}
+
+/**
+ * Run one already-expanded command line: a builtin, or a program on disk.
+ *
+ * Exported because `sudo` needs exactly this and nothing else. Looking the
+ * name up in the command table alone -- which is what sudo used to do -- means
+ * `sudo ./seal.sh` reports "command not found" for a script sitting right
+ * there, and the player has no way to tell that from a typo.
+ *
+ * Redirections and temporary assignments are the caller's business; this is
+ * the dispatch step only.
+ */
+export async function execArgv(ctx: ShellContext, argv: string[], io: ExecIO): Promise<number> {
+  const name = argv[0];
+  if (name === undefined) return 0;
+
+  const builtin = ctx.commands.get(name);
+  if (builtin) return await invoke(ctx, builtin, argv, io);
+
+  // Not a builtin. A real shell then goes looking on disk, and so does this
+  // one: a readable file with the execute bit set is a program. This is what
+  // makes `chmod +x` and `./thing` mean something aboard.
+  const program = resolveProgram(ctx, name);
+  if (program.kind === 'error') {
+    io.err(`sh: ${name}: ${program.reason}\n`);
+    return program.code;
+  }
+  if (program.kind === 'script') {
+    return await runShellScript(ctx, program.path, program.source, argv, io);
+  }
+  // A shebang naming an interpreter that exists aboard: hand it the script.
+  return await invoke(ctx, program.spec, [program.interpreter, program.path, ...argv.slice(1)], io);
+}
+
+/** Call a command and turn anything it throws into the error it should print. */
+async function invoke(
+  ctx: ShellContext,
+  spec: CommandSpec,
+  argv: string[],
+  io: ExecIO,
+): Promise<number> {
+  const name = argv[0] ?? spec.name;
+  try {
+    return await spec.run(ctx, argv, io);
+  } catch (e) {
+    if (isFsError(e)) {
+      io.err(`${name}: ${e.path ?? ''}: ${e.reason}\n`);
+      return 1;
+    }
+    io.err(`${name}: ${e instanceof Error ? e.message : String(e)}\n`);
+    return 1;
+  }
+}
+
+/**
+ * A name that is not a builtin, looked up the way a shell looks it up.
+ */
+type Program =
+  | { kind: 'script'; path: string; source: string }
+  /** A shebang whose interpreter is a command aboard, e.g. `python3`. */
+  | { kind: 'interpreted'; path: string; interpreter: string; spec: CommandSpec }
+  | { kind: 'error'; reason: string; code: number };
+
+/**
+ * Find the program a bare word names.
+ *
+ * A name containing a slash is a path and nothing else -- `./seal.sh` never
+ * searches PATH, which is exactly why people type the `./`. A bare name is
+ * searched along PATH, and a hit there that is not executable does not stop
+ * the search, because a stray unreadable file early on PATH is not the
+ * player's mistake. It is remembered, though: reporting "permission denied"
+ * beats "command not found" when a mode bit is the only thing wrong.
+ */
+function resolveProgram(ctx: ShellContext, name: string): Program {
+  const candidates = name.includes('/')
+    ? [ctx.resolve(name)]
+    : (ctx.env['PATH'] ?? '').split(':').filter((d) => d.length > 0).map((dir) => p.join(dir, name));
+
+  let denied: string | undefined;
+
+  for (const path of candidates) {
+    let kind: string;
+    try {
+      kind = ctx.vfs.stat(path, ctx.user).kind;
+    } catch {
+      continue;
+    }
+    if (kind === 'dir') {
+      if (name.includes('/')) return { kind: 'error', reason: 'Is a directory', code: 126 };
+      continue;
+    }
+    if (!ctx.vfs.access(path, 'x', ctx.user)) {
+      denied = path;
+      if (name.includes('/')) break;
+      continue;
+    }
+    let source: string;
+    try {
+      source = ctx.vfs.readText(path, ctx.user);
+    } catch {
+      // Executable but not readable. A real kernel could still run a binary;
+      // nothing aboard is a binary, so there is no honest way to pretend.
+      denied = path;
+      break;
+    }
+    return interpret(ctx, path, source);
+  }
+
+  if (denied !== undefined) return { kind: 'error', reason: 'Permission denied', code: 126 };
+  if (name.includes('/')) return { kind: 'error', reason: 'No such file or directory', code: 127 };
+  return { kind: 'error', reason: 'command not found', code: 127 };
+}
+
+/** The first line of a file, without its newline. */
+function firstLine(source: string): string {
+  const end = source.indexOf('\n');
+  return end === -1 ? source : source.slice(0, end);
+}
+
+/** Decide what language a file is in, from its shebang. */
+function interpret(ctx: ShellContext, path: string, source: string): Program {
+  const shebang = firstLine(source);
+  if (!shebang.startsWith('#!')) {
+    // No shebang means sh, which is what every shell does and what every
+    // half-finished script aboard relies on.
+    return { kind: 'script', path, source };
+  }
+
+  const words = shebang.slice(2).trim().split(/\s+/).filter((w) => w.length > 0);
+  // `#!/usr/bin/env python3` -- the interpreter is the argument to env.
+  const first = p.basename(words[0] ?? '');
+  const named = first === 'env' ? p.basename(words[1] ?? '') : first;
+
+  if (named === '' || SHELL_INTERPRETERS.has(named)) return { kind: 'script', path, source };
+
+  const spec = ctx.commands.get(named);
+  if (spec) return { kind: 'interpreted', path, interpreter: named, spec };
+  return { kind: 'error', reason: `${shebang.slice(2).trim()}: bad interpreter`, code: 126 };
+}
+
+/** A shebang line is a comment to sh, but the parser should not have to know. */
+function stripShebang(source: string): string {
+  if (!source.startsWith('#!')) return source;
+  const end = source.indexOf('\n');
+  return end === -1 ? '' : source.slice(end + 1);
+}
+
+/**
+ * Run a shell script in a subshell.
+ *
+ * Its `cd`, its variables and its `exit` stay inside -- that is what makes a
+ * script safe to run -- but everything it does to the filesystem, the services
+ * and the process table is real, because those are the machine and not the
+ * shell. It runs as the current user with no elevation of any kind: a script
+ * is a way of typing several commands, never a way of becoming someone else.
+ */
+async function runShellScript(
+  ctx: ShellContext,
+  path: string,
+  source: string,
+  argv: string[],
+  io: ExecIO,
+): Promise<number> {
+  if (ctx.scriptDepth >= MAX_SCRIPT_DEPTH) {
+    io.err(`sh: ${path}: script nested too deeply\n`);
+    return 1;
+  }
+
+  let body: Script;
+  try {
+    body = parse(stripShebang(source));
+  } catch (e) {
+    const message = e instanceof ShellSyntaxError ? e.message : String(e);
+    io.err(`${path}: syntax error: ${message}\n`);
+    return 2;
+  }
+
+  const inner = new ShellContext({
+    vfs: ctx.vfs,
+    procs: ctx.procs,
+    services: ctx.services,
+    jobs: ctx.jobs,
+    clock: ctx.clock,
+    epoch: ctx.epoch,
+    advance: ctx.advance,
+    network: ctx.network,
+    session: ctx.session,
+    user: ctx.user,
+    cwd: ctx.cwd,
+    home: ctx.home,
+    env: { ...ctx.env },
+    commands: ctx.commands,
+    hostname: ctx.hostname,
+    track: ctx.track,
+    params: [path, ...argv.slice(1)],
+    scriptDepth: ctx.scriptDepth + 1,
+  });
+
+  try {
+    const code = await runScript(inner, body, io);
+    // `exit 3` inside a script is the script's status, not the session's.
+    return inner.exited ?? code;
+  } finally {
+    ctx.substitutionStderr += inner.substitutionStderr;
+    adoptScreenState(ctx, inner);
+  }
+}
+
+/**
+ * Carry a child shell's screen requests back to the parent.
+ *
+ * The host only ever looks at the shell it drives, so an editor opened by a
+ * script would otherwise be created and then dropped on the floor.
+ */
+function adoptScreenState(ctx: ShellContext, inner: ShellContext): void {
+  if (inner.screenRequest !== undefined) ctx.screenRequest = inner.screenRequest;
+  if (inner.clearRequested) ctx.clearRequested = true;
 }
 
 /** Apply redirections around a command, writing captured output to the VFS. */

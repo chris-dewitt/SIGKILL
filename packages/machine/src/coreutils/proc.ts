@@ -120,22 +120,29 @@ export const procCommands: CommandSpec[] = [
       '  enable UNIT     start it at boot (creates a symlink in\n' +
       '                  /etc/systemd/system/multi-user.target.wants)\n' +
       '  disable UNIT    remove that symlink\n' +
-      '  list-units      show every known unit',
+      '  list-units      show every known unit\n' +
+      '  --failed        show only the units that failed',
     plain:
       'Starts and stops the services the machine runs in the background.\n' +
       "  systemctl start NAME    turn it on now\n" +
       "  systemctl status NAME   is it running, and if not, why not\n" +
       "  systemctl enable NAME   turn it on automatically at boot\n" +
+      "  systemctl --failed      list only what is broken\n" +
       'If a service will not start, status tells you the reason. Read it.',
     run: (ctx, argv, io) => {
-      const { operands } = parseArgs(argv);
+      const { flags, operands } = parseArgs(argv);
       const verb = operands[0];
       const target = operands[1];
+      // `systemctl --failed` is how anybody who has run a real machine asks
+      // "what is broken", and on a ship with two dead units it is the right
+      // first question. It narrows the listing; it is not a verb of its own.
+      const onlyFailed = flags.has('--failed');
 
       if (!verb || verb === 'list-units' || verb === 'list-unit-files') {
-        const units = ctx.services.list();
+        const all = ctx.services.list();
+        const units = onlyFailed ? all.filter((u) => u.state === 'failed') : all;
         if (units.length === 0) {
-          io.out('0 loaded units listed.\n');
+          io.out(onlyFailed ? '0 loaded units listed. Nothing has failed.\n' : '0 loaded units listed.\n');
           return 0;
         }
         const width = Math.max(...units.map((u) => u.name.length + 8));
@@ -148,6 +155,11 @@ export const procCommands: CommandSpec[] = [
           ),
           '',
           `${units.length} loaded units listed.`,
+          // A bare `systemctl` is where somebody lands when they know the word
+          // and not the verb. Real systemctl leaves them there; this is a
+          // teaching game, so it points at the manual rather than at a hint.
+          ...(verb || onlyFailed ? [] : ['', 'For what you can do with a unit:  man systemctl']),
+          ...(onlyFailed ? ['', 'Ask one of them why:  systemctl status <unit>'] : []),
         ]);
         return 0;
       }

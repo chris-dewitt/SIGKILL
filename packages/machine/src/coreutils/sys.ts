@@ -1,4 +1,4 @@
-import type { CommandSpec, ShellContext } from '../shell/exec.js';
+import { execArgv, type CommandSpec, type ShellContext } from '../shell/exec.js';
 import { ROOT_USER } from '../vfs/vfs.js';
 import { emit, parseArgs, usage } from './helpers.js';
 
@@ -180,6 +180,15 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'id',
     summary: 'print user and group ids',
+    manual:
+      'id\n' +
+      '\n' +
+      'Print the current user\'s uid, gid and group membership. Which account you\n' +
+      'are is the answer to most permission questions, and it changes under\n' +
+      'sudo.',
+    plain:
+      'Says who the ship thinks you are, and which groups you belong to. That\n' +
+      'is what decides which files you are allowed to touch.',
     run: (ctx, _argv, io) => {
       io.out(`uid=${ctx.user.uid}(${ctx.user.name}) gid=${ctx.user.gid}\n`);
       return 0;
@@ -189,6 +198,13 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'hostname',
     summary: 'print the machine name',
+    manual:
+      'hostname\n' +
+      '\n' +
+      'Print the name of this machine. Worth checking before you change\n' +
+      'something, on any night where more than one machine is reachable.',
+    plain:
+      'Prints the name of the computer you are on. This one is nav7.',
     run: (ctx, _argv, io) => {
       io.out(ctx.hostname + '\n');
       return 0;
@@ -216,6 +232,24 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'export',
     summary: 'set an environment variable',
+    manual:
+      'export NAME=VALUE\n' +
+      '\n' +
+      'Set an environment variable so commands started afterwards inherit it.\n' +
+      '\n' +
+      '  export EDITOR=vi\n' +
+      '  export PATH=$PATH:/home/survivor/bin\n' +
+      '\n' +
+      'Without export, an assignment is only known to this shell. With it, it\n' +
+      'reaches everything this shell runs.',
+    plain:
+      'Sets a setting that other commands can see.\n' +
+      '\n' +
+      '  export EDITOR=vi\n' +
+      '\n' +
+      'The shell keeps a small list of these; `env` prints all of them. PATH is\n' +
+      'the important one -- it is the list of directories the shell searches\n' +
+      'when you type a command name.',
     run: (ctx, argv, io) => {
       const args = argv.slice(1);
       if (args.length === 0) {
@@ -239,6 +273,15 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'unset',
     summary: 'remove an environment variable',
+    manual:
+      'unset NAME...\n' +
+      '\n' +
+      'Remove a variable from the environment. Not the same as setting it empty:\n' +
+      'some programs check whether a name exists at all.',
+    plain:
+      'Forgets a setting you had set.\n' +
+      '\n' +
+      '  unset EDITOR',
     run: (ctx, argv) => {
       for (const name of argv.slice(1)) delete ctx.env[name];
       return 0;
@@ -248,6 +291,16 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'which',
     summary: 'locate a command',
+    manual:
+      'which NAME...\n' +
+      '\n' +
+      'Print where a command comes from, or report that nothing by that name is\n' +
+      'known. First thing to try when a command "does not work" -- it may simply\n' +
+      'not be aboard.',
+    plain:
+      'Tells you whether a command exists on this machine, and where it lives.\n' +
+      '\n' +
+      '  which grep',
     run: (ctx, argv, io) => {
       const { operands } = parseArgs(argv);
       let code = 0;
@@ -263,8 +316,34 @@ export const sysCommands: CommandSpec[] = [
     },
   },
 
-  { name: 'true', summary: 'do nothing, successfully', run: () => 0 },
-  { name: 'false', summary: 'do nothing, unsuccessfully', run: () => 1 },
+  {
+    name: 'true',
+    summary: 'do nothing, successfully',
+    manual:
+      'true\n\n' +
+      'Exit with status 0 and do nothing else.\n\n' +
+      'Useful on the left of `&&`, and for standing in for a command while\n' +
+      'you work out what the command should be.',
+    plain:
+      'Does nothing, and reports that it worked.\n\n' +
+      'Every command finishes with a number: 0 means it worked, anything else\n' +
+      'means it did not. `echo $?` shows the last one. true is the command\n' +
+      'that always says 0, which makes it handy for testing.',
+    run: () => 0,
+  },
+  {
+    name: 'false',
+    summary: 'do nothing, unsuccessfully',
+    manual:
+      'false\n\n' +
+      'Exit with status 1 and do nothing else. The counterpart to true, and\n' +
+      'the shortest way to see what `||` does.',
+    plain:
+      'Does nothing, and reports that it failed.\n\n' +
+      'The opposite of true. `false || echo nope` prints nope, because || runs\n' +
+      'the right hand side only when the left hand side failed.',
+    run: () => 1,
+  },
 
   {
     name: 'exit',
@@ -294,6 +373,14 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'clear',
     summary: 'clear the screen',
+    manual:
+      'clear\n' +
+      '\n' +
+      'Clear the screen. Scrollback is not the same thing as state: nothing that\n' +
+      'has happened is undone by this.',
+    plain:
+      'Wipes the screen clean. Nothing else changes -- it just gives you an\n' +
+      'empty page to work on.',
     // The Machine has no screen and emits no escape codes. It raises a flag and
     // lets whatever is rendering it decide what clearing means.
     run: (ctx) => {
@@ -314,7 +401,7 @@ export const sysCommands: CommandSpec[] = [
       "not allowed to do. Put sudo in front of the command:\n" +
       '  sudo systemctl start scrubber\n' +
       'You can only do this if /etc/sudoers says you can.',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const rest = argv.slice(1);
       if (rest.length === 0) return usage(io, 'usage: sudo command [args]');
 
@@ -323,19 +410,20 @@ export const sysCommands: CommandSpec[] = [
         return 1;
       }
 
-      const spec = ctx.commands.get(rest[0]!);
-      if (!spec) {
-        io.err(`sudo: ${rest[0]}: command not found\n`);
-        return 127;
-      }
-
-      // Swap identity for exactly one command, then put it back even if the
-      // command throws. Everything downstream reads ctx.user, so the VFS
-      // permission checks see root without any special-casing.
+      /*
+       * Swap identity for exactly one command, then put it back even if the
+       * command throws. Everything downstream reads ctx.user, so the VFS
+       * permission checks see root without any special-casing.
+       *
+       * Dispatch goes through the shell rather than the command table, so
+       * `sudo ./seal.sh` runs the script -- root is allowed to run a great
+       * many things that are not builtins, and saying "command not found" for
+       * a file that is plainly there teaches the player something false.
+       */
       const original = ctx.user;
       ctx.user = { uid: 0, gid: 0, name: 'root' };
       try {
-        return spec.run(ctx, rest, io);
+        return await execArgv(ctx, rest, io);
       } finally {
         ctx.user = original;
       }
@@ -345,6 +433,14 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'help',
     summary: 'list available commands',
+    manual:
+      'help\n' +
+      '\n' +
+      'List every command aboard with its one-line summary. For any one of them\n' +
+      'in detail:  man COMMAND',
+    plain:
+      'Lists every command this machine has, with one line on what each does.\n' +
+      'For more on one of them, type  man  and its name.',
     run: (ctx, _argv, io) => {
       const specs = [...ctx.commands.values()].sort((a, b) => a.name.localeCompare(b.name));
       const width = Math.max(...specs.map((c) => c.name.length));
@@ -362,6 +458,24 @@ export const sysCommands: CommandSpec[] = [
   {
     name: 'man',
     summary: 'show the manual for a command',
+    manual:
+      'man COMMAND\n' +
+      '\n' +
+      'Show the manual for a command: what it does, how it is called, and which\n' +
+      'options it takes.\n' +
+      '\n' +
+      'This is the first thing to reach for and the last habit anyone picks up.\n' +
+      'A manual page is written by the person who wrote the command, which makes\n' +
+      'it a better source than memory and a much better one than guessing.',
+    plain:
+      'Explains a command.\n' +
+      '\n' +
+      '  man ls          what ls does\n' +
+      '  man systemctl   what systemctl does\n' +
+      '\n' +
+      'If you do not know how something works, this is where to look before you\n' +
+      'try anything. Every command aboard has a page. Type  help  to see the\n' +
+      'list of them.',
     run: (ctx, argv, io) => {
       const { operands } = parseArgs(argv);
       const name = operands[0];
