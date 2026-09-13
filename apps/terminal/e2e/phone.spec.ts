@@ -1,5 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
+async function dismissFold(page: Page): Promise<void> {
+  const fold = page.locator('#fold');
+  const next = page.locator('#fold-next');
+  for (let i = 0; i < 8; i++) {
+    if (!(await fold.isVisible())) return;
+    await next.click();
+  }
+  await expect(fold).toBeHidden();
+}
+
 async function typeCommand(page: Page, command: string): Promise<void> {
   const input = page.locator('#input');
   await input.click();
@@ -9,10 +19,19 @@ async function typeCommand(page: Page, command: string): Promise<void> {
 }
 
 test.describe('phone dock', () => {
+  test('pages the cold-open nudge in the fold', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#fold')).toBeVisible();
+    await expect(page.locator('#fold-body')).not.toBeEmpty();
+    await expect(page.locator('#fold-next')).toContainText(/tap to/i);
+    await dismissFold(page);
+    await expect(page.locator('#input')).toBeVisible();
+  });
+
   test('shows the last command above the dock', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#input')).toBeVisible();
     await typeCommand(page, 'ls');
+    await expect(page.locator('#fold')).toBeHidden();
     await expect(page.locator('#turn-cmd')).toContainText('ls');
     await expect(page.locator('#turn-out')).toContainText('README');
   });
@@ -22,10 +41,25 @@ test.describe('phone dock', () => {
     await typeCommand(page, 'pwd');
     await expect(page.locator('#turn-out')).toContainText('/home/survivor');
     await page.reload();
+    await expect(page.locator('#fold')).toBeHidden();
     await expect(page.locator('#turn-cmd')).toContainText('pwd');
-    await expect(page.locator('#turn-cmd')).toContainText('pwd');
-    await typeCommand(page, 'pwd');
     await expect(page.locator('#turn-out')).toContainText('/home/survivor');
+    await typeCommand(page, 'whoami');
+    await expect(page.locator('#turn-cmd')).toContainText('whoami');
+    await expect(page.locator('#turn-out')).toContainText('survivor');
+  });
+
+  test('newgame wipes the save and returns the cold open', async ({ page }) => {
+    await page.goto('/');
+    await typeCommand(page, 'pwd');
+    await page.reload();
+    await expect(page.locator('#turn-cmd')).toContainText('pwd');
+    await page.locator('#input').fill('newgame');
+    await page.locator('#input').press('Enter');
+    await expect(page.locator('#fold')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#turn')).toBeHidden();
+    await typeCommand(page, 'ls');
+    await expect(page.locator('#turn-cmd')).toContainText('ls');
   });
 
   test('hint and objectives stay on the chip bar', async ({ page }) => {

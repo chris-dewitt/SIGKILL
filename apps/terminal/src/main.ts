@@ -42,6 +42,9 @@ const questbook = session.questbook;
  * only honest way to pick one is to look at each in turn on the screen it will
  * be played on.
  */
+/** Set by `newgame` so the post-command persist does not write the wipe back. */
+let wiping = false;
+
 function newgameCommand(): CommandSpec {
   return {
     name: 'newgame',
@@ -54,6 +57,7 @@ function newgameCommand(): CommandSpec {
       'Starts the game over from the beginning.\n' +
       'Your save is erased. Type it only if you mean it.',
     run: (_ctx, _argv, io) => {
+      wiping = true;
       clearSave();
       io.out('newgame: the ship is forgetting.\n');
       window.setTimeout(() => window.location.reload(), 80);
@@ -561,6 +565,7 @@ const foldPages: BeatLine[][] = [];
 let currentTurn: LastTurn | undefined = saved?.lastTurn;
 
 function persist(lastTurn = currentTurn): void {
+  if (wiping) return;
   try {
     writeSave({
       version: 1,
@@ -922,12 +927,20 @@ function buildSymbolRow(): void {
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  if (!foldEl.hidden) {
+  if (screenProgram || busy) return;
+  const value = input.value;
+  // Empty Enter pages the fold. A typed command is a command — the fold
+  // yields. On a phone the send key is how you run, and the cold-open
+  // nudge must not eat the first `ls`.
+  if (!foldEl.hidden && value.trim().length === 0) {
     advanceFold();
     return;
   }
-  if (screenProgram || busy) return;
-  const value = input.value;
+  if (!foldEl.hidden) {
+    foldPages.length = 0;
+    foldEl.hidden = true;
+    foldBody.textContent = '';
+  }
   input.value = '';
   void submit(value);
 });
