@@ -24,6 +24,7 @@ const SCRIPT = [
   'ls',
   'cat README',
   'systemctl --failed',
+  'pressure',
   'systemctl status scrubber',
   'cat /etc/life_support.conf',
   "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",

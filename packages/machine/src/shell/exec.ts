@@ -29,6 +29,15 @@ export interface ExecIO {
   stdin: string;
   out(text: string): void;
   err(text: string): void;
+  /**
+   * Write output whose columns are load-bearing.
+   *
+   * Optional, and absent everywhere it would be meaningless: a pipe, a file
+   * redirect, a captured substitution. Where it is absent the caller falls
+   * back to `out`, which is correct -- the bytes are already right, and only
+   * something with a width to re-wrap to needs to be told not to.
+   */
+  outArt?(text: string): void;
 }
 
 /**
@@ -99,6 +108,17 @@ export interface CommandSpec {
   manual?: string;
   /** Plain-language manual. Shown to Cadets, who have not met man(1) before. */
   plain?: string;
+  /**
+   * This command's stdout must never be re-wrapped.
+   *
+   * A drawing, a table, anything where columns carry meaning. Declared on the
+   * command rather than raised as state during the run, which is what makes it
+   * correct for compound input: `deck; cat README` tags only the drawing, and
+   * `(deck)` or a script calling `deck` tags it just the same, because the
+   * tagging happens where the command is invoked instead of being read once
+   * from the top-level shell afterwards.
+   */
+  preformatted?: boolean;
   run: CommandFn;
 }
 
@@ -164,18 +184,6 @@ export class ShellContext {
   exited: number | null = null;
   /** Raised by `clear`. The renderer decides what clearing means; we do not. */
   clearRequested = false;
-  /**
-   * Raised by a command whose output must not be re-wrapped.
-   *
-   * Modelled on `clearRequested`, and for the same reason: the Machine has no
-   * screen and must not learn what a drawing is. All it says here is "this
-   * output is preformatted" -- columns are load-bearing, so do not reflow it.
-   * A host with no width to reflow to (a test, a pipe, cron) ignores this and
-   * loses nothing, because the text is already correct.
-   *
-   * Reset per command by `Machine.exec`.
-   */
-  preformatted = false;
   /**
    * Raised by a full-screen command such as `vi`.
    *
@@ -266,19 +274,45 @@ export class ShellContext {
   }
 }
 
+/** One run of contiguous stdout, and whether its columns are load-bearing. */
+export interface OutputSegment {
+  text: string;
+  preformatted: boolean;
+}
+
 export interface RunResult {
   stdout: string;
   stderr: string;
   code: number;
+  /**
+   * stdout split into runs by formatting, in order.
+   *
+   * A host with a width walks these instead of reading one flag off the whole
+   * result: a command line can mix a drawing and a paragraph, and the two need
+   * opposite treatment.
+   */
+  segments: OutputSegment[];
 }
 
 /** Parse and run a command line. Never throws for user error — it reports. */
 export async function run(ctx: ShellContext, input: string): Promise<RunResult> {
   let out = '';
   let err = '';
+  const segments: OutputSegment[] = [];
+
+  /** Append to the last segment when the formatting matches, else start one. */
+  const record = (text: string, preformatted: boolean): void => {
+    if (text.length === 0) return;
+    out += text;
+    const last = segments[segments.length - 1];
+    if (last !== undefined && last.preformatted === preformatted) last.text += text;
+    else segments.push({ text, preformatted });
+  };
+
   const io: ExecIO = {
     stdin: '',
-    out: (t) => { out += t; },
+    out: (t) => { record(t, false); },
+    outArt: (t) => { record(t, true); },
     err: (t) => { err += t; },
   };
 
@@ -288,7 +322,7 @@ export async function run(ctx: ShellContext, input: string): Promise<RunResult> 
   } catch (e) {
     const message = e instanceof ShellSyntaxError ? e.message : String(e);
     ctx.status = 2;
-    return { stdout: '', stderr: `sh: syntax error: ${message}\n`, code: 2 };
+    return { stdout: '', stderr: `sh: syntax error: ${message}\n`, code: 2, segments: [] };
   }
 
   let code: number;
@@ -308,7 +342,7 @@ export async function run(ctx: ShellContext, input: string): Promise<RunResult> 
     ctx.substitutionStderr = '';
   }
 
-  return { stdout: out, stderr: err, code };
+  return { stdout: out, stderr: err, code, segments };
 }
 
 export async function runScript(ctx: ShellContext, script: Script, io: ExecIO): Promise<number> {
@@ -404,6 +438,9 @@ async function runPipeline(ctx: ShellContext, node: Pipeline, io: ExecIO): Promi
       out: isLast ? io.out : (t) => { captured += t; },
       // stderr always goes to the terminal, never down the pipe. As it should.
       err: io.err,
+      // Only the last stage's output leaves the pipeline, so only it can be
+      // art. A drawing piped into `wc -l` is just bytes on the way to a count.
+      ...(isLast && io.outArt ? { outArt: io.outArt.bind(io) } : {}),
     };
 
     code = await runSimple(ctx, command, stageIo);
@@ -503,6 +540,19 @@ export async function execArgv(ctx: ShellContext, argv: string[], io: ExecIO): P
   return await invoke(ctx, program.spec, [program.interpreter, program.path, ...argv.slice(1)], io);
 }
 
+/**
+ * Route a preformatted command's stdout to the art sink.
+ *
+ * Where the sink is absent -- a pipe, a file, a captured substitution -- this
+ * falls straight back to `out`, which is right: the bytes are already correct
+ * and only something with a width to re-wrap to needs telling.
+ */
+function forCommand(io: ExecIO, spec: CommandSpec): ExecIO {
+  if (spec.preformatted !== true) return io;
+  const sink = io.outArt ?? io.out;
+  return { ...io, out: (text) => sink.call(io, text) };
+}
+
 /** Call a command and turn anything it throws into the error it should print. */
 async function invoke(
   ctx: ShellContext,
@@ -512,7 +562,7 @@ async function invoke(
 ): Promise<number> {
   const name = argv[0] ?? spec.name;
   try {
-    return await spec.run(ctx, argv, io);
+    return await spec.run(ctx, argv, forCommand(io, spec));
   } catch (e) {
     if (isFsError(e)) {
       io.err(`${name}: ${e.path ?? ''}: ${e.reason}\n`);
@@ -733,6 +783,10 @@ async function withRedirects(
     stdin,
     out: outSink ?? io.out,
     err: errSink ?? io.err,
+    // Redirected to a file, art goes into the file like everything else -- a
+    // drawing on disk needs no protection from re-wrapping. Only when stdout
+    // is still the terminal does the tag mean anything.
+    ...(outSink === null && io.outArt ? { outArt: io.outArt.bind(io) } : {}),
   };
 
   const code = await body(scoped);
