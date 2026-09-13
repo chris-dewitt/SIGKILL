@@ -1,5 +1,6 @@
 import {
-  DEFAULT_PALETTE, highlight, paletteByName, PALETTE_NAMES, TerminalView,
+  DEFAULT_PALETTE, DEFAULT_TUBE, degrade, highlight, paletteByName, PALETTE_NAMES,
+  TerminalView, tubeByName, TUBE_NAMES,
 } from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/machine';
@@ -12,8 +13,6 @@ const { machine, questbook } = bootWreck();
 
 // A host command: the Machine has no screen and must not learn what a colour
 // is, so this is registered onto the shell from out here.
-machine.shell.commands.set('palette', paletteCommand());
-machine.shell.commands.set('sound', soundCommand());
 
 /**
  * Switch the colour scheme from inside the game.
@@ -29,6 +28,76 @@ machine.shell.commands.set('sound', soundCommand());
  * A host command for the same reason `palette` is one: the Machine has no
  * speakers and must not learn what a sound is.
  */
+/**
+ * Choose the tube.
+ *
+ * A still cannot show flicker and a paragraph cannot show anything, so the
+ * only honest way to pick one is to look at each in turn on the screen it will
+ * be played on.
+ */
+function crtCommand(): CommandSpec {
+  return {
+    name: 'crt',
+    summary: 'change the screen simulation',
+    preformatted: true,
+    manual:
+      'crt [NAME]\n\n' +
+      'With no argument, list the tubes and show which one is on.\n\n' +
+      '  off       no simulation at all\n' +
+      '  clean     a good tube on a good day; holds perfectly still\n' +
+      '  classic   scanlines, grille, glow, a slow roll\n' +
+      '  worn      eleven years unattended\n' +
+      '  failing   the picture is barely holding together\n\n' +
+      'Whichever you pick gets less stable the more of this ship is broken,\n' +
+      'and steadies as you repair it -- except off and clean, which never\n' +
+      'move whatever is happening.',
+    plain:
+      'Changes how much the screen looks like an old monitor.\n\n' +
+      '  crt clean     steady and clear\n' +
+      '  crt classic   scanlines and glow\n' +
+      '  crt worn      a screen that has been on far too long\n' +
+      '  crt off       none of it\n\n' +
+      'If flicker bothers you, use  crt clean  or  crt off. Those two never\n' +
+      'move, no matter what state the ship is in.',
+    run: (_ctx, argv, io) => {
+      const wanted = argv[1]?.toLowerCase();
+      const current = savedTube ?? DEFAULT_TUBE;
+
+      if (wanted === undefined) {
+        io.out(
+          [
+            '',
+            '-- SCREENS -------------------',
+            '',
+            ...TUBE_NAMES.map((n) => `  ${n === current ? '>' : ' '} ${n}`),
+            '',
+            view.accelerated
+              ? 'Switch with:  crt <name>'
+              : 'This device has no WebGL2, so none of these do anything.',
+            '',
+          ].join('\n') + '\n',
+        );
+        return 0;
+      }
+
+      if (!TUBE_NAMES.includes(wanted as never)) {
+        io.err(`crt: no screen called '${wanted}'\nTry one of: ${TUBE_NAMES.join(', ')}\n`);
+        return 1;
+      }
+
+      try {
+        window.localStorage.setItem('sigkill:crt', wanted);
+      } catch {
+        // Private window. The switch still holds for this session.
+      }
+      savedTube = wanted;
+      refreshTube();
+      io.out(`crt: ${wanted}\n`);
+      return 0;
+    },
+  };
+}
+
 function soundCommand(): CommandSpec {
   return {
     name: 'sound',
@@ -67,6 +136,7 @@ function soundCommand(): CommandSpec {
       if (!muted) {
         void sound.resume();
         sound.setState(shipSound());
+      refreshTube();
       }
       io.out(`sound: ${wanted}\n`);
       return 0;
@@ -155,6 +225,14 @@ const screen = document.querySelector<HTMLDivElement>('#screen')!;
  * reloading and nobody should lose their run to a colour experiment.
  */
 const query = new URLSearchParams(location.search);
+let savedTube = ((): string | null => {
+  try {
+    return query.get('crt') ?? window.localStorage.getItem('sigkill:crt');
+  } catch {
+    return query.get('crt');
+  }
+})();
+
 const savedPalette = ((): string | null => {
   try {
     return query.get('palette') ?? window.localStorage.getItem('sigkill:palette');
@@ -169,6 +247,7 @@ const view = new TerminalView(screen, {
   gutter: 16,
   plain: query.has('plain'),
   palette: paletteByName(savedPalette),
+  crt: tubeByName(savedTube),
 });
 /*
  * The ship, sounding. Entirely synthesised -- no audio files, so nothing is
@@ -329,6 +408,7 @@ async function submit(raw: string): Promise<void> {
       playBeats();
       checkActComplete();
       sound.setState(shipSound());
+      refreshTube();
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
       if (command.startsWith('python')) pythonWarmed = true;
@@ -363,6 +443,20 @@ async function submit(raw: string): Promise<void> {
  * has air in it, and if a compartment is open there is a hiss, because that is
  * what those words mean.
  */
+/**
+ * Retune the tube to how the ship is doing.
+ *
+ * The screen is part of the ship. Nothing fixed means a picture that cannot
+ * hold still; every repair steadies it. The visual half of what the
+ * soundtrack does, and told without a sentence either way.
+ */
+function refreshTube(): void {
+  const rows = questbook.status(machine);
+  const done = rows.filter((row) => row.done).length;
+  const health = rows.length === 0 ? 1 : done / rows.length;
+  view.setCrt(degrade(tubeByName(savedTube), health));
+}
+
 function shipSound(): AudioState {
   const open = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'].some((id) => {
     try {
@@ -816,6 +910,18 @@ screen.addEventListener('touchend', () => { touchY = null; }, { passive: true })
 window.addEventListener('resize', () => {
   if (screenProgram) paintScreen();
 });
+
+/*
+ * The host's own commands, registered here rather than beside `bootWreck`
+ * because every one of them closes over `view` or `sound`, and those are
+ * declared further down. Calling `refreshTube()` up there threw a temporal
+ * dead zone error on load and blanked the whole page -- caught by the
+ * screenshot harness, which is the argument for keeping that harness.
+ */
+machine.shell.commands.set('palette', paletteCommand());
+machine.shell.commands.set('sound', soundCommand());
+machine.shell.commands.set('crt', crtCommand());
+refreshTube();
 
 sayBeat(coldOpen(machine));
 sayBeat(whatNow(questbook, machine));

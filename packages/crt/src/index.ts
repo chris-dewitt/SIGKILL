@@ -10,6 +10,8 @@ export { GlyphAtlas, measureCell, scaleFont } from './atlas.js';
 export type { AtlasOptions } from './atlas.js';
 
 export { CrtPass } from './crt.js';
+export { TUBES, TUBE_NAMES, DEFAULT_TUBE, tubeByName, degrade } from './tubes.js';
+export type { TubeName } from './tubes.js';
 export type { CrtOptions } from './crt.js';
 
 export { highlight } from './highlight.js';

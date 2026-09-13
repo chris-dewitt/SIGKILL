@@ -39,11 +39,24 @@ precision highp float;
 in vec2 v_uv;
 uniform sampler2D u_frame;
 uniform vec2 u_resolution;
+uniform float u_time;
 uniform float u_curvature;
 uniform float u_scanline;
 uniform float u_bloom;
 uniform float u_vignette;
+uniform float u_mask;
+uniform float u_flicker;
+uniform float u_grain;
+uniform float u_aberration;
+uniform float u_jitter;
+uniform float u_roll;
+uniform float u_brightness;
 out vec4 outColor;
+
+/** Cheap hash. Deterministic per pixel per frame, no texture lookup. */
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
 
 /** Pull the corners back, the way a real tube does. */
 vec2 curve(vec2 uv) {
@@ -56,17 +69,48 @@ vec2 curve(vec2 uv) {
 void main() {
   vec2 uv = curve(v_uv);
 
+  /*
+   * Horizontal sync instability.
+   *
+   * A whole scanline slips sideways, and only some of them, only sometimes.
+   * This is the single most legible "the hardware is failing" cue there is --
+   * far more than noise, because a person reads it as the *picture* breaking
+   * rather than as a dirty screen.
+   */
+  if (u_jitter > 0.0) {
+    float row = floor(uv.y * u_resolution.y);
+    float when = hash(vec2(row, floor(u_time * 11.0)));
+    float slip = step(1.0 - u_jitter * 0.12, when);
+    uv.x += slip * (hash(vec2(row, u_time)) - 0.5) * 0.03 * u_jitter;
+  }
+
   // Off the tube entirely. Black, not clamped edge pixels smeared outward.
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
     outColor = vec4(0.0, 0.0, 0.0, 1.0);
     return;
   }
 
-  vec3 color = texture(u_frame, uv).rgb;
+  vec2 texel = 1.0 / u_resolution;
+
+  /*
+   * Chromatic aberration: the three guns land fractionally apart.
+   *
+   * Sampled per channel rather than as one colour, which is what gives white
+   * text its faint red and blue fringes -- the thing that reads as a tube and
+   * not as a font.
+   */
+  vec3 color;
+  if (u_aberration > 0.0) {
+    float shift = texel.x * u_aberration * 1.6;
+    color.r = texture(u_frame, uv + vec2(shift, 0.0)).r;
+    color.g = texture(u_frame, uv).g;
+    color.b = texture(u_frame, uv - vec2(shift, 0.0)).b;
+  } else {
+    color = texture(u_frame, uv).rgb;
+  }
 
   // Cheap bloom: four taps around the pixel. A real gaussian is not worth
   // the bandwidth on a phone, and phosphor glow is soft anyway.
-  vec2 texel = 1.0 / u_resolution;
   vec3 glow = vec3(0.0);
   glow += texture(u_frame, uv + vec2( texel.x * 2.0, 0.0)).rgb;
   glow += texture(u_frame, uv + vec2(-texel.x * 2.0, 0.0)).rgb;
@@ -79,11 +123,56 @@ void main() {
   float line = sin(uv.y * u_resolution.y * 3.14159);
   color *= 1.0 - u_scanline * (0.5 + 0.5 * line * line);
 
+  /*
+   * The aperture grille: vertical R, G and B stripes.
+   *
+   * This is the effect people mean when they say a screen looks like a CRT,
+   * and it is the reason a shadow-mask tube makes every colour look richer
+   * than it is -- each channel is lit separately rather than blended in one
+   * phosphor. It costs one modulo and pays for itself.
+   */
+  if (u_mask > 0.0) {
+    float column = mod(floor(v_uv.x * u_resolution.x), 3.0);
+    vec3 grille = vec3(
+      column < 1.0 ? 1.0 : 0.55,
+      (column >= 1.0 && column < 2.0) ? 1.0 : 0.55,
+      column >= 2.0 ? 1.0 : 0.55
+    );
+    color *= mix(vec3(1.0), grille, u_mask);
+    // The mask eats light, so give some back or every preset looks dimmer
+    // than the one below it for reasons nobody asked for.
+    color *= 1.0 + u_mask * 0.45;
+  }
+
+  /*
+   * A brightness band drifting down the screen.
+   *
+   * A tube whose vertical hold is going. Slow, because a fast one is a
+   * strobe and nobody should have to sit in front of that.
+   */
+  if (u_roll > 0.0) {
+    float band = fract(v_uv.y + u_time * 0.08);
+    color *= 1.0 + u_roll * 0.16 * smoothstep(0.96, 1.0, band);
+  }
+
+  // Mains-frequency brightness wobble. Two incommensurate rates, so it never
+  // settles into a rhythm the eye can predict and start ignoring.
+  if (u_flicker > 0.0) {
+    float wobble = sin(u_time * 47.0) * 0.6 + sin(u_time * 13.3) * 0.4;
+    color *= 1.0 - u_flicker * 0.06 * (0.5 + 0.5 * wobble);
+  }
+
+  // Grain, after everything else: it is the tube, not the signal.
+  if (u_grain > 0.0) {
+    float n = hash(v_uv * u_resolution + u_time * 60.0) - 0.5;
+    color += n * u_grain * 0.09;
+  }
+
   vec2 fromCentre = uv - 0.5;
   float vignette = 1.0 - dot(fromCentre, fromCentre) * u_vignette;
   color *= clamp(vignette, 0.0, 1.0);
 
-  outColor = vec4(color, 1.0);
+  outColor = vec4(color * u_brightness, 1.0);
 }`;
 
 export interface CrtOptions {
@@ -95,6 +184,31 @@ export interface CrtOptions {
   bloom?: number;
   /** Vignette strength. */
   vignette?: number;
+  /**
+   * 0..1 aperture grille: vertical red, green and blue stripes.
+   *
+   * The effect people actually mean when they say a screen looks like a CRT.
+   * It is also why a shadow-mask tube makes colour look richer than it is --
+   * each channel is lit separately instead of blended in one phosphor.
+   */
+  mask?: number;
+  /** 0..1 mains-frequency brightness wobble. */
+  flicker?: number;
+  /** 0..1 tube grain. */
+  grain?: number;
+  /** 0..1 separation of the three guns. Gives white text colour fringes. */
+  aberration?: number;
+  /**
+   * 0..1 horizontal sync instability: whole scanlines slipping sideways.
+   *
+   * The most legible "this hardware is failing" cue available, because a
+   * person reads it as the picture breaking rather than as a dirty screen.
+   */
+  jitter?: number;
+  /** 0..1 brightness band drifting down the screen: a failing vertical hold. */
+  roll?: number;
+  /** Overall gain, applied last. */
+  brightness?: number;
   /**
    * Phosphor half-life in milliseconds: how long a lit pixel takes to fade to
    * half brightness.
@@ -116,6 +230,13 @@ const DEFAULTS: Required<CrtOptions> = {
   scanline: 0.18,
   bloom: 0.55,
   vignette: 0.55,
+  mask: 0,
+  flicker: 0,
+  grain: 0,
+  aberration: 0,
+  jitter: 0,
+  roll: 0,
+  brightness: 1,
   // Short. Real phosphor fades fast; a long tail reads as a smear rather
   // than a glow, and makes scrolling text illegible.
   persistenceHalfLife: 45,
@@ -178,6 +299,15 @@ export class CrtPass {
 
     this.gl = gl;
     this.options = { ...DEFAULTS, ...options };
+    /*
+     * When the tube was switched on.
+     *
+     * Every time-based effect measures from here rather than from frame count,
+     * so flicker and roll run at the same speed on a 60Hz phone and a 120Hz
+     * one. A per-frame counter would make a failing ship look twice as sick on
+     * better hardware.
+     */
+    this.born = performance.now();
     this.persistProgram = link(gl, PERSIST);
     this.compositeProgram = link(gl, COMPOSITE);
 
@@ -194,6 +324,9 @@ export class CrtPass {
 
     this.sourceTexture = createTexture(gl);
   }
+
+  /** When the tube was switched on. See the constructor. */
+  private readonly born: number;
 
   configure(options: CrtOptions): void {
     this.options = { ...this.options, ...options };
@@ -275,6 +408,16 @@ export class CrtPass {
     gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_scanline'), this.options.scanline);
     gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_bloom'), this.options.bloom);
     gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_vignette'), this.options.vignette);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_mask'), this.options.mask);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_flicker'), this.options.flicker);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_grain'), this.options.grain);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_aberration'), this.options.aberration);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_jitter'), this.options.jitter);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_roll'), this.options.roll);
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_brightness'), this.options.brightness);
+    // Seconds since the pass was built. Every time-based effect reads this,
+    // so they all agree and none of them depend on frame rate.
+    gl.uniform1f(gl.getUniformLocation(this.compositeProgram, 'u_time'), (performance.now() - this.born) / 1000);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     gl.bindVertexArray(null);

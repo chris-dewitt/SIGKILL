@@ -74,6 +74,21 @@ unprompted after the opening and after every objective closes. Both show
 is doing. Every `HintStep` carries a `label` — the "now:" line, and the single
 most useful thing the interface can say.
 
+**The tube** — `packages/crt/src/tubes.ts`. Five presets (`off`, `clean`,
+`classic`, `worn`, `failing`), switchable live with the `crt` command or
+`?crt=`. The shader gained an aperture grille, chromatic aberration, grain,
+flicker, a rolling band and horizontal sync jitter. `degrade()` bends the
+chosen preset toward instability by how much of the act is still broken, and
+steadies it as the player repairs things — the visual half of what the
+soundtrack does. It only ever *adds* motion, so `clean` and `off` hold
+perfectly still at every state for anybody the flicker bothers.
+
+**Not done, asked for:** font options. Chris wants a choice there too. Note
+before starting: on a phone you get whatever monospace the OS ships, so family
+stacks barely vary — size and weight are the real levers, and any Google Fonts
+route means a network fetch, which this project has deliberately avoided
+everywhere else.
+
 **`packages/audio`** — the ship, sounding. Entirely synthesised: oscillators,
 filtered noise and envelopes, not one audio file, so nothing is fetched and
 nothing has to be licensed. `score.ts` holds every decision and is pure, so
