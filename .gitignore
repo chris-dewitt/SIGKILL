@@ -243,3 +243,8 @@ google-services.json
 
 # Copied from node_modules by tools/copy-pyodide.mjs; regenerate, never commit.
 apps/terminal/public/pyodide/
+
+# Playwright
+apps/terminal/test-results/
+apps/terminal/playwright-report/
+apps/terminal/blob-report/
