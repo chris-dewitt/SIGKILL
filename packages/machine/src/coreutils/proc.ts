@@ -120,22 +120,29 @@ export const procCommands: CommandSpec[] = [
       '  enable UNIT     start it at boot (creates a symlink in\n' +
       '                  /etc/systemd/system/multi-user.target.wants)\n' +
       '  disable UNIT    remove that symlink\n' +
-      '  list-units      show every known unit',
+      '  list-units      show every known unit\n' +
+      '  --failed        show only the units that failed',
     plain:
       'Starts and stops the services the machine runs in the background.\n' +
       "  systemctl start NAME    turn it on now\n" +
       "  systemctl status NAME   is it running, and if not, why not\n" +
       "  systemctl enable NAME   turn it on automatically at boot\n" +
+      "  systemctl --failed      list only what is broken\n" +
       'If a service will not start, status tells you the reason. Read it.',
     run: (ctx, argv, io) => {
-      const { operands } = parseArgs(argv);
+      const { flags, operands } = parseArgs(argv);
       const verb = operands[0];
       const target = operands[1];
+      // `systemctl --failed` is how anybody who has run a real machine asks
+      // "what is broken", and on a ship with two dead units it is the right
+      // first question. It narrows the listing; it is not a verb of its own.
+      const onlyFailed = flags.has('--failed');
 
       if (!verb || verb === 'list-units' || verb === 'list-unit-files') {
-        const units = ctx.services.list();
+        const all = ctx.services.list();
+        const units = onlyFailed ? all.filter((u) => u.state === 'failed') : all;
         if (units.length === 0) {
-          io.out('0 loaded units listed.\n');
+          io.out(onlyFailed ? '0 loaded units listed. Nothing has failed.\n' : '0 loaded units listed.\n');
           return 0;
         }
         const width = Math.max(...units.map((u) => u.name.length + 8));
@@ -148,6 +155,11 @@ export const procCommands: CommandSpec[] = [
           ),
           '',
           `${units.length} loaded units listed.`,
+          // A bare `systemctl` is where somebody lands when they know the word
+          // and not the verb. Real systemctl leaves them there; this is a
+          // teaching game, so it points at the manual rather than at a hint.
+          ...(verb || onlyFailed ? [] : ['', 'For what you can do with a unit:  man systemctl']),
+          ...(onlyFailed ? ['', 'Ask one of them why:  systemctl status <unit>'] : []),
         ]);
         return 0;
       }
@@ -168,6 +180,24 @@ export const procCommands: CommandSpec[] = [
         ];
         if (status.pid !== undefined) rows.push(`   Main PID: ${status.pid}`);
         if (status.error) rows.push('', `      Error: ${status.error}`);
+
+        // A failure is history and stays printed, but the player may have just
+        // fixed the thing it complains about. Saying nothing here is how
+        // somebody edits the config correctly, reads a stale error, and
+        // concludes their edit did not work.
+        if (status.state === 'failed') {
+          const now = ctx.services.precheck(status.name);
+          if (now.ok) {
+            rows.push(
+              '',
+              '       Note: that failure is from the last attempt. The problem it',
+              '             names is no longer there.',
+              `             Try: sudo systemctl start ${status.name}`,
+            );
+          } else if (now.reason !== undefined && now.reason !== status.error) {
+            rows.push('', `    Current: ${now.reason}`);
+          }
+        }
         emit(io, rows);
         // systemd exits non-zero when the unit is not active. Scripts rely on
         // it, and so can a puzzle.
@@ -183,7 +213,17 @@ export const procCommands: CommandSpec[] = [
       };
 
       const action = actions[verb];
-      if (!action) return usage(io, `systemctl: unknown command '${verb}'`);
+      if (!action) {
+        // Caps lock is a real hazard on a phone keyboard, and `STATUS` looks
+        // to a beginner like it should obviously work. Say what they meant
+        // rather than only what they typed.
+        const lower = verb.toLowerCase();
+        const meant = lower !== verb && (lower === 'status' || lower in actions)
+          ? `  Did you mean: systemctl ${lower} ${target}\n`
+          : '';
+        io.err(`systemctl: unknown command '${verb}'\n${meant}`);
+        return 1;
+      }
 
       if (ctx.user.uid !== 0 && verb !== 'status') {
         // Real systemd would prompt for authentication here. Refusing outright

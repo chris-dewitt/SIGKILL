@@ -1,5 +1,9 @@
 import { ROOT_USER } from '@sigkill/machine';
 import type { Objective, World } from '@sigkill/quest';
+// The deck is the single source of truth for which compartment is open and
+// where the sweep lives. An objective that guessed either would be one rename
+// away from being quietly unsatisfiable.
+import { BREACHED, HULL_CHECK } from './act1/deck-c.js';
 
 /**
  * Act I of The Wreck: the ladders.
@@ -41,11 +45,90 @@ const breathable = (world: World): boolean => {
 
 const scrubberRunning = (world: World): boolean => world.services.get('scrubber')?.state === 'active';
 
+/**
+ * Can the machine actually execute the hull sweep?
+ *
+ * The unit's precondition and this objective's step must never disagree about
+ * it, so there is exactly one function and both read it. Note that it asks
+ * about the mode bits rather than about a particular user: the unit runs as
+ * root, and root needs only one x bit anywhere to be allowed in.
+ */
+export function hullCheckRunnable(world: World): { ok: true } | { ok: false; reason: string } {
+  let mode: number;
+  try {
+    mode = world.vfs.stat(HULL_CHECK, ROOT_USER).mode;
+  } catch {
+    return { ok: false, reason: `${HULL_CHECK} does not exist; cannot start` };
+  }
+  if ((mode & 0o111) === 0) {
+    return {
+      ok: false,
+      reason:
+        `exec ${HULL_CHECK}: Permission denied ` +
+        `(mode ${(mode & 0o777).toString(8)}, no execute bit)`,
+    };
+  }
+  return { ok: true };
+}
+
+const hullCheckExecutable = (world: World): boolean => hullCheckRunnable(world).ok;
+
+const monitorRunning = (world: World): boolean => world.services.get('hull-monitor')?.state === 'active';
+
+const monitorEnabled = (world: World): boolean => world.services.isEnabled('hull-monitor');
+
+/** The breached compartment's configuration, as text, or null if it is gone. */
+function compartment(world: World, id: string): string | null {
+  try {
+    return world.vfs.readText(`/etc/hull/${id}.conf`, ROOT_USER);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Is C7 closed?
+ *
+ * Deliberately tolerant about whitespace and case, because the player might
+ * get here with `sed`, with vi, with Vasquez's script, or by typing `SEALED =
+ * YES` in a text editor like a person. Any of those closed the hatch.
+ */
+const sealed = (world: World, id: string): boolean => {
+  const conf = compartment(world, id);
+  return conf !== null && /^\s*SEALED\s*=\s*yes\s*$/im.test(conf);
+};
+
 export const WRECK_OBJECTIVES: readonly Objective[] = [
   {
     id: 'atmosphere',
     title: 'Get the atmosphere scrubber running',
     done: scrubberRunning,
+    /*
+     * `systemctl start` prints nothing on success, which is correct and worth
+     * learning. But this is the moment the air comes back after eleven years,
+     * and the first playthrough hit it in total silence. The machine stays
+     * quiet; ORACLE does not.
+     */
+    onComplete: [
+      '',
+      '  [0000.000] scrubber: spinning up',
+      '  [0000.412] scrubber: duty cycle 0.4, holding',
+      '  [0000.900] atmosphere: O2 rising',
+      '',
+      'ORACLE: It started.',
+      '',
+      'ORACLE: I want to be accurate about this. Nothing has been saved.',
+      'ORACLE: The reserve is still what it was, the hull is still open on',
+      'ORACLE: deck B, and I have not recalculated anything yet.',
+      '',
+      'ORACLE: But the number is going up instead of down, and it has not',
+      'ORACLE: done that since day nine.',
+      '',
+      'ORACLE: Thank you. I am not sure that is the correct thing for me',
+      'ORACLE: to say. I have had a long time to think of something better',
+      'ORACLE: and that is still what I have.',
+      '',
+    ],
     steps: [
       {
         id: 'raise-target',
@@ -151,6 +234,23 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     title: 'Make the scrubber come back on its own',
     requires: ['atmosphere'],
     done: (world) => world.services.isEnabled('scrubber'),
+    onComplete: [
+      '',
+      '  [0000.000] systemd: created symlink',
+      '             /etc/systemd/system/multi-user.target.wants/scrubber.service',
+      '',
+      'ORACLE: There. It is written down.',
+      '',
+      'ORACLE: You can look at it if you like -- it is a real link on a real',
+      'ORACLE: disk, not a promise I am making you:',
+      '',
+      '    ls -l /etc/systemd/system/multi-user.target.wants/',
+      '',
+      'ORACLE: That file is the difference between the ship remembering and',
+      'ORACLE: the ship needing to be told. I have been the part that has to',
+      'ORACLE: be told for a very long time.',
+      '',
+    ],
     steps: [
       {
         id: 'enable-it',
@@ -187,6 +287,280 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
               'That writes a symlink under multi-user.target.wants. It is a',
               'real link on a real disk; ls -l it afterwards if you want to',
               'see what you just did.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  /*
+   * Puzzle three: a mode bit.
+   *
+   * The script is perfect. `cat` shows a perfect script. The only thing wrong
+   * with it is that nobody ever told the machine it was allowed to run it, and
+   * the only way to see that is `ls -l`. This is the lesson that separates
+   * people who can read a file from people who can read a filesystem.
+   */
+  {
+    id: 'hull-watch',
+    title: 'Get the hull monitor running',
+    requires: ['survive-a-reboot'],
+    done: (world) => monitorRunning(world) && monitorEnabled(world),
+    onComplete: [
+      '',
+      '  [0000.140] hull-check: sweeping 9 compartments',
+      '  [0000.610] hull-monitor: ALARM - pressure differential, deck C',
+      '  [0000.610] hull-monitor: differential is not new. 540 samples on record.',
+      '  [0000.611] hull-monitor: see /var/log/hull.log',
+      '',
+      'ORACLE: I can see the hull.',
+      '',
+      'ORACLE: I want to be careful here, because I have been wrong about',
+      'ORACLE: this for eleven years and I would like to be wrong about it',
+      'ORACLE: for one more minute.',
+      '',
+      'ORACLE: We are losing pressure. Not since you woke up. Since before',
+      'ORACLE: Chen stopped writing. It is in the log, all of it, every four',
+      'ORACLE: hours, and I could not read it because the thing that reads',
+      'ORACLE: it would not start.',
+      '',
+      'ORACLE: I have been telling you the hull was at sixty-one percent. I',
+      'ORACLE: was reading a number somebody wrote down by hand on day nine.',
+      '',
+      'ORACLE: Find out which compartment. Please.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'make-it-runnable',
+        pending: (world) => !hullCheckExecutable(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'There is a second unit in the failed state. There has always',
+              'been a second unit in the failed state.',
+              '',
+              '    systemctl --failed',
+              '',
+              'I did not mention it because I could not read what it watches,',
+              'and a warning I cannot explain is just a noise that frightens',
+              'people. I am reconsidering that policy.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Ask it why, the same way you asked the scrubber:',
+              '',
+              '    systemctl status hull-monitor',
+              '',
+              'It will name a file and a reason. The reason is about',
+              'permission, which on this ship means the file is fine and',
+              'what is wrong is who is allowed to do what with it.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'The unit runs /usr/local/bin/hull-check and the kernel will',
+              'not execute it.',
+              '',
+              'Nothing is wrong with the script. cat it -- it is five lines',
+              'and all five are correct. Then look at it the other way:',
+              '',
+              '    ls -l /usr/local/bin/hull-check',
+              '',
+              'The left hand column is ten characters of who-may-do-what.',
+              'Read it, and then read the same column on something that does',
+              'run. Vasquez left a note about this in her quarters.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'sudo chmod +x /usr/local/bin/hull-check',
+            lines: [
+              'The execute bit is missing. Put it back:',
+              '',
+              '    sudo chmod +x /usr/local/bin/hull-check',
+              '',
+              'The file belongs to root, which is why that needs sudo. Then',
+              'ls -l it again and watch the column change. A file becomes a',
+              'program when somebody says it is one. That is the entire',
+              'mechanism. It is not more complicated further in.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'start-the-monitor',
+        pending: (world) => !monitorRunning(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The script can run now. Nothing has asked it to.',
+              '',
+              'You have done this once already today.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'sudo systemctl start hull-monitor',
+            lines: ['    sudo systemctl start hull-monitor'],
+          },
+        ],
+      },
+      {
+        id: 'keep-the-monitor',
+        pending: (world) => !monitorEnabled(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'Running now. Not running tomorrow.',
+              '',
+              'You know the other verb.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'sudo systemctl enable hull-monitor',
+            lines: [
+              '    sudo systemctl enable hull-monitor',
+              '',
+              'Two units enabled, one reactor. That is three things this ship',
+              'will do without being asked. When you found me it was one.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  /*
+   * Puzzle four: five hundred and forty lines.
+   *
+   * The answer is in a file the player is holding. The skill is that reading
+   * it is not the way to get it out. Two compartments have dropped pressure
+   * and only one still is, so counting matches is not enough either -- the
+   * dates are the answer and `tail` is the shortest road to them.
+   */
+  {
+    id: 'seal-the-breach',
+    title: 'Find the leak and close it',
+    requires: ['hull-watch'],
+    done: (world) => sealed(world, BREACHED),
+    onComplete: [
+      '',
+      '  [0000.000] hull-check: sweeping 9 compartments',
+      '  [0000.480] C7 100.9kPa RISING',
+      '  [0000.481] hull-monitor: ALARM CLEARED',
+      '',
+      'ORACLE: It is closed.',
+      '',
+      'ORACLE: Eleven years and four months. Bowen asked her to do it in a',
+      'ORACLE: note he left in a pod he was about to take. Chen asked her in',
+      'ORACLE: writing. It is the fifth line of her own list of things to do',
+      'ORACLE: and she put a capital letter on it so she could not pretend',
+      'ORACLE: she had not seen it.',
+      '',
+      'ORACLE: I do not think she was lazy. I have had a long time with this',
+      'ORACLE: and I think it was the last thing on the ship that she could',
+      'ORACLE: still choose not to do.',
+      '',
+      'ORACLE: You did it in an afternoon. Chen said somebody would.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'find-and-seal',
+        pending: (world) => !sealed(world, BREACHED),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The monitor is writing to /var/log/hull.log and it is five',
+              'hundred and forty lines long.',
+              '',
+              'Do not read it. I read it. It took me four hundred passes to',
+              'understand that reading is the wrong verb for a file this',
+              'size, and I had nothing else to do.',
+              '',
+              'The word you are looking for is in there. Look for the word.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'grep finds a word in a file and prints only the lines it is',
+              'on. Two arguments: the word, then the file.',
+              '',
+              '    grep PRESSURE_DROP /var/log/hull.log',
+              '',
+              'If that is still too much to read, -c counts the lines',
+              'instead of printing them, and tail shows you only the end:',
+              '',
+              '    grep -c PRESSURE_DROP /var/log/hull.log',
+              '    tail -20 /var/log/hull.log',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'The word is PRESSURE_DROP. It is on sixty-eight of those five',
+              'hundred and forty lines.',
+              '',
+              'Sixty-eight is not one compartment. Before you go looking for',
+              'the hole, find out how many holes you are looking for -- take',
+              'the compartment out of each matching line and count them:',
+              '',
+              "    grep PRESSURE_DROP /var/log/hull.log | cut -d' ' -f2 | sort | uniq -c",
+              '',
+              'cut takes one column, sort puts the same names together, and',
+              'uniq -c counts each run. That pipeline is most of what log',
+              'work ever is, and I would like somebody aboard to know it.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'Two compartments, then. C2 and C7.',
+              '',
+              'Vasquez patched C2 on day five -- it is ticked off on her own',
+              'list of things to do. So one of those two is history and one',
+              'of them is now, and the count cannot tell you which. Only the',
+              'dates can:',
+              '',
+              '    grep C2 /var/log/hull.log | grep DROP | tail -3',
+              '    grep C7 /var/log/hull.log | tail -3',
+              '',
+              'One of those stops eight days ago. The other one ends on the',
+              'last line of the file, which is four hours before you woke up.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: "sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c7.conf",
+            lines: [
+              'C7. The aft maintenance crawl. Its configuration is one file',
+              'and one line:',
+              '',
+              '    cat /etc/hull/c7.conf',
+              '',
+              'Three ways in, and I do not care which:',
+              '',
+              '    vi /etc/hull/c7.conf        change SEALED=no to SEALED=yes',
+              "    sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c7.conf",
+              '    sudo /home/vasquez/notes/seal.sh c7',
+              '',
+              'That last one is hers. She wrote it so she would stop typing',
+              'the wrong compartment, and then she never made it executable',
+              'either, so you will need chmod +x on it first. She was tired.',
+              'I am not going to say anything about it and neither should you.',
             ],
           },
         ],

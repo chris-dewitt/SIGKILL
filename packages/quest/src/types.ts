@@ -77,4 +77,14 @@ export interface Objective {
    * Use it when the objective's existence is itself the reveal.
    */
   readonly secret?: boolean;
+  /**
+   * What the adventure says the moment this objective closes.
+   *
+   * Unix is silent on success and should stay that way -- `systemctl start`
+   * printing nothing is correct and worth learning. But the moment a player
+   * fixes the thing the whole act is about, *something* has to answer them,
+   * or the biggest beat in the story lands in silence. The machine stays
+   * real; the character reacts.
+   */
+  readonly onComplete?: readonly string[];
 }

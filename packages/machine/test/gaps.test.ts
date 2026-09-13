@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Machine } from '../src/machine.js';
 import { ROOT_USER } from '../src/vfs/vfs.js';
 import { parseMode, takeCountOperand } from '../src/coreutils/helpers.js';
+import { commandRegistry } from '../src/coreutils/index.js';
 
 /**
  * `parseMode` returns null for a spec that is not a mode at all, so the happy
@@ -333,5 +334,189 @@ describe('the review findings', () => {
     const mode = (m.vfs.lstat('/home/survivor/secret.txt', ROOT_USER).mode & 0o777).toString(8);
     expect(mode).toBe('640');
     expect(mode).not.toBe('777');
+  });
+});
+
+/**
+ * Straight out of the first playthrough transcript. Chris fixed the config,
+ * ran `systemctl status`, and was shown the failure recorded at boot — so the
+ * ship told him O2_TARGET=16 while the file on disk said 21, and there was no
+ * way forward from what the screen showed.
+ */
+describe('systemctl status tells the truth about now', () => {
+  function ship(): Machine {
+    const m = boot();
+    // The real world seed makes this writable by the player; without it `sed`
+    // silently fails and the test measures nothing.
+    m.vfs.chmod('/etc/life_support.conf', 0o666, ROOT_USER);
+    m.vfs.mkdirp('/etc/systemd/system', ROOT_USER);
+    m.vfs.writeText(
+      '/etc/systemd/system/scrubber.service',
+      '[Unit]\nDescription=Atmosphere scrubber\n\n[Service]\nExecStart=/usr/sbin/scrubber\n',
+      ROOT_USER,
+    );
+    m.setPrecondition('scrubber', (vfs) => {
+      const conf = vfs.readText('/etc/life_support.conf', ROOT_USER);
+      const target = Number(/O2_TARGET=(\d+)/.exec(conf)?.[1] ?? NaN);
+      return target >= 19 && target <= 23
+        ? { ok: true }
+        : { ok: false, reason: `O2_TARGET=${target} outside breathable range 19-23` };
+    });
+    m.services.start('scrubber');
+    return m;
+  }
+
+  it('keeps the recorded failure, because that is what happened', async () => {
+    const r = await ship().exec('systemctl status scrubber');
+    expect(r.stdout).toContain('Error: O2_TARGET=16');
+  });
+
+  it('says the problem is gone once the player fixes it', async () => {
+    const m = ship();
+    await m.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    const r = await m.exec('systemctl status scrubber');
+    expect(r.stdout).toContain('no longer there');
+    expect(r.stdout).toContain('systemctl start scrubber');
+  });
+
+  it('shows the current reason when the player breaks it a different way', async () => {
+    const m = ship();
+    await m.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=40/' /etc/life_support.conf");
+    const r = await m.exec('systemctl status scrubber');
+    expect(r.stdout).toContain('Current: O2_TARGET=40');
+    expect(r.stdout).not.toContain('no longer there');
+  });
+
+  it('says nothing extra once the unit is actually running', async () => {
+    const m = ship();
+    await m.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    m.services.start('scrubber');
+    const r = await m.exec('systemctl status scrubber');
+    expect(r.stdout).toContain('active');
+    expect(r.stdout).not.toContain('no longer there');
+  });
+
+  it('reads SYSTEMCTL STATUS through the caps lock', async () => {
+    const r = await ship().exec('systemctl STATUS scrubber');
+    expect(r.stderr).toContain("unknown command 'STATUS'");
+    expect(r.stderr).toContain('Did you mean: systemctl status scrubber');
+  });
+});
+
+/**
+ * `ls -l` printed raw uid numbers, which is true and useless: the reason
+ * anybody looks at ownership is to find out who. Names come from /etc/passwd,
+ * so the answer is something the player can go and read for themselves.
+ */
+describe('ls -l names the owner', () => {
+  function withPasswd(): Machine {
+    const m = boot();
+    m.vfs.writeText(
+      '/etc/passwd',
+      ['root:x:0:0:root:/root:/bin/sh', 'survivor:x:1000:1000::/home/survivor:/bin/sh',
+       'vasquez:x:1001:1001::/home/vasquez:/bin/sh', ''].join('\n'),
+      ROOT_USER,
+    );
+    m.vfs.writeText('/etc/group', ['root:x:0:', 'survivor:x:1000:', 'vasquez:x:1001:', ''].join('\n'), ROOT_USER);
+    return m;
+  }
+
+  it('shows the name from /etc/passwd rather than the number', async () => {
+    const m = withPasswd();
+    const r = await m.exec('ls -l /home/survivor/ten.txt');
+    expect(r.stdout).toContain('survivor');
+    expect(r.stdout).not.toMatch(/\b1000\s+1000\b/);
+  });
+
+  it('falls back to the number for a uid nobody has claimed', async () => {
+    const m = withPasswd();
+    m.vfs.writeText('/home/survivor/orphan', 'x\n', ROOT_USER);
+    m.vfs.chown('/home/survivor/orphan', 4242, 4242, ROOT_USER);
+    expect((await m.exec('ls -l /home/survivor/orphan')).stdout).toContain('4242');
+  });
+
+  it('still lists a directory when /etc/passwd is missing entirely', async () => {
+    const m = boot();
+    const r = await m.exec('ls -l /home/survivor');
+    expect(r.stderr).toBe('');
+    expect(r.stdout).toContain('ten.txt');
+  });
+
+  it('survives a corrupt line rather than giving up on the file', async () => {
+    const m = withPasswd();
+    m.vfs.append('/etc/passwd', 'garbage-with-no-colons\n', ROOT_USER);
+    expect((await m.exec('ls -l /home/survivor/ten.txt')).stdout).toContain('survivor');
+  });
+
+  it('gives a named file a full long row, not just its name back', async () => {
+    const m = withPasswd();
+    const r = await m.exec('ls -l /home/survivor/ten.txt');
+    // mode, owner, group, size, name -- the row `ls -l` is for.
+    expect(r.stdout).toMatch(/^-rw.+survivor\s+survivor\s+\d+ \/home\/survivor\/ten\.txt$/m);
+  });
+
+  it('lists a dotfile named directly, without needing -a', async () => {
+    const m = withPasswd();
+    m.vfs.writeText('/home/survivor/.history', 'ls\n', ROOT_USER);
+    expect((await m.exec('ls -l /home/survivor/.history')).stdout).toContain('.history');
+  });
+
+  it('names the owner in stat too', async () => {
+    const m = withPasswd();
+    expect((await m.exec('stat /home/survivor/ten.txt')).stdout).toContain('1000/survivor');
+  });
+});
+
+/**
+ * `man` is the discovery route the adventures teach, which makes a command
+ * with no manual page a broken promise rather than a missing nicety: the cold
+ * open tells the player to try `man ls` so they know it works before they need
+ * it, and for a long time `man ls` printed one line.
+ *
+ * Thirty-one commands were in that state. This is the test that keeps them out.
+ */
+describe('every command has a manual, on both tracks', () => {
+  const named = [...commandRegistry().values()];
+
+  it('has a page for each command on the operator track', async () => {
+    const m = boot();
+    for (const spec of named) {
+      const page = (await m.exec(`man ${spec.name}`)).stdout;
+      expect(page, `man ${spec.name}`).toContain('DESCRIPTION');
+      // A page that is only the summary again is not a page.
+      expect(page.length, `man ${spec.name} is too short to help`).toBeGreaterThan(
+        spec.name.length + spec.summary.length + 60,
+      );
+    }
+  });
+
+  it('has a plain-language page for each command on the cadet track', () => {
+    for (const spec of named) {
+      expect(spec.plain, `${spec.name} has nothing for a cadet`).toBeTruthy();
+      expect((spec.plain ?? '').length, `${spec.name}'s plain page is too short`).toBeGreaterThan(40);
+    }
+  });
+
+  it('documents every flag its manual advertises', async () => {
+    // Not exhaustive -- it catches the common lie, which is a manual listing a
+    // flag the command never implemented.
+    const m = boot();
+    m.vfs.writeText('/home/survivor/sample.txt', 'beta\nalpha\nbeta\n', ROOT_USER);
+    m.vfs.chown('/home/survivor/sample.txt', 1000, 1000, ROOT_USER);
+    const claims: Array<[string, string]> = [
+      ['ls -l /home/survivor/sample.txt', 'rw'],
+      ['cat -n /home/survivor/sample.txt', '1'],
+      ['grep -c beta /home/survivor/sample.txt', '2'],
+      ['grep -v beta /home/survivor/sample.txt', 'alpha'],
+      ['sort -u /home/survivor/sample.txt', 'alpha'],
+      ['wc -l /home/survivor/sample.txt', '3'],
+      ['head -1 /home/survivor/sample.txt', 'beta'],
+      ['tail -1 /home/survivor/sample.txt', 'beta'],
+    ];
+    for (const [command, expected] of claims) {
+      const r = await m.exec(command);
+      expect(r.stderr, `${command} -> ${r.stderr}`).toBe('');
+      expect(r.stdout, command).toContain(expected);
+    }
   });
 });

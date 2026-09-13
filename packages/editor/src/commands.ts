@@ -30,11 +30,14 @@ function inspect(vfs: Vfs, path: string, user: { uid: number; gid: number; name:
     // A new file is only openable if the directory will accept it. Finding out
     // at `:w` instead is how people lose work in real editors.
     const dir = path.slice(0, path.lastIndexOf('/')) || '/';
-    try {
-      if (!vfs.access(dir, 'w', user)) return `${path}: permission denied`;
-    } catch {
-      return `${path}: no such file or directory`;
-    }
+
+    // These two are different problems with different fixes, and saying the
+    // wrong one sends the player hunting for a permissions bug that is not
+    // there. `vfs.access` returns false for a path that does not exist as
+    // well as for one you may not write, so existence is asked first.
+    if (!vfs.access(dir, 'x', user)) return `${path}: no such file or directory`;
+    if (!vfs.access(dir, 'w', user)) return `${path}: permission denied`;
+
     return { text: '', isNew: true, readOnly: false };
   }
 

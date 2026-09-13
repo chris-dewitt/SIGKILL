@@ -97,16 +97,83 @@ describe('Act I can actually be finished', () => {
     }
   });
 
-  it('reports the act finished once both objectives are done', async () => {
+  it('reports the act finished only once every objective is done', async () => {
     const { machine, questbook } = bootWreck();
     expect(questbook.complete(machine)).toBe(false);
 
+    // The whole act, in the order a player meets it. Each line must leave the
+    // act unfinished except the last, or an objective has stopped mattering.
+    const route = [
+      "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
+      'sudo systemctl start scrubber',
+      'sudo systemctl enable scrubber',
+      'sudo chmod +x /usr/local/bin/hull-check',
+      'sudo systemctl start hull-monitor',
+      'sudo systemctl enable hull-monitor',
+      "sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c7.conf",
+    ];
+
+    for (const [index, command] of route.entries()) {
+      const r = await machine.exec(command);
+      expect(r.stderr, `${command} -> ${r.stderr}`).toBe('');
+      const isLast = index === route.length - 1;
+      expect(questbook.complete(machine), `after: ${command}`).toBe(isLast);
+    }
+  });
+
+  /**
+   * The playthrough that found every content bug so far.
+   *
+   * It follows only what the world itself says -- the note, the boot log, the
+   * unit status, Vasquez's own history -- and never types `hint`. If this
+   * passes, Act I is finishable by somebody who reads. If it fails, the
+   * writing is wrong, whatever the unit tests say.
+   */
+  it('can be played end to end without ever asking for a hint', async () => {
+    const { machine, questbook } = bootWreck();
+
+    // Puzzle one: the ship names the number it objects to.
+    expect((await machine.exec('cat README')).stdout).toContain('systemctl status scrubber');
+    expect((await machine.exec('systemctl status scrubber')).stdout).toContain('O2_TARGET=16');
     await machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
     await machine.exec('sudo systemctl start scrubber');
-    expect(questbook.complete(machine)).toBe(false);
+    expect(machine.services.get('scrubber')?.state).toBe('active');
 
+    // Puzzle two: Vasquez's own notes explain start versus enable.
+    expect((await machine.exec('cat /home/vasquez/notes/scrubber-notes.txt')).stdout)
+      .toContain('systemctl enable scrubber');
     await machine.exec('sudo systemctl enable scrubber');
+
+    // Puzzle three: a second unit was failing the whole time, and says why.
+    const failed = await machine.exec('systemctl --failed');
+    expect(failed.stdout).toContain('hull-monitor');
+    const why = await machine.exec('systemctl status hull-monitor');
+    expect(why.stdout).toContain('/usr/local/bin/hull-check');
+    expect(why.stdout).toContain('Permission denied');
+    // And `ls -l` is where the missing bit is visible.
+    expect((await machine.exec('ls -l /usr/local/bin/hull-check')).stdout).toMatch(/^-rw-r--r--/);
+    await machine.exec('sudo chmod +x /usr/local/bin/hull-check');
+    expect((await machine.exec('ls -l /usr/local/bin/hull-check')).stdout).toMatch(/^-rwxr-xr-x/);
+    await machine.exec('sudo systemctl start hull-monitor');
+    await machine.exec('sudo systemctl enable hull-monitor');
+    expect(machine.services.get('hull-monitor')?.state).toBe('active');
+
+    // Puzzle four: the log names the compartment, and only search finds it.
+    const drops = await machine.exec('grep PRESSURE_DROP /var/log/hull.log');
+    expect(drops.stdout).toContain('C7');
+    const tally = await machine.exec(
+      "grep PRESSURE_DROP /var/log/hull.log | cut -d' ' -f2 | sort | uniq -c",
+    );
+    expect(tally.stderr).toBe('');
+    expect(tally.stdout).toContain('C7');
+    // And the fix Vasquez wrote for herself works, mode bits and all.
+    expect((await machine.exec('sudo chmod +x /home/vasquez/notes/seal.sh')).stderr).toBe('');
+    const seal = await machine.exec('sudo /home/vasquez/notes/seal.sh c7');
+    expect(seal.stderr, seal.stderr).toBe('');
+    expect(seal.stdout).toContain('SEALED=yes');
+
     expect(questbook.complete(machine)).toBe(true);
+    expect(questbook.hintsTaken).toBe(0);
   });
 
   it('has an ending to play, in ORACLE\'s voice', () => {
@@ -236,5 +303,213 @@ describe('the objective does not care how you got there', () => {
     expect(machine.vfs.exists('/etc/life_support.conf', ROOT_USER)).toBe(false);
     const r = await machine.exec('hint');
     expect(r.code).toBe(0);
+  });
+});
+
+/**
+ * From the first playthrough: `systemctl start` is silent on success, which is
+ * correct Unix, so the moment the air came back after eleven years landed in
+ * total silence. The machine stays quiet; ORACLE answers.
+ */
+describe('the ship reacts when you fix it', () => {
+  it('says something the moment the scrubber starts', async () => {
+    const { machine, questbook } = bootWreck();
+    await machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    expect(questbook.drainCompleted(machine)).toHaveLength(0);
+
+    await machine.exec('sudo systemctl start scrubber');
+    const closed = questbook.drainCompleted(machine);
+    expect(closed.map((o) => o.id)).toEqual(['atmosphere']);
+    expect(closed[0]?.onComplete?.join('\n')).toContain('It started');
+  });
+
+  it('plays each beat exactly once, however the player got there', async () => {
+    const { machine, questbook } = bootWreck();
+    await machine.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    await machine.exec('sudo systemctl start scrubber');
+    expect(questbook.drainCompleted(machine)).toHaveLength(1);
+    // Asking again must not replay it.
+    expect(questbook.drainCompleted(machine)).toHaveLength(0);
+  });
+
+  it('every objective has a beat, so no completion is silent', () => {
+    for (const objective of WRECK_OBJECTIVES) {
+      expect(objective.onComplete?.length, `${objective.id} needs a beat`).toBeGreaterThan(0);
+    }
+  });
+
+  it('does not repeat itself between the last beat and the ending', () => {
+    const last = WRECK_OBJECTIVES.at(-1)?.onComplete?.join('\n') ?? '';
+    const ending = EPILOGUE.join('\n');
+    // The final beat is about the hatch; the ending is about the act. Sharing
+    // a sentence between them is how an ending stops feeling like one.
+    expect(last).toContain('closed');
+    expect(ending).not.toContain('ALARM CLEARED');
+    const shared = last.split('\n').filter((line) => line.trim().length > 20 && ending.includes(line));
+    expect(shared, 'the last beat and the ending share a line').toEqual([]);
+  });
+});
+
+/**
+ * Numbers ORACLE says out loud, checked against the ship.
+ *
+ * The hints quote counts -- 540 lines, 68 matches, nine compartments -- because
+ * a specific number is what makes a machine sound like it has actually looked.
+ * It also means a change to the telemetry generator can quietly turn ORACLE
+ * into a liar, and a hint that is wrong about a number is worse than no hint.
+ */
+describe('the numbers in the writing are the numbers in the world', () => {
+  const said = (text: string): boolean =>
+    WRECK_OBJECTIVES.some((o) =>
+      o.steps.some((st) => st.rungs.some((r) => r.lines.join(' ').includes(text))) ||
+      (o.onComplete ?? []).join(' ').includes(text),
+    );
+
+  it('has as many telemetry lines as it claims', async () => {
+    const { machine } = bootWreck();
+    const count = Number((await machine.exec('wc -l < /var/log/hull.log')).stdout.trim());
+    expect(count).toBe(540);
+    expect(said('five hundred and forty'), 'the hints should quote 540').toBe(true);
+    expect(said('540')).toBe(true);
+  });
+
+  it('has as many pressure drops as it claims', async () => {
+    const { machine } = bootWreck();
+    const count = Number((await machine.exec('grep -c PRESSURE_DROP /var/log/hull.log')).stdout.trim());
+    expect(count).toBe(68);
+    expect(said('sixty-eight'), 'the hints should quote 68').toBe(true);
+  });
+
+  it('names two compartments in the log and only two', async () => {
+    const { machine } = bootWreck();
+    const tally = await machine.exec(
+      "grep PRESSURE_DROP /var/log/hull.log | cut -d' ' -f2 | sort | uniq -c",
+    );
+    const names = tally.stdout.trim().split('\n').map((l) => l.trim().split(/\s+/)[1]);
+    expect(names).toEqual(['C2', 'C7']);
+  });
+
+  it('leaves C2 in the past and C7 running to the last line', async () => {
+    const { machine } = bootWreck();
+    const lastC2 = (await machine.exec('grep C2 /var/log/hull.log | grep DROP | tail -1')).stdout;
+    const lastAll = (await machine.exec('tail -1 /var/log/hull.log')).stdout;
+    expect(lastAll).toContain('C9');
+    const lastC7 = (await machine.exec('grep C7 /var/log/hull.log | tail -1')).stdout;
+    expect(lastC7).toContain('PRESSURE_DROP');
+    // C2's last drop must be strictly older than C7's, or the dates do not
+    // settle the question the way the hint says they do.
+    expect(lastC2.slice(0, 16) < lastC7.slice(0, 16)).toBe(true);
+  });
+
+  it('has nine compartments, as everything aboard says it does', async () => {
+    const { machine } = bootWreck();
+    const files = (await machine.exec('ls /etc/hull')).stdout.trim().split(/\s+/);
+    expect(files).toHaveLength(9);
+  });
+
+  it('opens with exactly one compartment unsealed', async () => {
+    const { machine } = bootWreck();
+    const open = (await machine.exec('grep -l "SEALED=no" /etc/hull/*.conf')).stdout.trim();
+    expect(open).toBe('/etc/hull/c7.conf');
+  });
+});
+
+/**
+ * The rule this enforces, which is worth more than the test:
+ *
+ *   **The hint system must never be the only path.** It is a safety net. Every
+ *   command an objective actually requires has to be reachable from something
+ *   in the world -- the note, a log, an error message, or `man` -- by a player
+ *   who never types `hint` at all.
+ *
+ * This was found by Chris asking "how is the player supposed to know
+ * `sudo systemctl start scrubber`?" The answer was: from `man systemctl`, which
+ * has it -- and nothing in the game had ever mentioned that `man` exists.
+ */
+describe('every required command is discoverable without the hint system', () => {
+  /** Everything the player can read that is not a hint. */
+  async function worldText(): Promise<string> {
+    const { machine } = bootWreck();
+    const sources = [
+      'cat README',
+      'cat /var/log/boot.log',
+      'systemctl status scrubber',
+      'systemctl status hull-monitor',
+      'systemctl',
+      'man systemctl',
+      'man sudo',
+      'man chmod',
+      'man grep',
+      'help',
+      'cat /home/vasquez/.bash_history',
+      'cat /home/vasquez/notes/hull-notes.txt',
+      'cat /home/vasquez/notes/todo',
+      'cat /mnt/deck-c/README',
+    ];
+    let all = COLD_OPEN.join('\n');
+    for (const s of sources) {
+      const r = await machine.exec(s);
+      all += '\n' + r.stdout + r.stderr;
+    }
+    return all;
+  }
+
+  it('the cold open teaches man before it offers hint', () => {
+    const text = COLD_OPEN.join('\n');
+    expect(text).toContain('man ');
+    expect(text.indexOf('man ')).toBeLessThan(text.indexOf('hint'));
+  });
+
+  it('the note sends the player to the manual, not to the daemon', async () => {
+    const { machine } = bootWreck();
+    const readme = (await machine.exec('cat README')).stdout;
+    expect(readme).toContain('man systemctl');
+  });
+
+  it('names systemctl start somewhere a player can find it', async () => {
+    expect(await worldText()).toContain('start');
+  });
+
+  it('explains that starting a service needs privilege', async () => {
+    expect(await worldText()).toMatch(/sudo/);
+  });
+
+  it('a bare systemctl points somewhere useful', async () => {
+    const { machine } = bootWreck();
+    const r = await machine.exec('systemctl');
+    expect(r.stdout).toContain('man systemctl');
+  });
+
+  it('names chmod +x somewhere a player who never asks for a hint can find it', async () => {
+    const text = await worldText();
+    expect(text).toContain('chmod +x');
+  });
+
+  it('names grep and the log it is for', async () => {
+    const text = await worldText();
+    expect(text).toContain('grep');
+    expect(text).toContain('/var/log/hull.log');
+  });
+
+  it('says which compartment configuration file to look at', async () => {
+    const text = await worldText();
+    expect(text).toContain('/etc/hull');
+  });
+
+  it('man chmod explains the execute bit, on both tracks', async () => {
+    for (const track of ['operator', 'cadet'] as const) {
+      const { machine } = bootWreck({ track });
+      const page = (await machine.exec('man chmod')).stdout;
+      expect(page, `${track} track`).toMatch(/\+x|execut/i);
+    }
+  });
+
+  it('man systemctl actually documents start and enable, on both tracks', async () => {
+    for (const track of ['operator', 'cadet'] as const) {
+      const { machine } = bootWreck({ track });
+      const page = (await machine.exec('man systemctl')).stdout;
+      expect(page, `${track} track`).toContain('start');
+      expect(page, `${track} track`).toContain('enable');
+    }
   });
 });

@@ -256,3 +256,54 @@ describe('command substitution', () => {
     expect((await m.exec('echo $HOST')).stdout).toBe('nav7\n');
   });
 });
+
+/**
+ * A newline used to be plain whitespace, which meant a two-line script ran as
+ * one very confused command: `echo one\necho two` printed `one echo two`.
+ * Nothing noticed until scripts became runnable, because nothing until then
+ * ever handed the parser more than one line.
+ */
+describe('a newline ends a statement', () => {
+  it('runs each line of a multi-line input in turn', async () => {
+    const m = boot();
+    const r = await m.exec('echo one\necho two');
+    expect(r.stderr).toBe('');
+    expect(r.stdout).toBe('one\ntwo\n');
+  });
+
+  it('ignores blank lines and comment lines between statements', async () => {
+    const m = boot();
+    const r = await m.exec('echo one\n\n# a note\n\necho two\n');
+    expect(r.stdout).toBe('one\ntwo\n');
+  });
+
+  it('keeps reading after a pipe at end of line', async () => {
+    const m = boot();
+    expect((await m.exec('echo hello |\n  wc -c')).stdout.trim()).toBe('6');
+  });
+
+  it('keeps reading after && at end of line', async () => {
+    const m = boot();
+    expect((await m.exec('true &&\n  echo yes')).stdout).toBe('yes\n');
+  });
+
+  it('joins a line ending in a backslash to the next one', async () => {
+    const m = boot();
+    expect((await m.exec('echo one \\\n  two')).stdout).toBe('one two\n');
+  });
+
+  it('joins a word split across a backslash with no space', async () => {
+    const m = boot();
+    expect((await m.exec('echo split\\\nword')).stdout).toBe('splitword\n');
+  });
+
+  it('does not let a newline break a quoted string', async () => {
+    const m = boot();
+    expect((await m.exec('echo "one\ntwo"')).stdout).toBe('one\ntwo\n');
+  });
+
+  it('reads a subshell written across lines', async () => {
+    const m = boot();
+    expect((await m.exec('(\n  echo a\n  echo b\n)')).stdout).toBe('a\nb\n');
+  });
+});

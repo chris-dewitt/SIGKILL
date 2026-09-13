@@ -233,3 +233,53 @@ export function expandTree(ctx: ShellContext, start: string): { files: string[];
   walk(start);
   return { files, errors };
 }
+
+/**
+ * Read /etc/passwd into uid -> name.
+ *
+ * `ls -l` printing bare numbers is technically true and completely useless:
+ * the whole reason to look at ownership is to find out *who*. Names come from
+ * the same file a real system reads, so a player can `cat /etc/passwd`, see
+ * why `ls` said what it said, and edit it if they feel like it.
+ *
+ * Unparsable lines are skipped rather than fatal -- a corrupted passwd file is
+ * a situation, and `ls` still has to work while you are fixing it.
+ */
+export function passwdNames(ctx: ShellContext): Map<number, string> {
+  const names = new Map<number, string>();
+  let text: string;
+  try {
+    text = ctx.vfs.readText('/etc/passwd', ctx.user);
+  } catch {
+    return names;
+  }
+  for (const line of text.split('\n')) {
+    if (line.startsWith('#') || line.trim() === '') continue;
+    const [name, , uid] = line.split(':');
+    const id = Number(uid);
+    if (name === undefined || name === '' || !Number.isInteger(id)) continue;
+    if (!names.has(id)) names.set(id, name);
+  }
+  return names;
+}
+
+/**
+ * Read /etc/group into gid -> name, in the same spirit as passwdNames.
+ */
+export function groupNames(ctx: ShellContext): Map<number, string> {
+  const names = new Map<number, string>();
+  let text: string;
+  try {
+    text = ctx.vfs.readText('/etc/group', ctx.user);
+  } catch {
+    return names;
+  }
+  for (const line of text.split('\n')) {
+    if (line.startsWith('#') || line.trim() === '') continue;
+    const [name, , gid] = line.split(':');
+    const id = Number(gid);
+    if (name === undefined || name === '' || !Number.isInteger(id)) continue;
+    if (!names.has(id)) names.set(id, name);
+  }
+  return names;
+}

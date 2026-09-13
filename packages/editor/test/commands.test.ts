@@ -232,3 +232,35 @@ describe('a machine with no screen', () => {
     expect(m.vfs.readText('/etc/life_support.conf', ROOT_USER)).toContain('16');
   });
 });
+
+/**
+ * From the first real playthrough. Chris typed `vim etc/life_support.conf`
+ * without the leading slash and was told "permission denied" — which sent him
+ * looking for a permissions problem that did not exist. The directory was
+ * simply not there.
+ */
+describe('the editor names the right problem', () => {
+  it('says no such file when the directory does not exist', async () => {
+    const m = boot();
+    const r = await m.exec('vi etc/life_support.conf');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('no such file or directory');
+    expect(r.stderr).not.toContain('permission denied');
+  });
+
+  it('still says permission denied when that is the actual problem', async () => {
+    const m = boot();
+    // /etc exists and is root's; the player may look but not create.
+    const r = await m.exec('vi /etc/brand_new.conf');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('permission denied');
+    expect(r.stderr).not.toContain('no such file');
+  });
+
+  it('opens a genuinely new file where the player may write one', async () => {
+    const m = boot();
+    const r = await m.exec('vi notes.txt');
+    expect(r.code).toBe(0);
+    expect(r.screen?.frame().at(-1)?.text).toContain('[New File]');
+  });
+});

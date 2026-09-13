@@ -42,15 +42,26 @@ class Parser {
     return this.peek().type === type;
   }
 
+  /**
+   * Step past newlines that cannot end a statement.
+   *
+   * After `|`, `&&` or `||` a shell keeps reading, which is what lets a long
+   * pipeline be written down the page. Everywhere else a newline is a
+   * separator as good as `;`.
+   */
+  private skipNewlines(): void {
+    while (this.at('NEWLINE')) this.next();
+  }
+
   script(): Script {
     const statements: AndOr[] = [];
     while (!this.at('EOF')) {
-      if (this.at('SEMI') || this.at('AMP')) { this.next(); continue; }
+      if (this.at('SEMI') || this.at('AMP') || this.at('NEWLINE')) { this.next(); continue; }
       if (this.at('RPAREN')) break;
       const statement = this.andOr();
       // `cmd &` backgrounds the whole and-or list, not just the last pipeline.
       if (this.at('AMP')) { statement.background = true; this.next(); }
-      else if (this.at('SEMI')) this.next();
+      else if (this.at('SEMI') || this.at('NEWLINE')) this.next();
       statements.push(statement);
     }
     return { type: 'script', statements };
@@ -61,6 +72,7 @@ class Parser {
     const rest: AndOr['rest'] = [];
     while (this.at('AND_IF') || this.at('OR_IF')) {
       const op = this.next().type === 'AND_IF' ? '&&' : '||';
+      this.skipNewlines();
       rest.push({ op, pipeline: this.pipeline() });
     }
     return { type: 'andor', first, rest };
@@ -70,6 +82,7 @@ class Parser {
     const commands: Simple[] = [this.simple()];
     while (this.at('PIPE')) {
       this.next();
+      this.skipNewlines();
       commands.push(this.simple());
     }
     return { type: 'pipeline', commands };
@@ -78,6 +91,7 @@ class Parser {
   private simple(): Simple {
     if (this.at('LPAREN')) {
       this.next();
+      this.skipNewlines();
       const body = this.script();
       if (!this.at('RPAREN')) throw new ShellSyntaxError("expected ')'");
       this.next();

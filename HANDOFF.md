@@ -1,7 +1,11 @@
 # SIGKILL — handoff
 
-Written 2026-09-12, updated after the first real playtest. Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
+Written 2026-09-12, updated after the Act I content push. Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
 This file is the state of play; the others are the rules.
+
+**Latest:** Act I is four puzzles and finishable end to end without a hint.
+Voice is locked to **2, Wounded Machine**. Scope is locked to **the whole of
+game 1, act by act, no deadlines**. See §8.
 
 ---
 
@@ -9,13 +13,14 @@ This file is the state of play; the others are the rules.
 
 | Branch / PR | State | Contains |
 |---|---|---|
-| `main` @ `786843e` | **current** | Machine, Python, renderer, Android wrap, hints, editors |
-| PR #1–#5 | merged | Phases 0–1, Android wrap, renderer, hint system |
-| PR #6, #7, #8, #9 | merged | editors, the editor bug fixes, the PR agreement |
-| **PR #10 / `fix/coreutils-gaps`** | **open, needs review** | the command gaps in §4c |
+| Branch / PR | State | Contains |
+|---|---|---|
+| `main` @ `3f41616` | merged through PR #11 | Machine, Python, renderer, Android wrap, hints, editors, Act I puzzles 1–2 |
+| PR #1–#11 | merged | phases 0–1, Android wrap, renderer, hints, editors, the coreutils sweep, the Act I blocker |
+| **`e3/act1-deck-c`** | **open, needs review** | Deck C, puzzles 3–4, shell scripts, 32 manual pages |
 
-`pnpm check` on `fix/coreutils-gaps`: **406 tests** — 169 machine, 127 editor,
-36 crt, 29 quest, 27 python, 18 wreck. Typecheck 7/7, build clean.
+`pnpm -r test` on `e3/act1-deck-c`: **489 tests** — 214 machine, 130 editor,
+36 crt, 29 quest, 27 python, 53 wreck. Typecheck clean, build clean.
 
 ---
 
@@ -43,6 +48,9 @@ off.
 no DOM, so every keystroke is unit-tested. See §4b and `docs/FULLSCREEN.md`.
 
 **`games/wreck`** — the NAV-7 world seed and the Act I objectives.
+`src/act1/deck-c.ts` is the deck: accounts, quarters, nine hull compartments
+and 540 lines of deterministic pressure telemetry. `src/objectives.ts` is the
+four puzzles. Nothing in either reads what the player typed.
 
 **`apps/terminal`** — the playable terminal and the Capacitor Android wrap.
 `android/app/src/main/AndroidManifest.xml` is tracked in git on purpose and
@@ -349,59 +357,42 @@ lost, only misplaced.
 
 ---
 
-## 5. Open decisions — waiting on Chris, blocking nothing else
+## 5. Decisions — settled, and what is still open
 
-### 5a. The ORACLE voice — pick one
+### 5a. The ORACLE voice — settled
 
-Chris asked for options and has not had them. The ladder *shape* is settled;
-the voice is one option on `questCommands` and recasting it touches no ladder,
-so this can be answered any time. Same moment in all four (cold open, then the
-first hint) so they are comparable:
+**Chris picked option 2, the Wounded Machine.** Grieving, formal, occasionally
+fragments; specific numbers because a machine that has counted something says
+how many. It carries real weight and it needs a light hand or it drags — the
+discipline is that ORACLE is precise about what it does and does not know, and
+corrects itself out loud rather than being reassuring.
 
-**Option 1 — The Wry Survivor** *(what is currently committed)*
-> You're awake. Good. I'm what's left of the maintenance daemon. I can't move,
-> I can't see, and I can't fix anything myself. You can.
->
-> The scrubber did not just fail. It refused. It said why, at the time, and
-> this ship writes everything down.
+All four Act I objectives and every hint rung are written in it. The register to
+match, if you are adding lines:
 
-Dry, competent, faintly self-deprecating. Easiest to write a lot of, lowest
-risk, least distinctive.
+> ORACLE: I want to be accurate about this. Nothing has been saved. The
+> ORACLE: reserve is still what it was [...] But the number is going up
+> ORACLE: instead of down, and it has not done that since day nine.
 
-**Option 2 — The Wounded Machine**
-> You're awake. I did not expect that. I have been reading the same four
-> hundred log lines for eleven years and none of them ever changed.
->
-> The scrubber refused. I want you to understand that it was not a fault — it
-> was asked for something impossible and it said no. I have thought about that
-> a great deal.
+The other three options (Wry Survivor, Insubordinate Tool, Unreliable Log) are
+in git history on `docs/pr-when-final` if a later game wants a different daemon.
+Each of the thirteen games can have its own; the voice is one option on
+`questCommands` and recasting touches no ladder.
 
-Grieving, formal, occasionally fragments. Carries real weight. Risk: needs a
-light hand or it drags.
+### 5a-bis. Scope — settled
 
-**Option 3 — The Insubordinate Tool**
-> You're awake, which makes you the single most qualified crew member aboard.
-> That is not a compliment. That is arithmetic.
->
-> The scrubber refused an order. I would have told whoever gave it as much, but
-> nobody asked me, and now nobody can.
+**The whole of game 1 (The Wreck), act by act, Act I first, no deadlines.**
+Depth over breadth. Chris's words: *"what we create must be of highest
+quality"*, *"depth, depth, depth"*. Epics, not days:
 
-Brisk, sardonic, loyal underneath. Most fun to read, most fun to write. Risk:
-lands in Portal's shadow if it gets glib.
-
-**Option 4 — The Unreliable Log**
-> `[4112.000] console: session opened`
-> `[4112.004] operator detected. 1 of 1.`
-> I am not supposed to address you directly.
->
-> `[0000.884] scrubber: FAIL - configuration rejected`
-> It refused. It is still refusing. I have not been able to stop reading it.
-
-ORACLE barely has a personality; system-log register that slips into first
-person. Coldest, most diegetic, quietly the creepiest. Risk: hardest to sustain
-for thirteen games.
-
-My pick: **3**, with **2**'s weight for the act endings. Chris edits from there.
+| | Epic | State |
+|---|---|---|
+| E1 | The Machine — engine, shell, VFS, services, Python, renderer | done |
+| E2 | The frame — save/load, live clock, progression | not started |
+| E3 | Act I — Breathe. Deck C | **4 of ~8 puzzles** |
+| E4–E6 | Acts II–IV | not started |
+| E7 | Procedural audio — Web Audio, state-driven, zero assets | decided, not built |
+| E8 | Ship — Play Store | not started |
 
 ### 5b. Also open
 
@@ -409,13 +400,16 @@ My pick: **3**, with **2**'s weight for the act endings. Chris edits from there.
   test of the editor: is vi tolerable on a touchscreen with the chip bar doing
   the work? If it is not, fix that before any Act II content. Instructions in §6.
 - Remaining Phase 2 polish: gestures, haptics, audio, tablet/landscape layouts.
-- `games/wreck` Acts II+ are unwritten. Only Act I exists.
+- **Four story questions are still Chris's to answer**, and Act II cannot be
+  written around them: how long should an act be; can the player lose; does
+  Vasquez stay dead; and what the ending of game 1 means.
+- `games/wreck` Acts II+ are unwritten. Act I is four puzzles and complete.
 - vi leaves out visual mode, marks, macros and named registers. `:help` inside
   it says so rather than pretending. Add them only if a puzzle needs them.
 - Missing commands and shell features are catalogued in §4c, with sizes.
   `less` is the one I would do next: it is a pager, which is the natural
-  second use of the full-screen seam, and it is what a player types the moment
-  a log is longer than the screen.
+  second use of the full-screen seam, and `/var/log/hull.log` is now 540 lines
+  — which is exactly the file a pager exists for.
 
 ---
 
@@ -457,21 +451,114 @@ gate. Nothing else on this list matters as much.
 
 ---
 
-## 7. What I would do next
+## 7. The Act I content push — what shipped and what it found
 
-1. **Playtest.** The editor on a laptop and on a phone. That is the Phase 2
-   gate and the only thing here nobody but Chris can answer. If editing on
-   glass is unpleasant, that outranks everything below it.
-2. **Chris picks an ORACLE voice** (§5a); rewrite `games/wreck/src/objectives.ts`
-   prose only — no ladder shape changes.
-3. **`less`.** A pager is the natural second use of the full-screen seam
-   (`docs/FULLSCREEN.md`), and it is what a player types the moment a log is
-   longer than the screen. `journalctl -u scrubber` is the one after that.
-4. **Act II of The Wreck** — but only after 1, and with the voice from 2.
+Act I was two puzzles that ended in six moves. It is now four, and the act is
+finishable without ever typing `hint` — there is a test that plays it that way.
 
-Act I currently ends after `survive-a-reboot` and then there is nothing. That
-is the content cliff to fill, and it is deliberately not filled yet: writing
-more ORACLE before the voice is chosen would mean rewriting it twice.
+| # | Objective | Teaches | Done when |
+|---|---|---|---|
+| 1 | `atmosphere` | `systemctl status`, reading a config, an editor or `sed` | scrubber active |
+| 2 | `survive-a-reboot` | start vs enable, symlinks on disk | scrubber enabled |
+| 3 | `hull-watch` | **`ls -l`, the execute bit, `chmod +x`** | hull-monitor active and enabled |
+| 4 | `seal-the-breach` | **`grep`, `-c`, `cut \| sort \| uniq -c`, dates over counts** | `/etc/hull/c7.conf` says `SEALED=yes` |
+
+### The content
+
+`games/wreck/src/act1/deck-c.ts`. The rule it is written to: **every file is a
+lead, a lesson, or a person.** Anything else is furniture, and furniture teaches
+the player that looking around does not pay.
+
+- `/etc/passwd`, `/etc/group` — five crew names, so `ls -l /home` is a story
+- `/home/vasquez/.bash_history` — nineteen real commands that all run aboard.
+  The strongest teaching device on the ship: commands in the hands of somebody
+  who had a reason to type them
+- `/home/vasquez/notes/` — `todo` (C7 is line five, capitalised), `seal.sh`
+  (hers, also not executable), `scrubber-notes.txt`, `hull-notes.txt`
+- `/home/chen/crew-health.csv` — O2 saturation per person per day, declining
+- `/home/bowen/pod-manifest.txt` — the thread into Act II
+- `/etc/hull/c1..c9.conf` — nine compartments, one open
+- `/var/log/hull.log` — 540 lines, deliberately unreadable, LCG-generated so it
+  is byte-identical on every machine. **C2 dropped too and was patched**, so
+  counting matches finds two compartments and only the dates find the live one
+
+### Engine work the content forced
+
+Every one of these was found by writing content or by reading a transcript, not
+by unit tests:
+
+1. **Shell scripts run.** `resolveProgram` in `shell/exec.ts`: a name with a
+   slash is a path, a bare name is searched on `PATH`, and a readable file with
+   an x bit is a program. Shebangs route to `sh` or to any interpreter aboard
+   (`#!/usr/bin/env python3` works). Scripts run in a subshell — their `cd`,
+   variables and `exit` stay inside; what they do to the filesystem is real.
+2. **A newline ends a statement.** It was plain whitespace, so `echo one\necho
+   two` ran as one command and printed `one echo two`. Nothing noticed for
+   months because nothing ever handed the parser two lines. Line continuation
+   (`\` at end of line) works, and `|`, `&&`, `||` keep reading across a break.
+3. **Positional parameters.** `$1`…`$9`, `${10}`, `$0`, `$#`, `$@`, `$*`.
+4. **`sudo` dispatches through the shell**, not the command table. It used to
+   say `command not found` for `sudo ./seal.sh` — a script sitting right there.
+5. **Root respects the execute bit.** `vfs.can()` let uid 0 bypass every check,
+   so `sudo ./seal.sh` ran a 0644 file. Linux requires at least one x bit even
+   for root, and here it is the difference between "chmod +x is the fix" and
+   "sudo is the fix" — which is the entire lesson of puzzle 3.
+6. **`ls -l FILE` never worked.** It joined an absolute operand onto its own
+   directory, failed to stat the result, and silently printed the bare filename
+   with no mode, owner or size. Only ever visible on an absolute path.
+7. **`ls -l` and `stat` name the owner**, read from `/etc/passwd` and
+   `/etc/group`, with column widths from the longest entry.
+8. **`systemctl --failed`.** Two units fail at boot now; this is how anybody who
+   has run a real machine asks what is broken.
+9. **32 manual pages.** `man` is the discovery route the cold open teaches, and
+   31 of the most basic commands had no page at all — `man ls` printed one line.
+   Every command aboard now has both an operator and a cadet page, guarded by a
+   test that fails if one goes missing.
+
+### Tests worth knowing about
+
+- `games/wreck/test/wreck.test.ts` — `can be played end to end without ever
+  asking for a hint` is the one that matters. It follows only the note, the
+  logs, the unit status and Vasquez's history, and asserts `hintsTaken === 0`.
+- `the numbers in the writing are the numbers in the world` — ORACLE quotes 540
+  lines and 68 matches. A change to the telemetry generator that makes those
+  wrong fails CI instead of turning ORACLE into a liar.
+- `games/wreck/test/transcript.test.ts` — not a test, a reading tool. Prints a
+  full session. Run it and *read it*; that is how 5 of the 9 engine bugs above
+  were found. Needs `--disable-console-intercept`, or vitest swallows the output
+  of a passing test:
+
+  ```
+  pnpm --filter @sigkill/wreck exec vitest run transcript --disable-console-intercept
+  pnpm --filter @sigkill/wreck exec vitest run hints --disable-console-intercept
+  ```
+- `games/wreck/test/hints.test.ts` — prints every rung of every ladder on both
+  tracks, and asserts no rung repeats another and no nudge contains its own
+  answer. That last one caught the operator ladder naming C7 before it had
+  taught `grep`.
+
+---
+
+## 8. What I would do next
+
+1. **Playtest Act I end to end** on a phone. Four puzzles, ~25 commands. The
+   artifact is republished. Everything below is guesswork until this happens.
+2. **Puzzle 5 — SIGKILL.** `ps`, `kill`, signals. The game is named after it
+   and does not contain it. Natural shape: something is holding the reserve
+   line open, `ps` finds it, `kill` does not work, `kill -9` does, and ORACLE
+   has an opinion about what that means.
+3. **Save/load.** `snapshot()` exists and the app never calls it. Close the tab,
+   lose the run. This is the largest hole in the frame and it is not content.
+4. **A live O2 countdown.** The cold open prints `9h 14m` as a string. It should
+   come off the virtual clock, and the epilogue's point — that ORACLE has been
+   reciting a number off a clipboard — sharpens if the other numbers are live.
+5. **`less`.** A 540-line log is exactly what a pager is for, and the
+   full-screen seam is already built (`docs/FULLSCREEN.md`).
+6. **Procedural audio** (E7). Decided: Web Audio, state-driven, zero assets.
+7. **Act II.** Bowen's heading is 114 mark 9 and deck B is open to space.
+
+`apps/terminal` still has zero tests. The Playwright harness that found the
+touch bugs should become permanent.
 
 Do not recreate deleted roadmaps. Do not widen a PR on your own. If a test
 fails, say so with the output.

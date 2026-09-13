@@ -107,6 +107,7 @@ async function submit(raw: string): Promise<void> {
       }
       if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
+      playBeats();
       checkActComplete();
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
@@ -126,6 +127,19 @@ async function submit(raw: string): Promise<void> {
   refreshChips();
   scrollToEnd();
   if (!input.disabled) input.focus();
+}
+
+/**
+ * Play the beat for any objective that just closed.
+ *
+ * Checked after every command rather than hung off a particular one: the goals
+ * are solution-agnostic, so the player can finish an objective with `sed`, an
+ * editor, or Python, and the moment has to land whichever route they took.
+ */
+function playBeats(): void {
+  for (const objective of questbook.drainCompleted(machine)) {
+    for (const line of objective.onComplete ?? []) write(line, 'system');
+  }
 }
 
 /**
