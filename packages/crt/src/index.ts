@@ -1,5 +1,5 @@
-export { TerminalBuffer, wrap } from './buffer.js';
-export type { Line, LineKind, Row, BufferOptions } from './buffer.js';
+export { TerminalBuffer, wrap, wrapChunks, spansFor, LINE_KINDS } from './buffer.js';
+export type { Line, LineKind, Row, Span, Chunk, BufferOptions } from './buffer.js';
 
 export { TerminalRenderer, PHOSPHOR } from './renderer.js';
 export type { Palette, RendererOptions } from './renderer.js';
@@ -9,6 +9,9 @@ export type { AtlasOptions } from './atlas.js';
 
 export { CrtPass } from './crt.js';
 export type { CrtOptions } from './crt.js';
+
+export { highlight } from './highlight.js';
+export type { HighlightOptions } from './highlight.js';
 
 export { TerminalView } from './view.js';
 export type { ViewOptions } from './view.js';

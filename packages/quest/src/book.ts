@@ -115,6 +115,29 @@ export class Questbook {
     return this.objectives.every((objective) => objective.done(world));
   }
 
+  /**
+   * Resolve what the player typed to an objective.
+   *
+   * By id, or by the title the board actually shows them. The board prints
+   * titles because an id names the content and a title names what they are
+   * doing -- but that made the one addressable name invisible, so `hint` now
+   * takes either. What is on screen is what you can type; a name the player
+   * has never been shown is not an address.
+   *
+   * Matching on a prefix as well, because "Get the atmosphere scrubber
+   * running" is a lot to type correctly and nobody should have to.
+   */
+  find(query: string): Objective | undefined {
+    const wanted = query.trim().toLowerCase();
+    if (wanted.length === 0) return undefined;
+
+    return (
+      this.objectives.find((o) => o.id.toLowerCase() === wanted) ??
+      this.objectives.find((o) => o.title.toLowerCase() === wanted) ??
+      this.objectives.find((o) => o.title.toLowerCase().startsWith(wanted))
+    );
+  }
+
   /** The objective a bare `hint` is about: first unlocked and unfinished. */
   current(world: World): Objective | undefined {
     return this.objectives.find(
@@ -145,7 +168,7 @@ export class Questbook {
     let objective: Objective | undefined;
 
     if (id !== undefined) {
-      objective = this.objectives.find((o) => o.id === id);
+      objective = this.find(id);
       if (!objective) return { kind: 'unknown', id };
       const blockedBy = this.blockers(world, objective);
       if (blockedBy.length > 0) return { kind: 'locked', objective, blockedBy };

@@ -48,11 +48,24 @@ network where every host is another `Machine`.
 VFS by bulk copy-in / diff-out. `NodePythonRuntime` is **tests only** — never
 wire it into the app; the Worker is what keeps player code away from the DOM.
 
-**`packages/crt`** — the phosphor renderer. Unwrapped logical lines reflowed on
+**`packages/crt`** — the phosphor renderer. Colour is semantic: `LineKind` is
+the source of truth (`command`, `path`, `value`, `good`, `warn`, `heading`…)
+and `Palette` is typed off it, so a kind without a colour will not compile.
+Names are *meanings*, never hues. Lines carry optional `spans` — coloured runs
+that are remapped through word wrapping, so one sentence can hold a cyan
+command and a periwinkle path. `highlight()` finds those runs by reading the
+text rather than by markup, because there are thousands of authored lines
+already and a syntax would mean rewriting all of them. Atlas sheets are built
+lazily: a dozen colours up front would hand a phone 8 MB of canvas. Unwrapped logical lines reflowed on
 demand, a glyph atlas, and a switchable WebGL2 pass. `?plain` turns the shader
 off.
 
-**`packages/quest`** — objectives and hint ladders. See §4.
+**`packages/quest`** — objectives and hint ladders. See §4. `board()` draws
+the objectives screen and `whatNow()` is the one-line nudge the host prints
+unprompted after the opening and after every objective closes. Both show
+**titles, never ids**: an id names the content, a title names what the player
+is doing. Every `HintStep` carries a `label` — the "now:" line, and the single
+most useful thing the interface can say.
 
 **`packages/ascii`** — the art toolkit. Frames, gauges, sparklines and block
 layout, no dependencies, shared by all thirteen games. `SAFE_COLS` is 34,

@@ -133,6 +133,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     steps: [
       {
         id: 'raise-target',
+        label: 'put O2_TARGET back inside the breathable range',
         pending: (world) => !breathable(world),
         rungs: [
           {
@@ -199,6 +200,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       },
       {
         id: 'start-it',
+        label: 'start the scrubber',
         pending: (world) => !scrubberRunning(world),
         rungs: [
           {
@@ -255,6 +257,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     steps: [
       {
         id: 'enable-it',
+        label: 'make the scrubber start itself at boot',
         pending: (world) => !world.services.isEnabled('scrubber'),
         rungs: [
           {
@@ -347,6 +350,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     steps: [
       {
         id: 'make-it-runnable',
+        label: 'put the execute bit back on /usr/local/bin/hull-check',
         pending: (world) => !hullCheckExecutable(world),
         rungs: [
           {
@@ -409,6 +413,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       },
       {
         id: 'start-the-monitor',
+        label: 'start the hull monitor',
         pending: (world) => !monitorRunning(world),
         rungs: [
           {
@@ -428,6 +433,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       },
       {
         id: 'keep-the-monitor',
+        label: 'make the hull monitor start itself at boot',
         pending: (world) => !monitorEnabled(world),
         rungs: [
           {
@@ -490,6 +496,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     steps: [
       {
         id: 'find-and-seal',
+        label: 'find which compartment is losing air, and seal it',
         pending: (world) => !sealed(world, BREACHED),
         rungs: [
           {

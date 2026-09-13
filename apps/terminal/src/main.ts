@@ -1,8 +1,8 @@
-import { TerminalView } from '@sigkill/crt';
+import { highlight, TerminalView } from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
-import type { BeatLine } from '@sigkill/quest';
+import { whatNow, type BeatLine } from '@sigkill/quest';
 import { bootWreck, coldOpen, epilogue } from '@sigkill/wreck';
 
 const { machine, questbook } = bootWreck();
@@ -108,6 +108,15 @@ function scrollToEnd(): void {
   view.scrollToBottom();
 }
 
+/*
+ * Colour every line the view writes.
+ *
+ * Installed here rather than inside the view because the rules need to know
+ * which words are commands this machine will actually run -- colouring a word
+ * as typeable when the ship does not have it is worse than leaving it plain.
+ */
+view.highlighter = (text) => highlight(text, { commands: new Set(machine.shell.commands.keys()) });
+
 function refreshPrompt(): void {
   promptEl.textContent = machine.prompt;
 }
@@ -172,9 +181,15 @@ async function submit(raw: string): Promise<void> {
  * editor, or Python, and the moment has to land whichever route they took.
  */
 function playBeats(): void {
+  let closed = false;
   for (const objective of questbook.drainCompleted(machine)) {
     sayBeat(objective.onComplete ?? []);
+    closed = true;
   }
+  // Finishing one thing is exactly the moment a player asks "so now what".
+  // Answering unprompted is the difference between a board they have to know
+  // to ask for and one they cannot miss.
+  if (closed && !questbook.complete(machine)) sayBeat(whatNow(questbook, machine));
 }
 
 /**
@@ -342,6 +357,9 @@ function applyCompletion(): void {
 
 // --------------------------------------------------------------------- chips
 
+/** How many chips fit without the bar wrapping on a phone. */
+const CHIP_SLOTS = 6;
+
 /**
  * The chip bar reads the room: what you have typed, and what is actually
  * in front of you. On a phone this is not a convenience, it is the input method.
@@ -354,24 +372,34 @@ function suggestions(): string[] {
   const tokens = value.split(/\s+/).filter((t) => t.length > 0);
 
   if (tokens.length === 0) {
+    /*
+     * The two that are never allowed to fall off the end.
+     *
+     * They used to be pushed last and then cut by the slice below, which is
+     * the worst possible outcome: the comment promised they were always one
+     * tap away and the code quietly removed them, so the bar was at its least
+     * useful exactly when a stuck player looked at it. Reserved now, and
+     * asserted in a test.
+     */
+    const always = ['hint', 'objectives'];
+
     const here = listHere();
-    const out = ['ls', 'cat', 'cd', 'pwd', 'grep'];
-    if (here.some((e) => e.endsWith('.log'))) out.push('tail');
-    if (here.includes('README')) out.unshift('cat README');
-    // Always reachable in one tap. A hint nobody can find is not a hint, and
-    // on a phone the only discovery surface is this bar.
-    out.push('hint');
-    return [...new Set(out)].slice(0, 6);
+    const rest = ['ls', 'cat', 'cd', 'pwd', 'grep'];
+    if (here.some((e) => e.endsWith('.log'))) rest.push('tail');
+    if (here.includes('README')) rest.unshift('cat README');
+
+    const room = Math.max(0, CHIP_SLOTS - always.length);
+    return [...always, ...[...new Set(rest)].filter((c) => !always.includes(c)).slice(0, room)];
   }
 
   if (tokens.length === 1 && !/\s$/.test(value)) {
     return [...machine.shell.commands.keys()]
       .filter((n) => n.startsWith(tokens[0]!) && n !== tokens[0])
       .sort()
-      .slice(0, 6);
+      .slice(0, CHIP_SLOTS);
   }
 
-  return listHere().slice(0, 6);
+  return listHere().slice(0, CHIP_SLOTS);
 }
 
 function listHere(): string[] {
@@ -578,6 +606,7 @@ window.addEventListener('resize', () => {
 });
 
 sayBeat(coldOpen(machine));
+sayBeat(whatNow(questbook, machine));
 refreshPrompt();
 buildSymbolRow();
 refreshChips();

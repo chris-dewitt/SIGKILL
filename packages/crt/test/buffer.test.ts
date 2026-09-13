@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalBuffer, wrap } from '../src/buffer.js';
+import { TerminalBuffer, wrap, type Span } from '../src/buffer.js';
 
 describe('wrap', () => {
   it('leaves a short line alone', () => {
@@ -186,5 +186,92 @@ describe('art does not reflow', () => {
     const buffer = new TerminalBuffer();
     buffer.writeArt(ART);
     expect(buffer.layout(6).every((r) => r.first)).toBe(true);
+  });
+});
+
+
+/**
+ * Spans are offsets into the unwrapped line, so every one of them has to be
+ * clipped and rebased when the line is laid out. Getting this wrong is
+ * invisible in a test that only checks text: the words are right and the
+ * colours land on the wrong characters.
+ */
+describe('colour survives wrapping', () => {
+  const line = (text: string, spans: Span[]): TerminalBuffer => {
+    const b = new TerminalBuffer();
+    b.pushLine({ text, kind: 'out', spans });
+    return b;
+  };
+
+  it('leaves a span alone when nothing wraps', () => {
+    const b = line('hello world', [{ start: 6, end: 11, kind: 'path' }]);
+    expect(b.layout(40)[0]?.spans).toEqual([{ start: 6, end: 11, kind: 'path' }]);
+  });
+
+  it('rebases a span onto the row it lands on', () => {
+    //            0123456789012345678901
+    const b = line('aaaa bbbb cccc dddd', [{ start: 15, end: 19, kind: 'path' }]);
+    const rows = b.layout(10);
+    // The span is on a later row, so its offsets must be row-local.
+    const carrying = rows.filter((r) => r.spans !== undefined);
+    expect(carrying).toHaveLength(1);
+    const span = carrying[0]?.spans?.[0];
+    expect(carrying[0]?.text.slice(span?.start, span?.end)).toBe('dddd');
+  });
+
+  it('splits a span that straddles a break', () => {
+    const b = line('aaaa bbbb cccc', [{ start: 0, end: 14, kind: 'command' }]);
+    const rows = b.layout(9);
+    expect(rows.length).toBeGreaterThan(1);
+    for (const row of rows) {
+      const span = row.spans?.[0];
+      expect(span, row.text).toBeDefined();
+      // Each piece covers exactly its own row, which is what makes a wrapped
+      // command still read as one colour.
+      expect(span?.start).toBe(0);
+      expect(span?.end).toBe(row.text.length);
+    }
+  });
+
+  it('never lets a span run past its row', () => {
+    const b = line('the quick brown fox jumps over the lazy dog', [
+      { start: 0, end: 43, kind: 'command' },
+    ]);
+    for (const row of b.layout(11)) {
+      for (const span of row.spans ?? []) {
+        expect(span.start).toBeGreaterThanOrEqual(0);
+        expect(span.end).toBeLessThanOrEqual(row.text.length);
+      }
+    }
+  });
+
+  it('carries no spans property at all on a row nothing lands on', () => {
+    const b = line('aaaa bbbb cccc', [{ start: 0, end: 4, kind: 'path' }]);
+    const rows = b.layout(9);
+    expect(rows[0]?.spans).toBeDefined();
+    expect(rows[1]?.spans).toBeUndefined();
+  });
+
+  it('re-wraps correctly at a different width, from the same stored line', () => {
+    const b = line('aaaa bbbb cccc dddd', [{ start: 15, end: 19, kind: 'path' }]);
+    for (const cols of [40, 14, 9, 5]) {
+      const rows = b.layout(cols);
+      const found = rows.flatMap((r) => (r.spans ?? []).map((s) => r.text.slice(s.start, s.end)));
+      expect(found.join(''), `at ${cols}`).toBe('dddd');
+    }
+  });
+
+  it('keeps colour on clipped art rather than dropping it', () => {
+    const b = new TerminalBuffer();
+    b.pushLine({ text: '| C7 open |', kind: 'out', nowrap: true, spans: [{ start: 2, end: 4, kind: 'warn' }] });
+    const row = b.layout(6)[0];
+    expect(row?.text).toBe('| C7 o');
+    expect(row?.spans).toEqual([{ start: 2, end: 4, kind: 'warn' }]);
+  });
+
+  it('drops a span that falls entirely outside a clipped art row', () => {
+    const b = new TerminalBuffer();
+    b.pushLine({ text: '| C7 open |', kind: 'out', nowrap: true, spans: [{ start: 8, end: 10, kind: 'warn' }] });
+    expect(b.layout(5)[0]?.spans).toBeUndefined();
   });
 });

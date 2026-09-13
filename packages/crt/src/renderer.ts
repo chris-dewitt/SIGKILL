@@ -1,21 +1,35 @@
 import { GlyphAtlas, scaleFont } from './atlas.js';
-import type { Row, TerminalBuffer } from './buffer.js';
+import type { LineKind, Row, TerminalBuffer } from './buffer.js';
 import { backingSize, gridFor, visibleRange, type GridSize } from './metrics.js';
 
-export interface Palette {
-  background: string;
-  out: string;
-  err: string;
-  echo: string;
-  system: string;
-}
+/**
+ * A colour for every `LineKind`, plus the ground they sit on.
+ *
+ * Typed off `LineKind` rather than listed again here, so a new kind without a
+ * colour is a compile error rather than a character that silently draws in the
+ * wrong one. What each name *means* is documented on `LINE_KINDS`.
+ *
+ * Green phosphor is the ground and everything else is an accent, because a
+ * terminal that uses a dozen colours equally just reads as confetti. The
+ * accents are the other colours a real tube ever came in -- amber, and the
+ * cyan-white of a cold screen -- so it still reads as one object.
+ */
+export type Palette = Record<LineKind, string> & { background: string };
 
 export const PHOSPHOR: Palette = {
   background: '#050806',
   out: '#6ee7a0',
   err: '#e0705a',
   echo: '#c8f7dd',
-  system: '#3e7f5c',
+  system: '#4e9c74',
+  speaker: '#2f6b4e',
+  command: '#6fd8ff',
+  path: '#9fb8ff',
+  value: '#f0d98a',
+  heading: '#ffd479',
+  good: '#5fe08a',
+  warn: '#e8b04a',
+  muted: '#2f5f47',
 };
 
 export interface RendererOptions {
@@ -81,13 +95,10 @@ export class TerminalRenderer {
    * reverse video is and what every terminal draws a block cursor with.
    */
   private atlasColors(): Record<string, string> {
-    return {
-      out: this.palette.out,
-      err: this.palette.err,
-      echo: this.palette.echo,
-      system: this.palette.system,
-      cursor: this.palette.background,
-    };
+    const { background, ...rest } = this.palette;
+    // Every palette entry can be drawn, plus the cursor. Sheets are built on
+    // first use, so a colour the adventure never reaches costs nothing.
+    return { ...rest, cursor: background };
   }
 
   get columns(): number {
@@ -158,8 +169,9 @@ export class TerminalRenderer {
   }
 
   private drawRow(row: Row, left: number, top: number, cellW: number, cellH: number): void {
-    // The atlas is keyed by line kind, so the kind *is* the colour key.
-    const color = row.kind;
+    // The atlas is keyed by colour name, and a line's kind *is* its colour.
+    // Spans override it for the characters they cover.
+    const colors = colorRuns(row);
 
     // The block goes down before any glyph, so the character it sits under is
     // drawn on top of it rather than being painted over.
@@ -175,13 +187,34 @@ export class TerminalRenderer {
       // A space matters under the cursor: the block is the only thing to see.
       if (ch === ' ' && !onCursor) continue;
 
+      const color = colors === undefined ? row.kind : (colors[n] ?? row.kind);
       const x = left + n * cellW;
       if (this.atlas.draw(this.ctx, onCursor ? 'cursor' : color, ch, x, top)) continue;
 
       // Outside the atlas — a box-drawing character we did not pre-render, or
       // an emoji in a log. Slower, but a missing glyph would be worse.
-      this.ctx.fillStyle = onCursor ? this.palette.background : this.palette[row.kind];
+      this.ctx.fillStyle = onCursor ? this.palette.background : this.palette[color];
       this.ctx.fillText(ch, x, top);
     }
   }
+}
+
+/**
+ * Flatten a row's spans into one colour per character.
+ *
+ * Returns undefined for the overwhelmingly common uncoloured row, so the draw
+ * loop allocates nothing for ordinary output. Later spans win over earlier
+ * ones where they overlap, which is what makes a specific rule able to sit on
+ * top of a general one.
+ */
+function colorRuns(row: Row): LineKind[] | undefined {
+  if (row.spans === undefined || row.spans.length === 0) return undefined;
+
+  const colors = new Array<LineKind>(row.text.length).fill(row.kind);
+  for (const span of row.spans) {
+    const from = Math.max(0, span.start);
+    const to = Math.min(row.text.length, span.end);
+    for (let i = from; i < to; i++) colors[i] = span.kind;
+  }
+  return colors;
 }

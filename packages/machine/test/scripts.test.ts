@@ -330,3 +330,82 @@ describe('preformatted output', () => {
     }
   });
 });
+
+/**
+ * From a real playtest: `start systemctl` produced `sh: start: command not
+ * found` and nothing else. Correct, and useless — somebody who transposes two
+ * words is somebody still learning the shape of a command, and they are the
+ * person most worth answering.
+ */
+describe('did you mean', () => {
+  it('spots a transposition and says the right order', async () => {
+    const m = boot();
+    const r = await m.exec('start systemctl');
+    expect(r.stderr).toContain('command not found');
+    expect(r.stderr).toContain('Did you mean:  systemctl start');
+  });
+
+  it('keeps the rest of the arguments, in order', async () => {
+    const m = boot();
+    expect((await m.exec('status systemctl scrubber')).stderr)
+      .toContain('Did you mean:  systemctl status scrubber');
+  });
+
+  it('says nothing when there is nothing to say', async () => {
+    const m = boot();
+    const r = await m.exec('frobnicate the widget');
+    expect(r.stderr).toBe('sh: frobnicate: command not found\n');
+  });
+
+  it('does not guess from a bare unknown word', async () => {
+    const m = boot();
+    expect((await m.exec('systemctll')).stderr).not.toContain('Did you mean');
+  });
+
+  it('leaves a real command alone', async () => {
+    const m = boot();
+    expect((await m.exec('echo hi')).stderr).toBe('');
+  });
+});
+
+/**
+ * The suggestion has to know when to keep quiet.
+ *
+ * A path that exists and will not run fails for a specific reason, and telling
+ * somebody to reorder their words points them away from it. Here that is not
+ * merely noise: the execute bit is a puzzle, so a bogus reorder hint would
+ * teach the wrong lesson at the exact moment the right one was available.
+ */
+describe('did you mean keeps quiet when reordering cannot help', () => {
+  function withScript(mode: number): Machine {
+    const m = new Machine({ hostname: 'nav7' });
+    m.vfs.mkdirp('/home/survivor', ROOT_USER);
+    m.vfs.writeText('/home/survivor/script.sh', '#!/bin/sh\necho hi\n', ROOT_USER);
+    m.vfs.chmod('/home/survivor/script.sh', mode, ROOT_USER);
+    m.shell.cwd = '/home/survivor';
+    return m;
+  }
+
+  it('says nothing when the real problem is the execute bit', async () => {
+    const r = await withScript(0o644).exec('./script.sh echo');
+    expect(r.stderr).toContain('Permission denied');
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+
+  it('says nothing when the path simply is not there', async () => {
+    const r = await withScript(0o755).exec('./nope.sh cat');
+    expect(r.stderr).toContain('No such file or directory');
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+
+  it('says nothing when the target is a directory', async () => {
+    const r = await withScript(0o755).exec('./.. ls');
+    expect(r.stderr).toContain('Is a directory');
+    expect(r.stderr).not.toContain('Did you mean');
+  });
+
+  it('still speaks up for a bare name that is nowhere', async () => {
+    const r = await withScript(0o755).exec('start systemctl');
+    expect(r.stderr).toContain('Did you mean:  systemctl start');
+  });
+});

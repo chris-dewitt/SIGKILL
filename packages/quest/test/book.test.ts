@@ -13,6 +13,7 @@ const OBJECTIVES: readonly Objective[] = [
     steps: [
       {
         id: 'find-key',
+        label: 'find the key',
         pending: (w) => !w.vfs.exists('/key', ROOT_USER),
         rungs: [
           { tier: 'nudge', lines: ['something is missing'] },
@@ -201,13 +202,69 @@ describe('the commands', () => {
     return { m, book };
   };
 
-  it('prints the board, with the blocker named', async () => {
+  /*
+   * The board shows titles rather than ids, because an id is a name for the
+   * content and a title is a name for what the player is doing. Ids survive
+   * only where they are the thing you would type -- `hint <id>`, and the
+   * blocker line.
+   */
+  it('prints the board in the player\'s words, not the content\'s', async () => {
     const { m } = boot();
     const r = await m.exec('objectives');
-    expect(r.stdout).toContain('[ ] door');
-    expect(r.stdout).toContain('[-] leave');
-    expect(r.stdout).toContain('waiting on door');
+    expect(r.stdout).toContain('Open the door');
+    expect(r.stdout).toContain('Walk out');
+    expect(r.stdout).toContain('[ ] Open the door');
+    expect(r.stdout).toContain('[-] Walk out');
     expect(r.stdout).toContain('No hints taken.');
+  });
+
+  it('names what is blocking a locked objective, by its title', async () => {
+    const { m } = boot();
+    const board = (await m.exec('objectives')).stdout;
+    expect(board).toContain('locked until: Open the door');
+    // `door` is what the content calls it; the player never had to read that.
+    expect(board).not.toContain('locked until: door');
+  });
+
+  it('marks which objective the player is actually on', async () => {
+    const { m } = boot();
+    const r = await m.exec('objectives');
+    expect(r.stdout).toContain('> [ ] Open the door');
+    expect(r.stdout).not.toContain('> [-] Walk out');
+  });
+
+  it('says what is in front of them right now, not just where they are going', async () => {
+    const { m } = boot();
+    expect((await m.exec('objectives')).stdout).toContain('now: find the key');
+  });
+
+  it('counts progress', async () => {
+    const { m } = boot();
+    expect((await m.exec('objectives')).stdout).toContain('0 of 2 done');
+    await m.exec('touch /key');
+    await m.exec('touch /open');
+    expect((await m.exec('objectives')).stdout).toContain('1 of 2 done');
+  });
+
+  it('moves the marker along as objectives close', async () => {
+    const { m } = boot();
+    await m.exec('touch /key');
+    await m.exec('touch /open');
+    const r = await m.exec('objectives');
+    expect(r.stdout).toContain('[x] Open the door');
+    expect(r.stdout).toContain('> [ ] Walk out');
+  });
+
+  it('offers the way out of being stuck, every time it is asked', async () => {
+    const { m } = boot();
+    expect((await m.exec('objectives')).stdout).toContain('hint');
+  });
+
+  it('stops offering hints once there is nothing left', async () => {
+    const { m } = boot();
+    for (const c of ['touch /key', 'touch /open', 'touch /gone']) await m.exec(c);
+    const r = await m.exec('objectives');
+    expect(r.stdout).toContain('Everything on the board is done.');
   });
 
   it('speaks the hint in the adventure voice', async () => {
@@ -245,5 +302,70 @@ describe('the commands', () => {
     const r = await m.exec('hint');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('content bug');
+  });
+});
+
+
+/**
+ * The board shows titles, so titles have to be typeable.
+ *
+ * Found by Codex: printing only titles left `hint <id>` addressable by a name
+ * the player had never been shown, while the unknown-name error pointed them
+ * back at the very board that no longer contained it. What is on screen is
+ * what you can type, or it is not an address.
+ */
+describe('asking about a particular objective', () => {
+  const boot = (): { m: Machine; book: Questbook } => {
+    const book = new Questbook(OBJECTIVES);
+    const m = new Machine({ user: ROOT_USER, commands: questCommands(book, { speaker: 'ORACLE' }) });
+    return { m, book };
+  };
+
+  it('takes the title exactly as the board prints it', async () => {
+    const { m } = boot();
+    const r = await m.exec('hint Open the door');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('ORACLE:');
+  });
+
+  it('takes enough of the start of a title to be unambiguous', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint Open the')).code).toBe(0);
+  });
+
+  it('is not case sensitive', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint open THE DOOR')).code).toBe(0);
+  });
+
+  it('still takes the id, for anything that already used one', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint door')).code).toBe(0);
+  });
+
+  it('still respects locks when asked by title', async () => {
+    const { m } = boot();
+    const r = await m.exec('hint Walk out');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('waiting on');
+  });
+
+  it('names what is addressable when the name is wrong', async () => {
+    const { m } = boot();
+    const r = await m.exec('hint nonsense');
+    expect(r.stderr).toContain('hint Open the door');
+    expect(r.stderr).toContain('Or just:  hint');
+  });
+
+  it('falls back to the current objective for an empty argument', async () => {
+    const { m } = boot();
+    expect((await m.exec('hint    ')).code).toBe(0);
+  });
+
+  it('does not match a title fragment from the middle', async () => {
+    // A prefix is a shorthand somebody can predict; a substring match would
+    // pick a different objective than the one they meant.
+    const { m } = boot();
+    expect((await m.exec('hint the door')).code).toBe(1);
   });
 });
