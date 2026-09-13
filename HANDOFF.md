@@ -489,7 +489,9 @@ that. Depth over breadth. Epics, not days:
 
 Locked from playtest notes. Do not relitigate in a content PR.
 
-**Nobody dies this game.** It is a journey. Penalties can wait.
+**The player cannot lose, and no human dies on screen.** It is a journey.
+Penalties and a fail state can wait. LUNA is a process: she is killable,
+and her first clone dies. That is not a death screen. It is `kill`.
 
 **The player is unnamed.** `whoami` is `survivor`. Berth 3. Not in Chen's
 dying numbers. A name in a medical file is allowed as furniture; nothing
