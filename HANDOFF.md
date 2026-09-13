@@ -15,12 +15,12 @@ game 1, act by act, no deadlines**. See §8.
 |---|---|---|
 | Branch / PR | State | Contains |
 |---|---|---|
-| `main` @ `3f41616` | merged through PR #11 | Machine, Python, renderer, Android wrap, hints, editors, Act I puzzles 1–2 |
+| `main` @ `94653cb` | **current** | everything below |
 | PR #1–#11 | merged | phases 0–1, Android wrap, renderer, hints, editors, the coreutils sweep, the Act I blocker |
-| **`e3/act1-deck-c`** | **open, needs review** | Deck C, puzzles 3–4, shell scripts, 32 manual pages |
+| PR #12 | merged | Deck C, puzzles 3–4, shell scripts, 32 manual pages |
 
-`pnpm -r test` on `e3/act1-deck-c`: **489 tests** — 214 machine, 130 editor,
-36 crt, 29 quest, 27 python, 53 wreck. Typecheck clean, build clean.
+`pnpm -r test` on `main`: **489 tests** — 214 machine, 130 editor, 36 crt,
+29 quest, 27 python, 53 wreck. Typecheck clean, build clean. No open branches.
 
 ---
 
