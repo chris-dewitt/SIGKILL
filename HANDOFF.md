@@ -51,7 +51,11 @@ wire it into the app; the Worker is what keeps player code away from the DOM.
 **`packages/crt`** — the phosphor renderer. Colour is semantic: `LineKind` is
 the source of truth (`command`, `path`, `value`, `good`, `warn`, `heading`…)
 and `Palette` is typed off it, so a kind without a colour will not compile.
-Names are *meanings*, never hues. The palette is the classic sixteen at the
+Names are *meanings*, never hues. Four named palettes in `palettes.ts`,
+switchable at runtime with the `palette` command or `?palette=` — a colour
+scheme is judged by looking, so it is a choice and not a commit. The default is
+`green-amber`, tuned to Chris on seeing it run: a green ground rather than
+black, and white body text rather than light green. The palette is the classic sixteen at the
 brightness people actually set them to -- the first pass was a restrained
 phosphor green with two quiet accents, which is historically accurate and hard
 to read on a phone in daylight. Lines carry optional `spans` — coloured runs
@@ -69,6 +73,14 @@ unprompted after the opening and after every objective closes. Both show
 **titles, never ids**: an id names the content, a title names what the player
 is doing. Every `HintStep` carries a `label` — the "now:" line, and the single
 most useful thing the interface can say.
+
+**`packages/audio`** — the ship, sounding. Entirely synthesised: oscillators,
+filtered noise and envelopes, not one audio file, so nothing is fetched and
+nothing has to be licensed. `score.ts` holds every decision and is pure, so
+"does sealing the hull stop the hiss" is a unit test rather than something you
+have to listen for. The rule: **the soundscape is the ship's condition** — the
+reactor is always there, moving air arrives when the scrubber starts, an open
+compartment hisses until it is sealed. Nothing is a backing track.
 
 **`packages/ascii`** — the art toolkit. Frames, gauges, sparklines and block
 layout, no dependencies, shared by all thirteen games. `SAFE_COLS` is 34,

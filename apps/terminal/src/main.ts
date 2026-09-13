@@ -1,11 +1,130 @@
-import { highlight, TerminalView } from '@sigkill/crt';
+import {
+  DEFAULT_PALETTE, highlight, paletteByName, PALETTE_NAMES, TerminalView,
+} from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
-import { path as vpath, type ScreenProgram } from '@sigkill/machine';
+import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
+import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
 import { whatNow, type BeatLine } from '@sigkill/quest';
 import { bootWreck, coldOpen, epilogue } from '@sigkill/wreck';
 
 const { machine, questbook } = bootWreck();
+
+// A host command: the Machine has no screen and must not learn what a colour
+// is, so this is registered onto the shell from out here.
+machine.shell.commands.set('palette', paletteCommand());
+machine.shell.commands.set('sound', soundCommand());
+
+/**
+ * Switch the colour scheme from inside the game.
+ *
+ * A host command rather than a Machine one: the Machine has no screen and must
+ * not learn what a colour is. It lives here for the same reason the renderer
+ * does, and it is the only honest way to choose a palette -- by looking at the
+ * real thing on the real screen, not at a swatch.
+ */
+/**
+ * Turn the ship's noise on and off.
+ *
+ * A host command for the same reason `palette` is one: the Machine has no
+ * speakers and must not learn what a sound is.
+ */
+function soundCommand(): CommandSpec {
+  return {
+    name: 'sound',
+    summary: 'turn the ship audio on or off',
+    manual:
+      'sound [on|off]\n\n' +
+      'With no argument, say whether it is on.\n\n' +
+      'Everything you hear is synthesised in the browser -- there are no\n' +
+      'audio files, so nothing is downloaded and nothing is tracked. The\n' +
+      'room tone is the ship: the reactor is always there, moving air\n' +
+      'arrives when the scrubber starts, and a compartment open to vacuum\n' +
+      'hisses until you seal it.',
+    plain:
+      'Turns the sound on or off.\n\n' +
+      '  sound off     silence\n' +
+      '  sound on      back again\n\n' +
+      'What you hear is the ship itself. If something is broken you can hear\n' +
+      'that it is broken, and when you fix it the sound changes.',
+    run: (_ctx, argv, io) => {
+      const wanted = argv[1]?.toLowerCase();
+      if (wanted === undefined) {
+        io.out(`sound: ${sound.muted ? 'off' : 'on'}\n`);
+        return 0;
+      }
+      if (wanted !== 'on' && wanted !== 'off') {
+        io.err(`sound: say 'on' or 'off'\n`);
+        return 1;
+      }
+      const muted = wanted === 'off';
+      sound.setMuted(muted);
+      try {
+        window.localStorage.setItem('sigkill:sound', muted ? 'off' : 'on');
+      } catch {
+        // Private window. The switch still holds for this session.
+      }
+      if (!muted) {
+        void sound.resume();
+        sound.setState(shipSound());
+      }
+      io.out(`sound: ${wanted}\n`);
+      return 0;
+    },
+  };
+}
+
+function paletteCommand(): CommandSpec {
+  return {
+    name: 'palette',
+    summary: 'change the colour scheme',
+    preformatted: true,
+    manual:
+      'palette [NAME]\n\n' +
+      'With no argument, list the schemes and show which one is on.\n' +
+      'With a name, switch to it and remember the choice in this browser.\n\n' +
+      'A colour scheme is a thing you judge by looking at it, so this exists\n' +
+      'to be flipped back and forth while you decide.',
+    plain:
+      'Changes the colours.\n\n' +
+      '  palette              see the list\n' +
+      '  palette warm         switch to the one called warm\n\n' +
+      'It remembers what you picked.',
+    run: (_ctx, argv, io) => {
+      const wanted = argv[1]?.toLowerCase();
+      const current = savedPalette ?? DEFAULT_PALETTE;
+
+      if (wanted === undefined) {
+        io.out(
+          [
+            '',
+            '-- PALETTES ------------------',
+            '',
+            ...PALETTE_NAMES.map((n) => `  ${n === current ? '>' : ' '} ${n}`),
+            '',
+            'Switch with:  palette <name>',
+            '',
+          ].join('\n') + '\n',
+        );
+        return 0;
+      }
+
+      if (!PALETTE_NAMES.includes(wanted as never)) {
+        io.err(`palette: no scheme called '${wanted}'\nTry one of: ${PALETTE_NAMES.join(', ')}\n`);
+        return 1;
+      }
+
+      try {
+        window.localStorage.setItem('sigkill:palette', wanted);
+      } catch {
+        // Private window. The switch below still works for this session.
+      }
+      view.setPalette(paletteByName(wanted));
+      io.out(`palette: ${wanted}\n`);
+      return 0;
+    },
+  };
+}
 
 /**
  * Python is lazy on purpose.
@@ -29,11 +148,46 @@ const screen = document.querySelector<HTMLDivElement>('#screen')!;
  * who finds the persistence uncomfortable. It becomes a real setting once
  * there is a settings screen to put it in.
  */
+/*
+ * The palette is a choice somebody has to make by looking, so it is switchable
+ * without a rebuild: `?palette=warm`, or the `palette` command in the shell.
+ * The pick is remembered per browser, because comparing two of them means
+ * reloading and nobody should lose their run to a colour experiment.
+ */
+const query = new URLSearchParams(location.search);
+const savedPalette = ((): string | null => {
+  try {
+    return query.get('palette') ?? window.localStorage.getItem('sigkill:palette');
+  } catch {
+    // A private window, or site data blocked. A default palette is fine.
+    return query.get('palette');
+  }
+})();
+
 const view = new TerminalView(screen, {
   font: '13.5px "SFMono-Regular", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
   gutter: 16,
-  plain: new URLSearchParams(location.search).has('plain'),
+  plain: query.has('plain'),
+  palette: paletteByName(savedPalette),
 });
+/*
+ * The ship, sounding. Entirely synthesised -- no audio files, so nothing is
+ * fetched and nothing has to be licensed.
+ *
+ * Muted state is remembered per browser. The context itself cannot start until
+ * the player touches something, which every browser enforces and which is the
+ * correct default for a page that makes noise.
+ */
+const sound = new Soundtrack({
+  muted: ((): boolean => {
+    try {
+      return window.localStorage.getItem('sigkill:sound') === 'off';
+    } catch {
+      return false;
+    }
+  })(),
+});
+
 const input = document.querySelector<HTMLInputElement>('#input')!;
 const promptEl = document.querySelector<HTMLLabelElement>('#prompt')!;
 const form = document.querySelector<HTMLFormElement>('#line')!;
@@ -117,12 +271,28 @@ function scrollToEnd(): void {
  */
 view.highlighter = (text) => highlight(text, { commands: new Set(machine.shell.commands.keys()) });
 
+/*
+ * The keypress click. Attached to the real input rather than the document so
+ * it never fires for a shortcut, and skipped for modifiers and navigation --
+ * a click on every arrow key is how a nice sound becomes an irritating one.
+ */
+input.addEventListener('keydown', (event) => {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.key.length !== 1 && event.key !== 'Backspace') return;
+  void sound.resume();
+  sound.play('key');
+});
+
 function refreshPrompt(): void {
   promptEl.textContent = machine.prompt;
 }
 
 async function submit(raw: string): Promise<void> {
   const command = raw.trim();
+  // Every browser refuses to start an AudioContext outside a gesture, and is
+  // right to. This is the first one that reliably happens.
+  void sound.resume();
+  sound.play('submit');
   write(machine.prompt + command, 'echo');
 
   if (command.length > 0) {
@@ -144,15 +314,21 @@ async function submit(raw: string): Promise<void> {
         // line can mix a drawing and a paragraph, and the two need opposite
         // treatment. stderr is always prose.
         for (const segment of result.segments) {
-          if (segment.preformatted) writeArt(segment.text, 'out');
-          else writeBlock(segment.text, 'out');
+          if (segment.preformatted) {
+            sound.play('reveal');
+            writeArt(segment.text, 'out');
+          } else {
+            writeBlock(segment.text, 'out');
+          }
         }
         writeBlock(result.stderr, 'err');
+        if (result.stderr.length > 0) sound.play('error');
       }
       if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
       playBeats();
       checkActComplete();
+      sound.setState(shipSound());
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
       if (command.startsWith('python')) pythonWarmed = true;
@@ -180,9 +356,44 @@ async function submit(raw: string): Promise<void> {
  * are solution-agnostic, so the player can finish an objective with `sed`, an
  * editor, or Python, and the moment has to land whichever route they took.
  */
+/**
+ * What the ship sounds like, read from the same files everything else reads.
+ *
+ * No separate audio state to keep in step: if the scrubber is running the room
+ * has air in it, and if a compartment is open there is a hiss, because that is
+ * what those words mean.
+ */
+function shipSound(): AudioState {
+  const open = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'].some((id) => {
+    try {
+      return !/^\s*SEALED\s*=\s*yes\s*$/im.test(
+        machine.vfs.readText(`/etc/hull/${id}.conf`, machine.shell.user),
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  const done = questbook.status(machine).filter((row) => row.done).length;
+  const total = Math.max(1, questbook.status(machine).length);
+
+  return {
+    scrubber: machine.services.get('scrubber')?.state === 'active',
+    monitor: machine.services.get('hull-monitor')?.state === 'active',
+    breached: open,
+    // The reserve is not simulated yet, so progress stands in for it: the room
+    // tone eases as the act is put right. Replace this the moment there is a
+    // real clock on the oxygen.
+    reserve: 0.09 + (done / total) * 0.6,
+  };
+}
+
 function playBeats(): void {
   let closed = false;
   for (const objective of questbook.drainCompleted(machine)) {
+    // The hull turning out to be open is the one piece of good news that is
+    // also bad news, so it gets the alarm rather than the chime.
+    sound.play(objective.id === 'hull-watch' ? 'alarm' : 'resolve');
     sayBeat(objective.onComplete ?? []);
     closed = true;
   }
@@ -203,6 +414,7 @@ let actEnded = false;
 function checkActComplete(): void {
   if (actEnded || !questbook.complete(machine)) return;
   actEnded = true;
+  sound.play('act');
   sayBeat(epilogue(machine));
 }
 

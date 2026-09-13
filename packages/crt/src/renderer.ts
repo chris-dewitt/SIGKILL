@@ -76,7 +76,7 @@ export class TerminalRenderer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private atlas: GlyphAtlas;
-  private readonly palette: Palette;
+  private palette: Palette;
   private readonly gutter: number;
   private readonly overscan: number;
   private readonly font: string;
@@ -99,6 +99,23 @@ export class TerminalRenderer {
     this.atlas = new GlyphAtlas({
       font: this.font,
       scale: 1,
+      colors: this.atlasColors(),
+    });
+  }
+
+  /**
+   * Swap the colour scheme.
+   *
+   * The atlas bakes colour into its sheets, so they are thrown away and built
+   * again on demand. Nothing else changes -- the buffer is not touched, which
+   * is what lets somebody compare two schemes against the same screenful
+   * rather than against their memory of the last one.
+   */
+  setPalette(palette: Palette): void {
+    this.palette = palette;
+    this.atlas = new GlyphAtlas({
+      font: this.font,
+      scale: this.atlas.scale,
       colors: this.atlasColors(),
     });
   }

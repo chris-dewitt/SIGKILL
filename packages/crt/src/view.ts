@@ -180,6 +180,18 @@ export class TerminalView {
     });
   }
 
+  /**
+   * Swap the colour scheme without losing the session.
+   *
+   * The atlas bakes colour into its sheets, so this rebuilds the renderer --
+   * the buffer is untouched, which is what lets somebody compare two schemes
+   * against the same screenful instead of against their memory of it.
+   */
+  setPalette(palette: Palette): void {
+    this.renderer.setPalette(palette);
+    this.draw();
+  }
+
   write(text: string, kind: LineKind = 'out'): void {
     const wasAtBottom = this.isAtBottom();
     this.writeLines(text, kind);
