@@ -1,11 +1,14 @@
 # SIGKILL — handoff
 
-Written 2026-09-12, updated after the Act I content push. Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
+Written 2026-09-12, updated 2026-09-13 after the Act I playtest notes and
+the story lock. Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
 This file is the state of play; the others are the rules.
 
-**Latest:** Act I is four puzzles and finishable end to end without a hint.
-Voice is locked to **2, Wounded Machine**. Scope is locked to **the whole of
-game 1, act by act, no deadlines**. See §8.
+**Latest:** Act I is four puzzles and finishable without a hint. Chris is
+playtesting it on a phone — the Phase 2 gate is notes, not a waiting room.
+Voice is **2, Wounded Machine**. The second ghost is **LUNA** (process
+`LUNA V42`). Scope is **Act I on Deck C: additions, then enrich, then stop.**
+No Act II, no Archive, until that pass is done. See §5c and §8.
 
 ---
 
@@ -469,42 +472,94 @@ Each of the thirteen games can have its own; the voice is one option on
 
 ### 5a-bis. Scope — settled
 
-**The whole of game 1 (The Wreck), act by act, Act I first, no deadlines.**
-Depth over breadth. Chris's words: *"what we create must be of highest
-quality"*, *"depth, depth, depth"*. Epics, not days:
+**Act I of The Wreck, on Deck C, until it is dense.** Additions, then an
+enrich pass, then stop. No Act II and no Archive until Chris has sat with
+that. Depth over breadth. Epics, not days:
 
 | | Epic | State |
 |---|---|---|
 | E1 | The Machine — engine, shell, VFS, services, Python, renderer | done |
-| E2 | The frame — save/load, live clock, progression | not started |
-| E3 | Act I — Breathe. Deck C | **4 of ~8 puzzles** |
-| E4–E6 | Acts II–IV | not started |
-| E7 | Procedural audio — Web Audio, state-driven, zero assets | decided, not built |
+| E2 | The frame — save/load, last-turn dock, progression | not started |
+| E3 | Act I — Breathe. Deck C | **4 puzzles; 5th is LUNA** |
+| E4–E6 | Acts II–IV | not started; do not start |
+| E7 | Procedural audio — Web Audio, state-driven, zero assets | **core shipped** (PR #17) |
 | E8 | Ship — Play Store | not started |
+
+### 5c. Story and feel — settled 2026-09-13
+
+Locked from playtest notes. Do not relitigate in a content PR.
+
+**Nobody dies this game.** It is a journey. Penalties can wait.
+
+**The player is unnamed.** `whoami` is `survivor`. Berth 3. Not in Chen's
+dying numbers. A name in a medical file is allowed as furniture; nothing
+in the game should require it.
+
+**Vasquez stays dead.** What she left running is **LUNA**.
+
+- She calls herself LUNA. The process and the directory carry `LUNA V42`.
+- Vasquez named her after the dog, then kept training until the version
+  number was the joke. Forty-two. One tired line in a note is enough.
+  Do not explain Hitchhiker's in ORACLE's mouth.
+- First appearance: after `hull-watch`, not in the cold open. The monitor
+  coming up is the light they both step into.
+- Authored lines. State-aware. A process and a directory. Not a network
+  call, not a chat model, not the finale's bundled LLM. Game 1 teaches
+  that a model is a process and a folder, and that `kill` is not `rm`.
+- Killable. Companion if left running. After she is awake, `hint` is two
+  speakers taking turns butting in. If you kill her, hints revert to
+  ORACLE alone, and he does not gloat.
+- Face: one arrival picture, scarce like ORACLE's. A small terminal
+  companion — moon and dog, original glyphs in `packages/ascii`. The
+  *feeling* of a CLI that has a character (the way Claude Code has one).
+  Do not copy that character, that splash, that mark, or anyone else's.
+  ORACLE is a monitor. LUNA is not a second monitor.
+- `cp` her: funny and allowed, once. The second LUNA dies. Funny but sad.
+  There is no point doing it twice; further copies should fail or die
+  immediately. She can say so.
+- Embodiment (weights in a thing that has hands) is a **game-1 ending
+  choice**, not an Act I feature. Act I only leaves the process, the
+  directory, and the copy rule.
+
+**The next model is not on this ship as someone you meet.** Vasquez
+trained past 42. That one broke out — out of the box, out of the wreck,
+out of everything. A locked directory on disk: `ls` may show the name;
+`cat`, `cd`, Python, `sudo`, root, every route, refused. No one opens it
+in this game. It becomes a path in *The Containment*.
+
+**Bowen, quiet.** He does not arrive. Act I uses him as a cost: Okonkwo
+records the patch kit signed out to him, C8 has a one-file scar, LUNA
+says his name once after C7 is sealed. Heading `114 mark 9` is a locked
+door, same shape as the directory above forty-two. Whether the relay
+exists is a later game.
+
+**Game 1 ending (not this pass):** choice of which ghost stays, plus those
+two locked doors, plus the option to give LUNA a body if her files
+survived. Do not write that scene in Act I.
+
+**Screen (playtest):** the dock stays at the bottom. Pin the last command
+and its output above it. History stays on the CRT. Beats must not bury
+the turn. Font is a bundled terminal mono — bold, italic, and size via
+`LineKind`, no network fetch.
+
+**Operator only**, for now. Live O2 is not this pass.
 
 ### 5b. Also open
 
-- **The phone playtest is still the Phase 2 gate**, and is now specifically a
-  test of the editor: is vi tolerable on a touchscreen with the chip bar doing
-  the work? If it is not, fix that before any Act II content. Instructions in §6.
-- Remaining Phase 2 polish: gestures, haptics, audio, tablet/landscape layouts.
-- **Four story questions are still Chris's to answer**, and Act II cannot be
-  written around them: how long should an act be; can the player lose; does
-  Vasquez stay dead; and what the ending of game 1 means.
-- `games/wreck` Acts II+ are unwritten. Act I is four puzzles and complete.
-- vi leaves out visual mode, marks, macros and named registers. `:help` inside
-  it says so rather than pretending. Add them only if a puzzle needs them.
-- Missing commands and shell features are catalogued in §4c, with sizes.
-  `less` is the one I would do next: it is a pager, which is the natural
-  second use of the full-screen seam, and `/var/log/hull.log` is now 540 lines
-  — which is exactly the file a pager exists for.
+- Phone playtest continues. The live pain is the dock and the scroll, not
+  "is vi theoretically tolerable." Notes beat this file when they disagree.
+- Remaining Phase 2 polish: haptics, tablet/landscape. Audio core is in.
+- Acts II+ are unwritten on purpose. Do not start them.
+- vi leaves out visual mode, marks, macros and named registers. `:help`
+  inside it says so. Add them only if a puzzle needs them.
+- Missing commands: §4c. `less` is first — the 540-line hull log.
 
 ---
 
 ## 6. How Chris playtests
 
 ```bash
-git fetch origin phase-2-hints && git checkout phase-2-hints
+git checkout main && git pull
 pnpm install
 pnpm dev            # http://localhost:5173
 ```
@@ -564,7 +619,7 @@ the player that looking around does not pay.
 - `/home/vasquez/notes/` — `todo` (C7 is line five, capitalised), `seal.sh`
   (hers, also not executable), `scrubber-notes.txt`, `hull-notes.txt`
 - `/home/chen/crew-health.csv` — O2 saturation per person per day, declining
-- `/home/bowen/pod-manifest.txt` — the thread into Act II
+- `/home/bowen/pod-manifest.txt` — the heading, and the patch kit that left
 - `/etc/hull/c1..c9.conf` — nine compartments, one open
 - `/var/log/hull.log` — 540 lines, deliberately unreadable, LCG-generated so it
   is byte-identical on every machine. **C2 dropped too and was patched**, so
@@ -627,26 +682,54 @@ by unit tests:
 
 ---
 
-## 8. What I would do next
+## 8. What to do next — Act I until it is dense
 
-1. **Playtest Act I end to end** on a phone. Four puzzles, ~25 commands. The
-   artifact is republished. Everything below is guesswork until this happens.
-2. **Puzzle 5 — SIGKILL.** `ps`, `kill`, signals. The game is named after it
-   and does not contain it. Natural shape: something is holding the reserve
-   line open, `ps` finds it, `kill` does not work, `kill -9` does, and ORACLE
-   has an opinion about what that means.
-3. **Save/load.** `snapshot()` exists and the app never calls it. Close the tab,
-   lose the run. This is the largest hole in the frame and it is not content.
-4. **A live O2 countdown.** The cold open prints `9h 14m` as a string. It should
-   come off the virtual clock, and the epilogue's point — that ORACLE has been
-   reciting a number off a clipboard — sharpens if the other numbers are live.
-5. **`less`.** A 540-line log is exactly what a pager is for, and the
-   full-screen seam is already built (`docs/FULLSCREEN.md`).
-6. **Procedural audio** (E7). Decided: Web Audio, state-driven, zero assets.
-7. **Act II.** Bowen's heading is 114 mark 9 and deck B is open to space.
+Three passes. Then stop. Chris is already playtesting; Pass 0 is the note
+from that chair.
 
-`apps/terminal` still has zero tests. The Playwright harness that found the
-touch bugs should become permanent.
+### Pass 0 — The screen
 
+- Last-turn strip above the dock: the command just typed, then its output.
+  Older history stays on the CRT; scroll is for looking back.
+- Beats do not shove the turn off screen. Fold or page them.
+- Scroll that feels like a phone (row snap, a thumb affordance).
+- Bundle a terminal mono (OFL, in the app, no Google Fonts). Atlas sheets
+  already paint by `LineKind` — that is where bold, italic, and size go.
+  ORACLE and LUNA must not look like the same mouth.
+- Save/load: `Machine.snapshot()` and `Questbook.snapshot()` exist; the
+  app never calls them. Wire them so a playtest survives a refresh.
+- Playwright on a touch viewport. The editor taught us that unit tests
+  cannot see the dock.
+
+### Pass 1 — Deck C additions
+
+| Piece | Notes |
+|---|---|
+| `less` | `/var/log/hull.log` is 540 lines. Full-screen seam is in `docs/FULLSCREEN.md`. |
+| Signals | `kill -15` asks; `kill -9` does not. The process table must mean that. |
+| Puzzle 5 | After hull-watch: a process ORACLE did not start. LUNA. `ps`. Talk, leave, `kill`, `kill -9`. Goal is world state, not the keystroke. |
+| Her files | Weights, a version file, the dog and the number in one note. `kill` ≠ `rm`. |
+| Locked dir | Name visible. Every open refused, including root. Becomes a path in game 4. |
+| Clone | First `cp` + run: a second LUNA speaks and dies. Further copies are pointless. |
+| Okonkwo | Cargo home. Manifests. Patch kit signed out to Bowen. |
+| Bowen | Quiet: kit, C8 scar, LUNA says his name once after C7. No arrival. |
+| Hints | After she is awake, speakers alternate. |
+
+No puzzle 6 unless a skill is still missing after you play 5. No body. No
+Deck B. No death. No live O2. Operator only.
+
+### Pass 2 — Enrich, then stop
+
+Both voices on the four completions that already exist, without making
+every beat a duet. Epilogue keeps two locked doors (the heading, the
+directory). No-hint transcript still passes. A second transcript: LUNA
+lives.
+
+Then pause. Play it. The game-1 ending (which ghost stays, the body, the
+breakout) is written after she has been heard on a phone.
+
+### Not this work
+
+Act II. The Archive. A real LLM. A human body. Death. Haptics. The store.
 Do not recreate deleted roadmaps. Do not widen a PR on your own. If a test
 fails, say so with the output.
