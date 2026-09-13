@@ -60,6 +60,9 @@ importers:
 
   games/wreck:
     dependencies:
+      '@sigkill/ascii':
+        specifier: workspace:*
+        version: link:../../packages/ascii
       '@sigkill/editor':
         specifier: workspace:*
         version: link:../../packages/editor
@@ -69,6 +72,15 @@ importers:
       '@sigkill/quest':
         specifier: workspace:*
         version: link:../../packages/quest
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+
+  packages/ascii:
     devDependencies:
       typescript:
         specifier: ^5.7.2

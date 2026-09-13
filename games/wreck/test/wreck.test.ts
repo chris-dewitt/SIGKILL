@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { ROOT_USER } from '@sigkill/machine';
 import { validateObjectives } from '@sigkill/quest';
-import { bootWreck, COLD_OPEN, EPILOGUE } from '../src/world.js';
+import { bootWreck, coldOpen, epilogue } from '../src/world.js';
+import type { BeatLine } from '@sigkill/quest';
+
+/** A beat as plain text, art rows included, for asserting on what it says. */
+function spoken(lines: readonly BeatLine[]): string {
+  return lines.map((line) => (typeof line === 'string' ? line : line.art)).join('\n');
+}
+
+/** The cold open of a fresh boot. */
+function opening(): string {
+  return spoken(coldOpen(bootWreck().machine));
+}
 import { WRECK_OBJECTIVES, oxygenTarget } from '../src/objectives.js';
 
 describe('Act I content', () => {
@@ -17,7 +28,7 @@ describe('Act I content', () => {
   });
 
   it('tells the player hints exist, in the cold open', () => {
-    expect(COLD_OPEN.join('\n')).toContain('hint');
+    expect(opening()).toContain('hint');
   });
 });
 
@@ -177,8 +188,9 @@ describe('Act I can actually be finished', () => {
   });
 
   it('has an ending to play, in ORACLE\'s voice', () => {
-    expect(EPILOGUE.length).toBeGreaterThan(10);
-    const text = EPILOGUE.join('\n');
+    const ending = epilogue(bootWreck().machine);
+    expect(ending.length).toBeGreaterThan(10);
+    const text = spoken(ending);
     expect(text).toContain('ORACLE:');
     expect(text).toContain('ACT I COMPLETE');
     // It closes the story it opened: Vasquez, and why she stopped.
@@ -320,7 +332,7 @@ describe('the ship reacts when you fix it', () => {
     await machine.exec('sudo systemctl start scrubber');
     const closed = questbook.drainCompleted(machine);
     expect(closed.map((o) => o.id)).toEqual(['atmosphere']);
-    expect(closed[0]?.onComplete?.join('\n')).toContain('It started');
+    expect(spoken(closed[0]?.onComplete ?? [])).toContain('It started');
   });
 
   it('plays each beat exactly once, however the player got there', async () => {
@@ -339,14 +351,44 @@ describe('the ship reacts when you fix it', () => {
   });
 
   it('does not repeat itself between the last beat and the ending', () => {
-    const last = WRECK_OBJECTIVES.at(-1)?.onComplete?.join('\n') ?? '';
-    const ending = EPILOGUE.join('\n');
+    const last = spoken(WRECK_OBJECTIVES.at(-1)?.onComplete ?? []);
+    const ending = spoken(epilogue(bootWreck().machine));
     // The final beat is about the hatch; the ending is about the act. Sharing
     // a sentence between them is how an ending stops feeling like one.
     expect(last).toContain('closed');
     expect(ending).not.toContain('ALARM CLEARED');
     const shared = last.split('\n').filter((line) => line.trim().length > 20 && ending.includes(line));
     expect(shared, 'the last beat and the ending share a line').toEqual([]);
+  });
+
+  /*
+   * Checked against *every* beat, not just the last one. Comparing only the
+   * last let a real duplication through: the hull-watch beat spent the whole
+   * clipboard reveal -- the number ORACLE has recited for eleven years without
+   * having measured it -- and the epilogue then made the same confession over
+   * again, so the ending had nothing left to be about.
+   */
+  it('spends each reveal once, across the whole act', () => {
+    const ending = spoken(epilogue(bootWreck().machine)).split('\n');
+    for (const objective of WRECK_OBJECTIVES) {
+      const beat = spoken(objective.onComplete ?? []).split('\n');
+      for (const line of beat) {
+        const prose = line.replace(/^ORACLE: /, '').trim();
+        if (prose.length < 25) continue;
+        expect(
+          ending.some((e) => e.includes(prose)),
+          `${objective.id}'s beat and the ending both say: ${prose}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('keeps the clipboard confession for the ending alone', () => {
+    const ending = spoken(epilogue(bootWreck().machine));
+    expect(ending).toContain('clipboard');
+    for (const objective of WRECK_OBJECTIVES) {
+      expect(spoken(objective.onComplete ?? []), `${objective.id}`).not.toContain('clipboard');
+    }
   });
 });
 
@@ -446,7 +488,7 @@ describe('every required command is discoverable without the hint system', () =>
       'cat /home/vasquez/notes/todo',
       'cat /mnt/deck-c/README',
     ];
-    let all = COLD_OPEN.join('\n');
+    let all = opening();
     for (const s of sources) {
       const r = await machine.exec(s);
       all += '\n' + r.stdout + r.stderr;
@@ -455,7 +497,7 @@ describe('every required command is discoverable without the hint system', () =>
   }
 
   it('the cold open teaches man before it offers hint', () => {
-    const text = COLD_OPEN.join('\n');
+    const text = opening();
     expect(text).toContain('man ');
     expect(text.indexOf('man ')).toBeLessThan(text.indexOf('hint'));
   });

@@ -3,5 +3,5 @@ export type { ObjectiveStatus, HintOutcome, QuestSnapshot, QuestbookOptions } fr
 export { questCommands } from './commands.js';
 export type { QuestCommandOptions } from './commands.js';
 export { validateObjectives, assertObjectives } from './validate.js';
-export { TIER_ORDER } from './types.js';
-export type { HintStep, HintTier, Objective, Rung, World } from './types.js';
+export { TIER_ORDER, asArt } from './types.js';
+export type { BeatLine, HintStep, HintTier, Objective, Rung, World } from './types.js';

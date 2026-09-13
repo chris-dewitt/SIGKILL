@@ -4,6 +4,7 @@ import type { Objective, World } from '@sigkill/quest';
 // where the sweep lives. An objective that guessed either would be one rename
 // away from being quietly unsatisfiable.
 import { BREACHED, HULL_CHECK } from './act1/deck-c.js';
+import { ORACLE_ALARMED, art } from './act1/cards.js';
 
 /**
  * Act I of The Wreck: the ladders.
@@ -314,6 +315,12 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       '  [0000.610] hull-monitor: differential is not new. 540 samples on record.',
       '  [0000.611] hull-monitor: see /var/log/hull.log',
       '',
+      // The act's one mid-story card. ORACLE has just found out it has been
+      // wrong for eleven years, which is the turn the whole act pivots on --
+      // and the only moment between the opening and the ending that earns a
+      // picture.
+      ...art(ORACLE_ALARMED),
+      '',
       'ORACLE: I can see the hull.',
       '',
       'ORACLE: I want to be careful here, because I have been wrong about',
@@ -325,10 +332,16 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       'ORACLE: hours, and I could not read it because the thing that reads',
       'ORACLE: it would not start.',
       '',
-      'ORACLE: I have been telling you the hull was at sixty-one percent. I',
-      'ORACLE: was reading a number somebody wrote down by hand on day nine.',
+      'ORACLE: And I have been giving you a hull figure this whole time as',
+      'ORACLE: though I knew it. I am going to stop doing that. I will come',
+      'ORACLE: back to it.',
       '',
       'ORACLE: Find out which compartment. Please.',
+      '',
+      'ORACLE: I can draw it for you now, which I could not an hour ago:',
+      '',
+      '    deck        the nine compartments, as they are',
+      '    pressure    ten days of every one of them',
       '',
     ],
     steps: [

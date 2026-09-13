@@ -2,7 +2,8 @@ import { TerminalView } from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
-import { bootWreck, COLD_OPEN, EPILOGUE } from '@sigkill/wreck';
+import type { BeatLine } from '@sigkill/quest';
+import { bootWreck, coldOpen, epilogue } from '@sigkill/wreck';
 
 const { machine, questbook } = bootWreck();
 
@@ -75,6 +76,34 @@ function writeBlock(text: string, kind: LineKind): void {
   view.write(text, kind);
 }
 
+/**
+ * Say a beat: prose wraps, art clips.
+ *
+ * The distinction is per line rather than per beat because the beats that
+ * matter are prose with a picture in the middle of them.
+ */
+function sayBeat(lines: readonly BeatLine[], kind: LineKind = 'system'): void {
+  for (const line of lines) {
+    if (typeof line === 'string') write(line, kind);
+    else view.writeArt([line.art], kind);
+  }
+}
+
+/**
+ * Write output whose columns are load-bearing.
+ *
+ * A drawing that goes through the prose path gets word-wrapped and its
+ * trailing spaces trimmed, which is precisely the information holding it
+ * together. `writeArt` clips instead, so a picture too wide for a phone loses
+ * its right edge rather than becoming confetti.
+ */
+function writeArt(text: string, kind: LineKind): void {
+  if (text.length === 0) return;
+  const rows = text.split('\n');
+  if (rows[rows.length - 1] === '') rows.pop();
+  view.writeArt(rows, kind);
+}
+
 function scrollToEnd(): void {
   view.scrollToBottom();
 }
@@ -102,7 +131,10 @@ async function submit(raw: string): Promise<void> {
       if (result.cleared) {
         view.clear();
       } else {
-        writeBlock(result.stdout, 'out');
+        // `preformatted` is the Machine saying "do not reflow this" without
+        // knowing what a drawing is. stderr is always prose.
+        if (result.preformatted) writeArt(result.stdout, 'out');
+        else writeBlock(result.stdout, 'out');
         writeBlock(result.stderr, 'err');
       }
       if (result.screen) enterScreen(result.screen);
@@ -138,7 +170,7 @@ async function submit(raw: string): Promise<void> {
  */
 function playBeats(): void {
   for (const objective of questbook.drainCompleted(machine)) {
-    for (const line of objective.onComplete ?? []) write(line, 'system');
+    sayBeat(objective.onComplete ?? []);
   }
 }
 
@@ -153,7 +185,7 @@ let actEnded = false;
 function checkActComplete(): void {
   if (actEnded || !questbook.complete(machine)) return;
   actEnded = true;
-  for (const line of EPILOGUE) write(line, 'system');
+  sayBeat(epilogue(machine));
 }
 
 // ---------------------------------------------------------------- full screen
@@ -542,7 +574,7 @@ window.addEventListener('resize', () => {
   if (screenProgram) paintScreen();
 });
 
-for (const line of COLD_OPEN) write(line, 'system');
+sayBeat(coldOpen(machine));
 refreshPrompt();
 buildSymbolRow();
 refreshChips();

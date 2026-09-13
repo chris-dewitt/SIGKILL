@@ -165,6 +165,18 @@ export class ShellContext {
   /** Raised by `clear`. The renderer decides what clearing means; we do not. */
   clearRequested = false;
   /**
+   * Raised by a command whose output must not be re-wrapped.
+   *
+   * Modelled on `clearRequested`, and for the same reason: the Machine has no
+   * screen and must not learn what a drawing is. All it says here is "this
+   * output is preformatted" -- columns are load-bearing, so do not reflow it.
+   * A host with no width to reflow to (a test, a pipe, cron) ignores this and
+   * loses nothing, because the text is already correct.
+   *
+   * Reset per command by `Machine.exec`.
+   */
+  preformatted = false;
+  /**
    * Raised by a full-screen command such as `vi`.
    *
    * The command returns immediately; the host then drives the program until it

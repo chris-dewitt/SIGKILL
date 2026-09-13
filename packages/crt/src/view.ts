@@ -175,6 +175,18 @@ export class TerminalView {
     if (wasAtBottom) this.scroll = 0;
   }
 
+  /**
+   * Write a block of art, clipped to the width rather than reflowed.
+   *
+   * The separate entry point is the whole point: a drawing that goes through
+   * `write` comes out the other side as confetti on a narrow screen.
+   */
+  writeArt(rows: readonly string[], kind: LineKind = 'out'): void {
+    const wasAtBottom = this.isAtBottom();
+    this.buffer.writeArt(rows, kind);
+    if (wasAtBottom) this.scroll = 0;
+  }
+
   clear(): void {
     this.buffer.clear();
     this.scroll = 0;
