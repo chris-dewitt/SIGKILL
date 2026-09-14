@@ -15,17 +15,36 @@ async function typeCommand(page: Page, command: string): Promise<void> {
   await input.click();
   await input.fill(command);
   await input.press('Enter');
-  await expect(page.locator('#turn')).toBeVisible();
+  // A completed objective opens the fold and hides the last-turn strip.
+  await expect.poll(async () => {
+    const turn = await page.locator('#turn').isVisible();
+    const fold = await page.locator('#fold').isVisible();
+    return turn || fold;
+  }).toBeTruthy();
 }
 
 test.describe('phone dock', () => {
   test('pages the cold-open nudge in the fold', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#fold')).toBeVisible();
+    await expect(page.locator('#turn')).toBeHidden();
     await expect(page.locator('#fold-body')).not.toBeEmpty();
     await expect(page.locator('#fold-next')).toContainText(/tap to/i);
     await dismissFold(page);
     await expect(page.locator('#input')).toBeVisible();
+  });
+
+  test('hides the last-turn strip while a beat fold is open', async ({ page }) => {
+    await page.goto('/');
+    await typeCommand(page, "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    await typeCommand(page, 'sudo systemctl start scrubber');
+    await expect(page.locator('#fold')).toBeVisible();
+    await expect(page.locator('#turn')).toBeHidden();
+    await expect(page.locator('#fold-body')).toContainText('ORACLE');
+    await expect(page.locator('#input')).toBeVisible();
+    await dismissFold(page);
+    await expect(page.locator('#turn')).toBeVisible();
+    await expect(page.locator('#turn-cmd')).toContainText('scrubber');
   });
 
   test('shows the last command above the dock', async ({ page }) => {
