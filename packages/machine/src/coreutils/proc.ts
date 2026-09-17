@@ -1,6 +1,27 @@
 import type { CommandSpec } from '../shell/exec.js';
-import { listUnits } from '../proc/units.js';
+import { SIGKILL, SIGTERM, type Process } from '../proc/types.js';
+import type { ShellContext } from '../shell/exec.js';
 import { emit, parseArgs, usage } from './helpers.js';
+
+/**
+ * The signals `kill` will name.
+ *
+ * Deliberately the short list. A player needs to know that signals have names
+ * as well as numbers, that TERM is the polite one and KILL is not, and that
+ * the number after the dash is the same thing as the name -- not that there
+ * are sixty-four of them.
+ */
+const SIGNALS: Readonly<Record<string, number>> = {
+  HUP: 1,
+  INT: 2,
+  QUIT: 3,
+  KILL: SIGKILL,
+  USR1: 10,
+  USR2: 12,
+  TERM: 15,
+  CONT: 18,
+  STOP: 19,
+};
 
 /** Render virtual-clock milliseconds as the H:MM:SS that `ps` shows. */
 function elapsed(ms: number): string {
@@ -9,6 +30,20 @@ function elapsed(ms: number): string {
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * Processes whose name matches, the way pgrep and pkill both mean it.
+ *
+ * Substring rather than a regular expression: the pattern a player types is
+ * `purge`, and making them learn a second language to find a pid would be
+ * teaching the wrong thing at the wrong moment.
+ */
+function match(ctx: ShellContext, pattern: string, full: boolean): Process[] {
+  return ctx.procs.list().filter((p) => {
+    const name = (p.argv[0] ?? '').split('/').pop() ?? '';
+    return (full ? p.argv.join(' ') : name).includes(pattern);
+  });
 }
 
 export const procCommands: CommandSpec[] = [
@@ -52,21 +87,51 @@ export const procCommands: CommandSpec[] = [
     summary: 'send a signal to a process',
     manual:
       'Send a signal to a process by pid. Default is TERM (15).\n' +
+      '  -l          list the signal names this machine knows\n' +
       '  -9, -KILL   SIGKILL. Cannot be caught, blocked, or ignored.\n' +
-      '  -15, -TERM  SIGTERM. Asks the process to stop.',
+      '  -15, -TERM  SIGTERM. Asks the process to stop.\n\n' +
+      'A signal is a message, not a guarantee. A program may install a\n' +
+      'handler for TERM and decide for itself what to do about it, and kill\n' +
+      'still exits 0 -- it reports that the signal was delivered, not that\n' +
+      'anybody acted on it. If the process is still listed afterwards, it\n' +
+      'caught the signal. SIGKILL is the exception: it is handled by the\n' +
+      'kernel rather than by the program, so there is nothing to install a\n' +
+      'handler in.',
     plain:
-      'Stops a running program. You need its PID, which ps will tell you.\n' +
-      'kill -9 is the one that cannot be refused.',
+      'Stops a running program. You need its PID, which ps will tell you.\n\n' +
+      '    kill 412       ask it to stop\n' +
+      '    kill -9 412    make it stop\n\n' +
+      'The first one is a request. A program is allowed to catch it and keep\n' +
+      'going, and kill will not tell you that happened -- run ps again and\n' +
+      'see whether it is still there.\n\n' +
+      'kill -9 is the one that cannot be refused. Nothing gets to argue with\n' +
+      'it, which is also why it is the second thing you try and not the first:\n' +
+      'a program killed that way never gets to finish or tidy up.',
     run: (ctx, argv, io) => {
       const args = argv.slice(1);
       let signal = 15;
       const pids: string[] = [];
 
+      // `kill -l` is how anybody finds out what the numbers are called
+      // without a manual, and it is one line of code.
+      if (args.includes('-l')) {
+        emit(
+          io,
+          Object.entries(SIGNALS).map(([name, number]) => `${String(number).padStart(2)}) SIG${name}`),
+        );
+        return 0;
+      }
+
       for (const arg of args) {
-        const named = /^-(?:SIG)?([A-Z]+)$/.exec(arg);
+        const named = /^-(?:SIG)?([A-Za-z]+)$/.exec(arg);
         if (named) {
-          const name = named[1]!;
-          signal = name === 'KILL' ? 9 : name === 'TERM' ? 15 : name === 'HUP' ? 1 : 15;
+          const name = named[1]!.toUpperCase();
+          const known = SIGNALS[name];
+          if (known === undefined) {
+            io.err(`kill: ${arg}: invalid signal specification\n`);
+            return 1;
+          }
+          signal = known;
           continue;
         }
         const numbered = /^-(\d+)$/.exec(arg);
@@ -99,12 +164,98 @@ export const procCommands: CommandSpec[] = [
           continue;
         }
         // A unit's process going away leaves the unit inactive, not active
-        // with a dangling pid — which is what makes `systemctl status` honest
-        // after someone kills the process behind its back.
+        // with a dangling pid -- which is what makes `systemctl status`
+        // honest after someone kills the process behind its back.
         if (process.unit) ctx.services.stop(process.unit);
-        else ctx.procs.kill(pid, signal);
+        // Nothing is printed either way. `kill` reports delivery, and a
+        // process that caught the signal is still in the table for `ps` to
+        // find. Saying so here would hand over the whole lesson.
+        else ctx.procs.signal(pid, signal);
       }
       return code;
+    },
+  },
+
+  {
+    name: 'pgrep',
+    summary: 'find the pids of processes by name',
+    manual:
+      'pgrep [-f] PATTERN\n\n' +
+      'Print the process id of every process whose name matches PATTERN.\n' +
+      '  -f   match against the whole command line, not just the program name\n\n' +
+      'Exits 1 when nothing matched, so it can be tested in a script. The\n' +
+      'usual use is to feed kill:  kill -9 $(pgrep thing)',
+    plain:
+      'Finds the PID of a program by its name, so you do not have to read it\n' +
+      'out of ps by eye.\n\n' +
+      '    pgrep scrubber\n\n' +
+      'Prints one number per matching program. Nothing printed means nothing\n' +
+      'matched.',
+    run: (ctx, argv, io) => {
+      const args = argv.slice(1);
+      const full = args.includes('-f');
+      const pattern = args.find((arg) => !arg.startsWith('-'));
+      if (pattern === undefined) return usage(io, 'usage: pgrep [-f] pattern');
+      const found = match(ctx, pattern, full);
+      emit(io, found.map((p) => String(p.pid)));
+      return found.length > 0 ? 0 : 1;
+    },
+  },
+
+  {
+    name: 'pkill',
+    summary: 'signal processes by name',
+    manual:
+      'pkill [-signal] [-f] PATTERN\n\n' +
+      'Send a signal to every process whose name matches PATTERN. Default is\n' +
+      'TERM, and every caveat on `man kill` applies here too: a program may\n' +
+      'catch TERM and carry on, and this will still exit 0.\n\n' +
+      '  -f   match against the whole command line, not just the program name\n\n' +
+      'Exits 1 when nothing matched.',
+    plain:
+      'Like kill, but you name the program instead of looking up its number.\n\n' +
+      '    pkill atmo-purge       ask it to stop\n' +
+      '    pkill -9 atmo-purge    make it stop\n\n' +
+      'Same rule as kill: the first one is a request and a program is allowed\n' +
+      'to ignore it. Check with ps afterwards.',
+    run: (ctx, argv, io) => {
+      // Parsed by hand rather than with parseArgs, for the same reason `kill`
+      // is: `-KILL` is one signal name and not a cluster of four short flags.
+      let signal = SIGTERM;
+      let full = false;
+      let pattern: string | undefined;
+
+      for (const arg of argv.slice(1)) {
+        if (arg === '-f') { full = true; continue; }
+        const numbered = /^-(\d+)$/.exec(arg);
+        if (numbered) { signal = Number(numbered[1]); continue; }
+        const named = /^-(?:SIG)?([A-Za-z]+)$/.exec(arg);
+        if (named) {
+          const known = SIGNALS[named[1]!.toUpperCase()];
+          if (known === undefined) {
+            io.err(`pkill: ${arg}: invalid signal specification\n`);
+            return 1;
+          }
+          signal = known;
+          continue;
+        }
+        if (pattern === undefined) pattern = arg;
+      }
+
+      if (pattern === undefined) return usage(io, 'usage: pkill [-signal] [-f] pattern');
+
+      const found = match(ctx, pattern, full);
+      let signalled = 0;
+      for (const process of found) {
+        if (ctx.user.uid !== 0 && process.uid !== ctx.user.uid) {
+          io.err(`pkill: (${process.pid}) - Operation not permitted\n`);
+          continue;
+        }
+        if (process.unit) ctx.services.stop(process.unit);
+        else ctx.procs.signal(process.pid, signal);
+        signalled++;
+      }
+      return signalled > 0 ? 0 : 1;
     },
   },
 

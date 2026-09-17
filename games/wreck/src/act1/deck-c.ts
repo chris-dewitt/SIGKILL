@@ -71,8 +71,14 @@ function noise(seed: number): () => number {
   };
 }
 
-/** `YYYY-MM-DDTHH:MM`, which sorts correctly as plain text and greps cleanly. */
-function stamp(ms: number): string {
+/**
+ * `YYYY-MM-DDTHH:MM`, which sorts correctly as plain text and greps cleanly.
+ *
+ * The house rule for this world: anything a machine wrote is stamped like
+ * this, and anything a person wrote counts in days. So a player can tell at a
+ * glance whether they are reading an instrument or a diary.
+ */
+export function stamp(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number): string => String(n).padStart(2, '0');
   return (
@@ -211,6 +217,12 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     'systemctl status hull-monitor',
     'grep C7 /var/log/hull.log | tail -20',
     "grep PRESSURE_DROP /var/log/hull.log | cut -d' ' -f2 | sort | uniq -c",
+    'ps -ef',
+    'tail /var/log/purge.log',
+    'kill 312',
+    'ps -ef',
+    'kill 312',
+    'man kill',
     'chmod +x /home/vasquez/notes/seal.sh',
     './notes/seal.sh c2',
     'ls -l /home/vasquez/notes/',
@@ -224,6 +236,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     '[x] teach chen to use grep so she stops asking me',
     '[x] patch C2. bowen was sleeping under it',
     '[ ] SEAL C7. it is the whole problem. stop putting it off',
+    '[ ] stop the purge on C7. it will not take a hint. see purge-notes',
     '[ ] scrubber target -- it refuses 16 and it is right',
     '[ ] hull-check lost its mode bits in the restore. put them back',
     '[ ] write down how any of this works for whoever is next',
@@ -275,6 +288,47 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     '',
     'I wrote seal.sh for the same reason. It is also not executable, because',
     'I am apparently the kind of engineer who does this twice.',
+    '',
+    '                                                       -- Vasquez',
+    '',
+  ], { uid: CREW.vasquez, mode: 0o644 });
+
+  /*
+   * The note that sets up puzzle five and deliberately stops one line short
+   * of solving it.
+   *
+   * Every other note of hers hands over the fix, because exploring should pay.
+   * This one cannot, because she never worked it out -- she knew there was a
+   * signal that could not be caught and she ran out of days before she found
+   * which. It points at `man kill`, where the answer has been the whole time.
+   * The player finishes a job the engineer could not.
+   */
+  file(vfs, '/home/vasquez/notes/purge-notes.txt', [
+    'PURGE -- I am leaving this here because I cannot fix it',
+    '',
+    'Day 9 I started a purge cycle on C7 so I could work the crawl without',
+    'a suit. atmo-purge runs until the compartment reaches its target.',
+    '',
+    'C7 never reaches anything. C7 is a hole.',
+    '',
+    'So the cycle never finishes, and the program will not exit until the',
+    'cycle finishes, and it tells me so every single time I ask it:',
+    '',
+    '    tail /var/log/purge.log',
+    '',
+    'kill does nothing. kill again does nothing, and it does not even have',
+    'the manners to say no -- it exits zero and the thing is still there in',
+    'ps. The manual says a program is allowed to catch a signal and decide',
+    'for itself what to do about it. That is apparently what catch means.',
+    '',
+    'There is supposed to be one it cannot catch. I know that much. I did',
+    'not find which one in the time I had and then I had other things.',
+    '',
+    '    man kill',
+    '',
+    'It is not hurting anything while C7 is open -- it is venting a room',
+    'that is already vacuum. Whoever seals C7: it will start hurting',
+    'something the moment you do. Deal with it first or deal with it fast.',
     '',
     '                                                       -- Vasquez',
     '',

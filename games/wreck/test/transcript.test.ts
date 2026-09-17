@@ -54,6 +54,17 @@ const SCRIPT = [
   'systemctl list-units',
   'deck',
   'pressure',
+  // Puzzle five: the process nobody started, and the signal it declines.
+  'cat /home/vasquez/notes/purge-notes.txt',
+  'ps -ef',
+  'tail -4 /var/log/purge.log',
+  'sudo pkill atmo-purge',
+  'ps -ef | grep purge',
+  'tail -2 /var/log/purge.log',
+  'sudo pkill -9 atmo-purge',
+  'ps -ef | grep purge',
+  'deck',
+  'pressure',
   'objectives',
   'date',
 ];

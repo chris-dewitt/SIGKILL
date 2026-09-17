@@ -93,11 +93,19 @@ export class Questbook {
    * Drained rather than queried so a beat plays exactly once, however the
    * player got there -- the goals are solution-agnostic, so the host cannot
    * hang the beat off a particular command.
+   *
+   * An objective still waiting on another is held back rather than announced.
+   * Solution-agnostic goals mean a player can satisfy a later one early --
+   * seal the compartment before the monitor is running, end a process before
+   * anybody has said it matters -- and firing that beat out of order spoils
+   * the puzzle it belongs to. Held, not dropped: it plays the moment its
+   * blockers clear, which is when it means something.
    */
   drainCompleted(world: World): Objective[] {
     const closed: Objective[] = [];
     for (const objective of this.objectives) {
       if (!objective.done(world) || this.announced.has(objective.id)) continue;
+      if (this.blockers(world, objective).length > 0) continue;
       this.announced.add(objective.id);
       closed.push(objective);
     }

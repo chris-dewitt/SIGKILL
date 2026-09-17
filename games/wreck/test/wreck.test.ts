@@ -122,6 +122,7 @@ describe('Act I can actually be finished', () => {
       'sudo systemctl start hull-monitor',
       'sudo systemctl enable hull-monitor',
       "sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c7.conf",
+      'sudo pkill -9 atmo-purge',
     ];
 
     for (const [index, command] of route.entries()) {
@@ -202,6 +203,25 @@ describe('Act I can actually be finished', () => {
     const seal = await machine.exec('sudo /home/vasquez/notes/seal.sh c7');
     expect(seal.stderr, seal.stderr).toBe('');
     expect(seal.stdout).toContain('SEALED=yes');
+
+    // Puzzle five: a process nobody started, which will not take a hint.
+    const running = await machine.exec('ps -ef');
+    expect(running.stdout).toContain('/usr/sbin/atmo-purge');
+    const pid = /^\S+\s+(\d+).*atmo-purge/m.exec(running.stdout)?.[1];
+    expect(pid, running.stdout).toBeDefined();
+
+    // SIGTERM is a request, and this one declines it -- silently, exit 0.
+    const asked = await machine.exec(`sudo kill ${pid}`);
+    expect(asked.code).toBe(0);
+    expect(asked.stderr).toBe('');
+    expect((await machine.exec('ps -ef')).stdout).toContain('atmo-purge');
+    // It said so in its own log, which is the only place it is written down.
+    expect((await machine.exec('tail -2 /var/log/purge.log')).stdout).toContain('SIGTERM');
+    expect(questbook.complete(machine)).toBe(false);
+
+    // SIGKILL is not a request.
+    expect((await machine.exec(`sudo kill -9 ${pid}`)).stderr).toBe('');
+    expect((await machine.exec('ps -ef')).stdout).not.toContain('atmo-purge');
 
     expect(questbook.complete(machine)).toBe(true);
     expect(questbook.hintsTaken).toBe(0);
@@ -315,7 +335,7 @@ describe('the player can always tell what they are doing', () => {
 
   it('counts progress through the act', async () => {
     const { machine } = bootWreck();
-    expect((await machine.exec('objectives')).stdout).toContain('0 of 4 done');
+    expect((await machine.exec('objectives')).stdout).toContain('0 of 5 done');
   });
 
   it('gives every step a label, or the board has nothing to say', () => {

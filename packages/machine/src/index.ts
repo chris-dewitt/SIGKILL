@@ -25,6 +25,7 @@ export { Network } from './net/network.js';
 export type { NetHost, HostOptions, HttpResponse, Session } from './net/network.js';
 
 export { ProcessTable } from './proc/table.js';
+export type { SignalWatcher, SpawnOptions } from './proc/table.js';
 export { JobTable } from './proc/jobs.js';
 export type { Job, JobState } from './proc/jobs.js';
 export {
@@ -39,10 +40,12 @@ export {
 export type { CronEntry, CronFields } from './proc/cron.js';
 export { ServiceManager } from './proc/services.js';
 export { parseIni, loadUnit, listUnits, UNIT_DIRS, WANTS_DIR } from './proc/units.js';
+export { SIGKILL, SIGTERM } from './proc/types.js';
 export type {
   Process,
   ProcessState,
   ProcSnapshot,
+  SignalOutcome,
   Precondition,
   ServiceState,
   ServiceStatus,

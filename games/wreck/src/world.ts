@@ -6,6 +6,7 @@ import {
   ORACLE_AWAKE, ORACLE_CANDID, ORACLE_DORMANT, art, shipSchematic, titleCard,
 } from './act1/cards.js';
 import { HULL_CHECK, seedDeckC } from './act1/deck-c.js';
+import { startPurge, watchPurge } from './act1/purge.js';
 import { hullCheckRunnable, oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
 
 /**
@@ -49,8 +50,12 @@ export function wreckCommands(questbook: Questbook) {
  * quietly deleted.
  */
 export function wireWreck(m: Machine): void {
+  // What the purge does when somebody asks it to stop. Behaviour, not state,
+  // so it is re-attached on every boot including a restored one.
+  watchPurge(m);
+
   m.setPrecondition('scrubber', (vfs) => {
-    const target = oxygenTarget({ vfs, services: m.services });
+    const target = oxygenTarget({ vfs, services: m.services, procs: m.procs });
     if (target === null) {
       return { ok: false, reason: 'O2_TARGET missing or unreadable in /etc/life_support.conf' };
     }
@@ -61,7 +66,7 @@ export function wireWreck(m: Machine): void {
   });
 
   m.setPrecondition('hull-monitor', (vfs) => {
-    const verdict = hullCheckRunnable({ vfs, services: m.services });
+    const verdict = hullCheckRunnable({ vfs, services: m.services, procs: m.procs });
     return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason };
   });
 }
@@ -339,6 +344,17 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
   // the player has worked out that it is the thing to ask.
   m.services.start('hull-monitor');
 
+  /*
+   * And the thing nobody started with systemd.
+   *
+   * Spawned after the units so its pid is above theirs, which is what a
+   * process somebody launched by hand on day nine would look like. It is
+   * running from the first command the player types, so a curious player who
+   * reads `ps` early finds it before the story points at it -- which is the
+   * correct reward for looking.
+   */
+  startPurge(m);
+
   m.shell.cwd = '/home/survivor';
   m.shell.env['PWD'] = '/home/survivor';
   return { machine: m, questbook };
@@ -443,16 +459,18 @@ export function epilogue(m: Machine): BeatLine[] {
       '  The ship is breathing and the',
       '  hull is closed.',
       '',
-      '  Four puzzles, one skill wearing',
-      '  four hats: ask the machine what',
-      '  is wrong, read the answer, change',
-      '  the one thing it named.',
+      '  Five puzzles, one habit: ask the',
+      '  machine what is wrong, read the',
+      '  answer, change the one thing it',
+      '  named -- then look again.',
       '',
-      '    systemctl status   it will tell you',
-      '    vi / sed           change one thing',
-      '    chmod +x           a file becomes',
-      '                       a program',
-      '    grep               it is in the log',
+      '    systemctl status  it will say why',
+      '    vi / sed          change one thing',
+      '    chmod +x          a file becomes',
+      '                      a program',
+      '    grep              it is in the log',
+      '    ps / kill -9      it is still',
+      '                      running',
       '',
       '  Bowen took a pod on day twelve,',
       '  wrote down a heading, and did not',

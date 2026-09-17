@@ -1,5 +1,6 @@
 import type { CommandSpec, ExecIO, ShellContext } from '@sigkill/machine';
 import { deckMap, pressurePanel } from './art.js';
+import { ventingCompartments } from './purge.js';
 
 /**
  * Commands the ship carries that draw rather than print.
@@ -59,9 +60,11 @@ export function artCommands(): CommandSpec[] {
       preformatted: true,
       manual:
         'deck\n\n' +
-        'Render deck C as a diagram, read from /etc/hull/*.conf at the moment\n' +
-        'you ask. A compartment with a solid wall is sealed; one with a dashed\n' +
-        'wall is open to vacuum.\n\n' +
+        'Render deck C as a diagram, read from /etc/hull/*.conf and from the\n' +
+        'process table at the moment you ask. A compartment with a solid wall\n' +
+        'is sealed; one with a dashed wall is open to vacuum; a half-filled\n' +
+        'one is shut and losing pressure anyway, which means something running\n' +
+        'aboard is emptying it.\n\n' +
         'Requires hull-monitor to be running -- the diagram is a view of what\n' +
         'that unit reads, not a second copy of the truth. Edit a compartment\n' +
         'and run it again.',
@@ -75,7 +78,10 @@ export function artCommands(): CommandSpec[] {
         '  deck  again, the picture changes too.',
       run: (ctx, _argv, io) => {
         if (!requireMonitor(ctx, io, 'deck')) return 1;
-        io.out(deckMap(ctx.vfs).join('\n') + '\n');
+        // Read from the process table as well as the filesystem: a
+        // compartment can be shut in /etc/hull and emptying anyway, and the
+        // picture has to be able to say so or it is lying by omission.
+        io.out(deckMap(ctx.vfs, { venting: ventingCompartments(ctx) }).join('\n') + '\n');
         return 0;
       },
     },

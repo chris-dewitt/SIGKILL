@@ -1,4 +1,4 @@
-import type { ServiceManager, Track, Vfs } from '@sigkill/machine';
+import type { ProcessTable, ServiceManager, Track, Vfs } from '@sigkill/machine';
 
 /**
  * What an objective is allowed to look at.
@@ -11,6 +11,14 @@ import type { ServiceManager, Track, Vfs } from '@sigkill/machine';
 export interface World {
   readonly vfs: Vfs;
   readonly services: ServiceManager;
+  /**
+   * What is running.
+   *
+   * Here because an objective about a process has to be able to ask whether
+   * that process is still there -- and because "is it still there" is the
+   * only honest way to check, given that `kill` says nothing either way.
+   */
+  readonly procs: ProcessTable;
 }
 
 /**

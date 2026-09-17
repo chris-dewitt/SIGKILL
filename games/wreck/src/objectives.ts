@@ -4,6 +4,7 @@ import type { Objective, World } from '@sigkill/quest';
 // where the sweep lives. An objective that guessed either would be one rename
 // away from being quietly unsatisfiable.
 import { BREACHED, HULL_CHECK } from './act1/deck-c.js';
+import { PURGE_LOG, purgeProcess } from './act1/purge.js';
 import { ORACLE_ALARMED, art } from './act1/cards.js';
 
 /**
@@ -492,6 +493,17 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       '',
       'ORACLE: You did it in an afternoon. Chen said somebody would.',
       '',
+      '  [0000.902] C7 100.2kPa FALLING',
+      '  [0000.903] hull-monitor: ALARM - C7 losing pressure, hatch shut',
+      '',
+      'ORACLE: That is not the hull.',
+      '',
+      'ORACLE: The hatch is closed. I watched the number come up and I have',
+      'ORACLE: just watched it start back down, and a sealed compartment does',
+      'ORACLE: not do that on its own.',
+      '',
+      'ORACLE: Something aboard is emptying it. On purpose. Find out what.',
+      '',
     ],
     steps: [
       {
@@ -581,6 +593,148 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
               'the wrong compartment, and then she never made it executable',
               'either, so you will need chmod +x on it first. She was tired.',
               'I am not going to say anything about it and neither should you.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  /*
+   * Puzzle five: a signal is a message, not an order.
+   *
+   * Everything up to here has been the ship doing what it was told, badly,
+   * because the instructions were wrong. This one is the ship doing exactly
+   * what it was told, correctly, forever -- and the fix is not an edit. It is
+   * the one signal a program does not get a vote on, which is the thing this
+   * whole series is named after.
+   *
+   * The lesson has two halves and the ladder teaches them in order: kill says
+   * nothing about whether anybody listened, and the way to find out is to
+   * look again.
+   */
+  {
+    id: 'stop-the-purge',
+    title: 'Find out what is still emptying C7, and stop it',
+    requires: ['seal-the-breach'],
+    done: (world) => purgeProcess(world) === undefined,
+    onComplete: [
+      '',
+      '  [0000.000] atmo-purge: SIGKILL. no handler. process ended',
+      '  [0000.001] atmo-purge: valve closed on loss of process',
+      '  [0000.520] hull-check: C7 100.4kPa RISING',
+      '  [0000.521] hull-monitor: ALARM CLEARED',
+      '',
+      'ORACLE: It stopped.',
+      '',
+      'ORACLE: I want to say something about that and I am having some',
+      'ORACLE: trouble choosing the sentence.',
+      '',
+      'ORACLE: It was not broken. It was not malicious. It was doing exactly',
+      'ORACLE: what it was told, for eleven years, with nobody left aboard to',
+      'ORACLE: tell it anything else. It caught every request to stop, and it',
+      'ORACLE: answered every one of them politely, and it wrote each answer',
+      'ORACLE: down in case somebody came to read them.',
+      '',
+      `    cat ${PURGE_LOG}`,
+      '',
+      'ORACLE: I have been on this ship longer than Vasquez was. I have one',
+      'ORACLE: instruction I have never been able to complete and I have been',
+      'ORACLE: deferring it, politely, every day, and writing it down.',
+      '',
+      'ORACLE: I am not going to draw the conclusion out loud.',
+      '',
+      'ORACLE: Look at the compartment. It is filling:  pressure',
+      '',
+    ],
+    steps: [
+      {
+        id: 'end-it',
+        label: 'end whatever is venting C7',
+        pending: (world) => purgeProcess(world) !== undefined,
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The hull is not the problem any more. You closed the hull.',
+              '',
+              'Something aboard is running, and it has been running since',
+              'day nine, and Vasquez knew about it. She left a note and she',
+              'was not proud of it:',
+              '',
+              '    cat /home/vasquez/notes/purge-notes.txt',
+              '',
+              'Read it before you touch anything. It will not solve this for',
+              'you. She did not solve it either.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Everything this ship is running right now is a process, and a',
+              'process has a number. List them:',
+              '',
+              '    ps -ef',
+              '',
+              'The one you want is not a service. systemctl has never heard',
+              'of it -- somebody started it by hand and walked away.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'It is /usr/sbin/atmo-purge, and it has been venting C7 since',
+              'the ninth day. Its number is in the second column:',
+              '',
+              '    ps -ef | grep purge',
+              '',
+              'It runs as root, so stopping it is a privileged act, the same',
+              'as starting a service was:',
+              '',
+              '    sudo kill <that number>',
+              '',
+              'Then look again. It matters whether it actually went, and',
+              'kill will not be the one to tell you.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'It is still there, and kill exited zero, and both of those',
+              'things are correct.',
+              '',
+              'A signal is a message. A program is allowed to install a',
+              'handler for it and decide for itself what to do, and this one',
+              'decides to finish its cycle first. Its cycle cannot finish.',
+              'It has been saying so the whole time:',
+              '',
+              `    tail ${PURGE_LOG}`,
+              '',
+              'There is exactly one signal a program does not get a say in,',
+              'because the kernel handles it rather than the program:',
+              '',
+              '    man kill',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'sudo pkill -9 atmo-purge',
+            lines: [
+              'SIGKILL. Signal nine. It cannot be caught, blocked or ignored,',
+              'because there is nothing in the program for it to be caught',
+              'by -- it is delivered to the process table, not to the code.',
+              '',
+              '    ps -ef | grep purge          its number',
+              '    sudo kill -9 <that number>   end it',
+              '',
+              'Or by name, if you would rather not read a number off a list:',
+              '',
+              '    sudo pkill -9 atmo-purge',
+              '',
+              'It is the last thing you reach for and not the first. A',
+              'program killed this way never gets to close anything or write',
+              'anything down. Ask nicely, wait, look, and then do this.',
             ],
           },
         ],
