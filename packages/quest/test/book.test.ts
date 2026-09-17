@@ -369,3 +369,36 @@ describe('asking about a particular objective', () => {
     expect((await m.exec('hint the door')).code).toBe(1);
   });
 });
+
+describe('beats play in the order the story needs them', () => {
+  /** A one-step objective satisfied by a file existing. */
+  const objective = (id: string, path: string, requires?: string[]): Objective => ({
+    id,
+    title: id,
+    ...(requires ? { requires } : {}),
+    done: (w) => w.vfs.exists(path, ROOT_USER),
+    steps: [
+      {
+        id: 'do-it',
+        label: `create ${path}`,
+        pending: (w) => !w.vfs.exists(path, ROOT_USER),
+        rungs: [{ tier: 'command', lines: [`    touch ${path}`], command: `touch ${path}` }],
+      },
+    ],
+  });
+
+  it('holds a finished objective back while it is still blocked, then plays it', () => {
+    const book = new Questbook([objective('first', '/a'), objective('second', '/b', ['first'])]);
+    const w = world();
+
+    // Solution-agnostic goals mean this is legal: the player satisfied the
+    // second objective before the first was even offered to them.
+    w.vfs.writeText('/b', '', ROOT_USER);
+    expect(book.drainCompleted(w).map((o) => o.id)).toEqual([]);
+
+    w.vfs.writeText('/a', '', ROOT_USER);
+    expect(book.drainCompleted(w).map((o) => o.id)).toEqual(['first', 'second']);
+    // And exactly once, however it got there.
+    expect(book.drainCompleted(w)).toEqual([]);
+  });
+});

@@ -1,7 +1,7 @@
 import * as p from '../vfs/path.js';
 import { ROOT_USER, type Vfs } from '../vfs/vfs.js';
 import type { ProcessTable } from './table.js';
-import type { Precondition, ServiceState, ServiceStatus } from './types.js';
+import { SIGKILL, type Precondition, type ServiceState, type ServiceStatus } from './types.js';
 import { listUnits, loadUnit, unitName, WANTS_DIR } from './units.js';
 
 interface Runtime {
@@ -143,7 +143,10 @@ export class ServiceManager {
     if (!unit) return { ok: false, reason: `Unit ${unitName(name)}.service not found.` };
 
     const r = this.rt(unit.name);
-    if (r.pid !== undefined) this.procs.kill(r.pid);
+    // SIGKILL rather than TERM: `systemctl stop` is an instruction, not a
+    // request, and a unit whose process trapped TERM would otherwise leave
+    // the manager believing it had stopped something it had not.
+    if (r.pid !== undefined) this.procs.kill(r.pid, SIGKILL);
     r.state = 'inactive';
     r.since = this.now();
     delete r.pid;

@@ -1,11 +1,32 @@
-import type { Process, ProcessState, ProcSnapshot } from './types.js';
+import { SIGKILL, SIGTERM, type Process, type ProcessState, type ProcSnapshot, type SignalOutcome } from './types.js';
 
 export interface SpawnOptions {
   uid?: number;
   ppid?: number;
   unit?: string;
   state?: ProcessState;
+  /** Signals this process catches rather than dies of. Never SIGKILL. */
+  traps?: readonly number[];
+  /**
+   * Virtual-clock instant this process started, when it is not now.
+   *
+   * Negative is the useful case: something an adventure wants to have been
+   * running since before the session opened. `ps` reports elapsed time from
+   * it, so a process started years ago looks like one, which is a clue a
+   * player can read off the screen rather than be told.
+   */
+  startedAt?: number;
 }
+
+/**
+ * Told about every signal that reaches a process.
+ *
+ * The seam for an adventure that wants a trapped signal to *do* something --
+ * write a line to a log, vent another compartment. The Machine delivers the
+ * signal and knows nothing about what it means; the adventure supplies the
+ * meaning, the same way it supplies a unit's precondition.
+ */
+export type SignalWatcher = (process: Process, signal: number, outcome: SignalOutcome) => void;
 
 /**
  * The process table.
@@ -18,6 +39,7 @@ export interface SpawnOptions {
 export class ProcessTable {
   private processes = new Map<number, Process>();
   private nextPid = 1;
+  private watchers: SignalWatcher[] = [];
 
   constructor(private readonly now: () => number) {}
 
@@ -28,8 +50,9 @@ export class ProcessTable {
       argv,
       state: opts.state ?? 'running',
       uid: opts.uid ?? 0,
-      startedAt: this.now(),
+      startedAt: opts.startedAt ?? this.now(),
       ...(opts.unit !== undefined ? { unit: opts.unit } : {}),
+      ...(opts.traps !== undefined ? { traps: [...opts.traps] } : {}),
     };
     this.processes.set(process.pid, process);
     return process;
@@ -49,14 +72,48 @@ export class ProcessTable {
   }
 
   /**
+   * Watch every signal delivered from now on. Returns the undo.
+   *
+   * Watchers are not snapshotted, because a function is not state. An
+   * adventure installs them while it is building its world, and does so again
+   * on the boot path a restored save goes through.
+   */
+  watch(fn: SignalWatcher): () => void {
+    this.watchers.push(fn);
+    return () => {
+      this.watchers = this.watchers.filter((w) => w !== fn);
+    };
+  }
+
+  /**
+   * Send a signal.
+   *
+   * Signal 15 asks and signal 9 does not. A process that lists a signal in
+   * `traps` catches it and stays where it is -- and the sender is told
+   * nothing, because on a real machine `kill` reports whether the signal was
+   * *delivered*, not whether the program took any notice. The way you find out
+   * is to look again.
+   */
+  signal(pid: number, signal: number = SIGTERM): SignalOutcome {
+    const process = this.processes.get(pid);
+    if (!process) return 'no-such-process';
+
+    const trapped = signal !== SIGKILL && (process.traps ?? []).includes(signal);
+    if (!trapped) this.processes.delete(pid);
+
+    const outcome: SignalOutcome = trapped ? 'trapped' : 'killed';
+    for (const watcher of this.watchers) watcher(process, signal, outcome);
+    return outcome;
+  }
+
+  /**
    * Remove a process.
    *
-   * Signal 15 asks and signal 9 does not, but nothing here traps signals yet,
-   * so both end the process. The distinction becomes real when units can
-   * install handlers — The Daemon needs that, The Wreck does not.
+   * The short form of `signal`, kept because most callers only want the
+   * process gone and do not care which signal did it. True means it is gone.
    */
-  kill(pid: number, _signal = 15): boolean {
-    return this.processes.delete(pid);
+  kill(pid: number, signal = SIGTERM): boolean {
+    return this.signal(pid, signal) === 'killed';
   }
 
   snapshot(): ProcSnapshot {

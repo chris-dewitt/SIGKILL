@@ -40,6 +40,8 @@ export interface Compartment {
   id: string;
   name: string;
   sealed: boolean;
+  /** Shut, and emptying anyway, because something aboard is emptying it. */
+  venting?: boolean;
 }
 
 /** Read one compartment's configuration. Missing or unreadable reads as open. */
@@ -66,7 +68,11 @@ export function readCompartment(vfs: Vfs, id: string): Compartment {
  * filenames.
  */
 function cell(c: Compartment): string[] {
-  const body = c.sealed ? '▓▓▓▓' : '    ';
+  // Three states, three fills: full, draining, gone. A compartment that is
+  // shut and still losing air is the hardest thing in the act to say in a
+  // sentence and the easiest to draw -- the wall is solid and the room is
+  // half empty, which is exactly the situation.
+  const body = c.venting === true ? '▒▒▒▒' : c.sealed ? '▓▓▓▓' : '    ';
   return frame([`${c.id.toUpperCase()} ${body}`], {
     style: c.sealed ? 'heavy' : 'broken',
     padding: 0,
@@ -80,19 +86,38 @@ function cell(c: Compartment): string[] {
  * changes the picture, so the abstraction (a line in a config file) and the
  * thing it means (a hole in a spaceship) land in the same place.
  */
-export function deckMap(vfs: Vfs): string[] {
-  const rows = DECK_PLAN.map((row) => row.map((id) => cell(readCompartment(vfs, id))));
-  const open = DECK_PLAN.flat()
-    .map((id) => readCompartment(vfs, id))
-    .filter((c) => !c.sealed);
+export function deckMap(vfs: Vfs, opts: { venting?: readonly string[] } = {}): string[] {
+  const venting = new Set(opts.venting ?? []);
+  const read = (id: string): Compartment => {
+    const c = readCompartment(vfs, id);
+    // Only a sealed compartment can be *venting*. An open one is not being
+    // emptied by anything; it is already empty.
+    return c.sealed && venting.has(id) ? { ...c, venting: true } : c;
+  };
 
-  const legend =
-    open.length === 0
-      ? ['▓ sealed      all nine holding']
-      : [
-          '▓ sealed   ╎ open to vacuum',
-          ...open.map((c) => `  ${c.id.toUpperCase()}: ${c.name}`),
-        ];
+  const rows = DECK_PLAN.map((row) => row.map((id) => cell(read(id))));
+  const all = DECK_PLAN.flat().map(read);
+  const open = all.filter((c) => !c.sealed);
+  const draining = all.filter((c) => c.venting === true);
+
+  /*
+   * Every line here has to fit inside the frame at SAFE_COLS, because the
+   * renderer clips art rather than reflowing it -- a legend with its right
+   * hand end missing is a legend that has stopped explaining anything.
+   */
+  const legend: string[] = [];
+  if (open.length === 0 && draining.length === 0) {
+    legend.push('▓ sealed      all nine holding');
+  } else {
+    legend.push(open.length > 0 ? '▓ sealed   ╎ open to vacuum' : '▓ sealed   ▒ venting');
+    for (const c of open) legend.push(`  ${c.id.toUpperCase()}: ${c.name}`);
+    if (draining.length > 0) {
+      // The pointer, not the answer. The deck plan can see that the room is
+      // emptying and cannot see what is emptying it. `ps` can.
+      legend.push('▒ shut, and still going down:');
+      legend.push(`  ${draining.map((c) => c.id.toUpperCase()).join(' ')} -- try:  ps -ef`);
+    }
+  }
 
   return frame(stack([['  bow  ↑'], grid(rows, 1), legend], 1), {
     title: 'DECK C',

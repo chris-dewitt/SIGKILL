@@ -7,9 +7,13 @@ import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/ma
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
 import { whatNow, type BeatLine } from '@sigkill/quest';
-import { bootWreck, restoreWreck, coldOpen, epilogue } from '@sigkill/wreck';
+import {
+  bootWreck, restoreWreck, coldOpen, epilogue, oxygenTarget, readCompartment, ventingCompartments,
+} from '@sigkill/wreck';
 import { clearSave, readSave, writeSave, type LastTurn } from './save.js';
+import { statusRows } from './status.js';
 import { beatText, pageIsArt, paginateBeats } from './turn.js';
+import { isSpeed, SPEEDS, SPEED_NAMES, Typist, type TypingSpeed } from './typist.js';
 
 const saved = readSave();
 const session = saved
@@ -61,6 +65,61 @@ function newgameCommand(): CommandSpec {
       clearSave();
       io.out('newgame: the ship is forgetting.\n');
       window.setTimeout(() => window.location.reload(), 80);
+      return 0;
+    },
+  };
+}
+
+/**
+ * How fast the ship talks.
+ *
+ * A host command for the same reason `palette` and `sound` are: the Machine
+ * has no screen, no speakers and no sense of time passing. The right speed is
+ * a matter of taste, and taste is not something to guess on somebody's behalf.
+ */
+function typingCommand(): CommandSpec {
+  return {
+    name: 'typing',
+    summary: 'how fast the ship types at you',
+    preformatted: true,
+    manual:
+      'typing [SPEED]\n\n' +
+      `Speeds: ${SPEED_NAMES.join(', ')}. Without an argument, lists them and\n` +
+      'says which is on. Remembered in this browser.\n\n' +
+      'off reveals every beat whole. It is also what you get automatically if\n' +
+      'your system asks for reduced motion.',
+    plain:
+      'Changes how fast text appears when the ship is talking to you.\n\n' +
+      `    typing            what it is now\n` +
+      `    typing fast       hurry up\n` +
+      `    typing off        no typing at all\n\n` +
+      'Tapping the beat always skips straight to the end of the page.',
+    run: (_ctx, argv, io) => {
+      const wanted = argv[1];
+      if (wanted === undefined) {
+        io.out(
+          [
+            'typing speed',
+            '',
+            ...SPEED_NAMES.map((name) => `  ${name === typingSpeed ? '>' : ' '} ${name}`),
+            '',
+            'Change it with:  typing <name>',
+            '',
+          ].join('\n'),
+        );
+        return 0;
+      }
+      if (!isSpeed(wanted)) {
+        io.err(`typing: no such speed '${wanted}'. Try: ${SPEED_NAMES.join(', ')}\n`);
+        return 1;
+      }
+      typingSpeed = wanted;
+      try {
+        window.localStorage.setItem('sigkill:typing', wanted);
+      } catch {
+        // A private window. The choice holds for this session.
+      }
+      io.out(`typing: ${wanted}\n`);
       return 0;
     },
   };
@@ -264,6 +323,31 @@ let savedTube = ((): string | null => {
   }
 })();
 
+/**
+ * The typing speed, from the URL, then the browser, then reduced motion.
+ *
+ * Reduced motion is not a preference to be talked out of. A player whose
+ * system asks for it gets `off` unless they have said otherwise here, and
+ * every beat still arrives complete -- nothing is hidden behind the animation,
+ * which is the only reason it is safe to have one.
+ */
+let typingSpeed: TypingSpeed = ((): TypingSpeed => {
+  const asked = query.get('typing');
+  if (isSpeed(asked)) return asked;
+  try {
+    const stored = window.localStorage.getItem('sigkill:typing');
+    if (isSpeed(stored)) return stored;
+  } catch {
+    // Site data blocked. Fall through to the default.
+  }
+  try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'off';
+  } catch {
+    // No matchMedia. Assume motion is fine.
+  }
+  return 'normal';
+})();
+
 const savedPalette = ((): string | null => {
   try {
     return query.get('palette') ?? window.localStorage.getItem('sigkill:palette');
@@ -456,6 +540,7 @@ async function submit(raw: string): Promise<void> {
       persist(lastTurn);
       sound.setState(shipSound());
       refreshTube();
+      refreshStatus();
       refreshScrollRail();
     } finally {
       if (slow !== undefined) window.clearTimeout(slow);
@@ -505,16 +590,44 @@ function refreshTube(): void {
   view.setCrt(degrade(tubeByName(savedTube), health));
 }
 
+/** The nine compartments of deck C, named once. */
+const COMPARTMENTS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'] as const;
+
+/**
+ * The readout, built from the same files and the same process table that
+ * `deck`, `pressure` and `objectives` read.
+ *
+ * No parallel state to keep in step. If the scrubber is running there is air,
+ * if a compartment says SEALED=no there is a hole, and if the questbook says
+ * you are on a step then that is what you are doing.
+ */
+function refreshStatus(): void {
+  const rows = questbook.status(machine);
+  const objective = questbook.current(machine);
+  view.setStatus(
+    statusRows(
+      {
+        target: oxygenTarget(machine),
+        scrubber: machine.services.get('scrubber')?.state === 'active',
+        sealed: COMPARTMENTS.filter((id) => readCompartment(machine.vfs, id).sealed).length,
+        compartments: COMPARTMENTS.length,
+        venting: ventingCompartments(machine).length,
+        done: rows.filter((row) => row.done).length,
+        goals: rows.length,
+        // The step, or the objective it belongs to. Undefined means finished,
+        // and saying "act one complete" while something is still open would
+        // be the readout lying, which is the one thing it must never do.
+        ...(objective
+          ? { step: questbook.step(machine, objective)?.label ?? objective.title }
+          : { step: undefined }),
+      },
+      view.columns,
+    ),
+  );
+}
+
 function shipSound(): AudioState {
-  const open = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'].some((id) => {
-    try {
-      return !/^\s*SEALED\s*=\s*yes\s*$/im.test(
-        machine.vfs.readText(`/etc/hull/${id}.conf`, machine.shell.user),
-      );
-    } catch {
-      return false;
-    }
-  });
+  const open = COMPARTMENTS.some((id) => !readCompartment(machine.vfs, id).sealed);
 
   const done = questbook.status(machine).filter((row) => row.done).length;
   const total = Math.max(1, questbook.status(machine).length);
@@ -607,15 +720,84 @@ function refreshScrollRail(): void {
   scrollThumb.style.top = `${top}px`;
 }
 
+/**
+ * The page currently being typed out, if one is.
+ *
+ * Nothing is hidden behind the animation: the whole page is already decided
+ * when typing starts, a tap reveals it, and `typing off` never starts one.
+ * That is what makes it safe to have -- an effect that can withhold
+ * information is not an effect, it is a gate.
+ */
+let typist: Typist | undefined;
+let typingFrame = 0;
+let typedLines = 0;
+let lastTypedAt = 0;
+
+function stopTyping(): void {
+  if (typingFrame !== 0) cancelAnimationFrame(typingFrame);
+  typingFrame = 0;
+  typist = undefined;
+}
+
+function typeFrame(now: number): void {
+  const current = typist;
+  if (!current) return;
+  // Clamped: a backgrounded tab resumes with a huge gap, which would
+  // otherwise dump the rest of the page in one step.
+  const elapsed = lastTypedAt === 0 ? 16.7 : Math.min(now - lastTypedAt, 100);
+  lastTypedAt = now;
+
+  const visible = current.advance(elapsed);
+  // A block at the end, because that is what a terminal that is still typing
+  // looks like and there is no other way to tell it apart from one that has
+  // stopped.
+  foldBody.textContent = current.done ? visible : `${visible}▋`;
+
+  // One tick per line, not per character. A click on every letter is how a
+  // good sound becomes the reason somebody turns the sound off.
+  if (current.lines > typedLines) {
+    typedLines = current.lines;
+    sound.play('key');
+  }
+
+  if (current.done) { stopTyping(); return; }
+  typingFrame = requestAnimationFrame(typeFrame);
+}
+
+function startTyping(text: string, instant: boolean): void {
+  stopTyping();
+  // Art is revealed whole. A drawing typed one character at a time is a
+  // drawing you watch being assembled wrongly for two seconds.
+  if (instant || typingSpeed === 'off') {
+    foldBody.textContent = text;
+    return;
+  }
+  typist = new Typist(text, SPEEDS[typingSpeed]);
+  typedLines = 0;
+  lastTypedAt = 0;
+  foldBody.textContent = '';
+  typingFrame = requestAnimationFrame(typeFrame);
+}
+
+/** A tap while the page is still arriving finishes it instead of advancing. */
+function skipTyping(): boolean {
+  const current = typist;
+  if (!current) return false;
+  const text = current.finish();
+  stopTyping();
+  foldBody.textContent = text;
+  return true;
+}
+
 function showFoldPage(page: readonly BeatLine[]): void {
   // The fold is the thing being read. Stacking it on the last-turn strip
   // ate the CRT on a phone (two 34vh panels). The dock stays; the strip
   // comes back when the fold closes.
   turnEl.hidden = true;
   foldEl.hidden = false;
-  foldBody.textContent = page.map(beatText).join('\n');
   foldBody.classList.toggle('art', pageIsArt(page));
   foldBody.scrollTop = 0;
+  startTyping(page.map(beatText).join('\n'), pageIsArt(page));
   foldNext.textContent = foldPages.length > 0 ? 'tap to continue' : 'tap to close';
 }
 
@@ -632,11 +814,15 @@ function enqueueFold(lines: readonly BeatLine[]): void {
 }
 
 function advanceFold(): void {
+  // First tap lands the page, second tap turns it. Anything else makes a
+  // reader feel they have to wait before they are allowed to read.
+  if (skipTyping()) return;
   const next = foldPages.shift();
   if (next) {
     showFoldPage(next);
     return;
   }
+  stopTyping();
   foldEl.hidden = true;
   foldBody.textContent = '';
   if (currentTurn) showTurn(currentTurn);
@@ -942,6 +1128,7 @@ form.addEventListener('submit', (event) => {
     return;
   }
   if (!foldEl.hidden) {
+    stopTyping();
     foldPages.length = 0;
     foldEl.hidden = true;
     foldBody.textContent = '';
@@ -1069,6 +1256,9 @@ foldNext.addEventListener('click', () => {
 // told, or it keeps drawing to the old geometry.
 window.addEventListener('resize', () => {
   if (screenProgram) paintScreen();
+  // The readout is clipped to the column count, so a rotation changes what
+  // fits on it.
+  refreshStatus();
   refreshScrollRail();
 });
 
@@ -1083,7 +1273,9 @@ machine.shell.commands.set('palette', paletteCommand());
 machine.shell.commands.set('sound', soundCommand());
 machine.shell.commands.set('crt', crtCommand());
 machine.shell.commands.set('newgame', newgameCommand());
+machine.shell.commands.set('typing', typingCommand());
 refreshTube();
+refreshStatus();
 
 if (saved) {
   write('NAV-7 session restored. The ship has not forgotten.', 'system');

@@ -1,4 +1,4 @@
-import { TerminalBuffer, type LineKind, type Span } from './buffer.js';
+import { TerminalBuffer, type Line, type LineKind, type Span } from './buffer.js';
 import { CrtPass, type CrtOptions } from './crt.js';
 import { atBottom } from './metrics.js';
 import { TerminalRenderer, type Palette } from './renderer.js';
@@ -62,6 +62,8 @@ export class TerminalView {
   private readonly renderer: TerminalRenderer;
   private readonly glCanvas: HTMLCanvasElement;
   private readonly mirror: HTMLElement;
+  /** The readout, for a screen reader. Separate so it is not re-announced. */
+  private readonly statusMirror: HTMLElement;
   private crt: CrtPass | undefined;
   private frame = 0;
   private lastRevision = -1;
@@ -75,6 +77,10 @@ export class TerminalView {
   /** Bumped whenever the overlay is replaced or dropped, to force a redraw. */
   private overlaySerial = 0;
   private lastOverlaySerial = -1;
+  /** Rows pinned to the top. Not part of the buffer: they do not scroll. */
+  private status: readonly Line[] = [];
+  private statusSerial = 0;
+  private lastStatusSerial = -1;
   private observer: ResizeObserver | undefined;
   private disposed = false;
 
@@ -103,6 +109,20 @@ export class TerminalView {
     this.mirror.setAttribute('aria-live', 'polite');
     this.mirror.setAttribute('aria-label', 'Terminal output');
     container.append(this.mirror);
+
+    /*
+     * The readout is drawn on the canvas, which is hidden from assistive
+     * technology, so without this it exists for sighted players only. Its own
+     * region rather than part of the log: a status line that re-announced
+     * itself alongside every line of output would be unusable, and `role`
+     * status is the element that exists for exactly this.
+     */
+    this.statusMirror = document.createElement('div');
+    this.statusMirror.className = 'crt-mirror crt-status';
+    this.statusMirror.setAttribute('role', 'status');
+    this.statusMirror.setAttribute('aria-live', 'polite');
+    this.statusMirror.setAttribute('aria-label', 'Ship status');
+    container.append(this.statusMirror);
 
     if (accelerated) {
       try {
@@ -133,6 +153,31 @@ export class TerminalView {
     return this.renderer.rows;
   }
 
+  /**
+   * Rows the scrollback actually gets.
+   *
+   * The status bar is drawn out of the same grid, so every measurement of
+   * "am I at the bottom" and "how far can I scroll" has to count it out or
+   * the last line of output sits under the readout.
+   */
+  get bodyRows(): number {
+    return Math.max(1, this.renderer.rows - this.status.length);
+  }
+
+  /**
+   * Pin rows to the top of the tube.
+   *
+   * Passed as lines rather than as a string so the caller can colour them the
+   * same way everything else is coloured -- the readout says three different
+   * kinds of thing and they should not all be the same green.
+   */
+  setStatus(lines: readonly Line[]): void {
+    this.status = lines;
+    this.statusSerial++;
+    const text = lines.map((line) => line.text).join('\n');
+    if (this.statusMirror.textContent !== text) this.statusMirror.textContent = text;
+  }
+
   /** CSS pixels per buffer row — used to snap phone scroll to a line. */
   get rowHeight(): number {
     return this.renderer.rowHeight;
@@ -145,7 +190,7 @@ export class TerminalView {
 
   /** Rows of scrollback above the visible window. */
   get scrollMax(): number {
-    return Math.max(0, this.buffer.height(this.renderer.columns) - this.renderer.rows);
+    return Math.max(0, this.buffer.height(this.renderer.columns) - this.bodyRows);
   }
 
   /** True while a full-screen program owns the screen. */
@@ -260,7 +305,7 @@ export class TerminalView {
 
   scrollBy(rows: number): void {
     const total = this.buffer.height(this.renderer.columns);
-    const max = Math.max(0, total - this.renderer.rows);
+    const max = Math.max(0, total - this.bodyRows);
     this.scroll = Math.min(Math.max(0, this.scroll + rows), max);
   }
 
@@ -269,7 +314,7 @@ export class TerminalView {
   }
 
   private isAtBottom(): boolean {
-    return atBottom(this.buffer.height(this.renderer.columns), this.renderer.rows, this.scroll);
+    return atBottom(this.buffer.height(this.renderer.columns), this.bodyRows, this.scroll);
   }
 
   private observe(container: HTMLElement): void {
@@ -310,12 +355,14 @@ export class TerminalView {
     const changed =
       this.buffer.revision !== this.lastRevision ||
       this.scroll !== this.lastScroll ||
-      this.overlaySerial !== this.lastOverlaySerial;
+      this.overlaySerial !== this.lastOverlaySerial ||
+      this.statusSerial !== this.lastStatusSerial;
 
     if (changed) {
       this.lastRevision = this.buffer.revision;
       this.lastScroll = this.scroll;
       this.lastOverlaySerial = this.overlaySerial;
+      this.lastStatusSerial = this.statusSerial;
       // Phosphor keeps glowing after the last change, so keep drawing until
       // it has faded. Without this the decay freezes mid-fade, leaving a
       // permanent ghost of the previous screen.
@@ -335,8 +382,10 @@ export class TerminalView {
   private draw(elapsedMs = 16.7): void {
     // An overlay is always pinned: a full-screen program draws exactly the
     // rows it means to, and scrolling it would be scrolling the wrong thing.
+    // A full-screen program is handed the whole grid and told its size, so
+    // the readout steps out of the way rather than being drawn over.
     if (this.overlay) this.renderer.render(this.overlay, 0);
-    else this.renderer.render(this.buffer, this.scroll);
+    else this.renderer.render(this.buffer, this.scroll, this.status);
     if (this.crt) this.crt.render(this.renderer.canvas, elapsedMs);
     else this.blit();
     this.syncMirror();
