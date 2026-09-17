@@ -529,10 +529,13 @@ async function submit(raw: string): Promise<void> {
       }
       if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
-      const lastTurn = {
+      const lastTurn: LastTurn = {
         command: echoed,
         output: result.segments.map((s) => s.text).join(''),
         error: result.stderr,
+        // The Machine already knows: `deck` and `pressure` declare themselves
+        // preformatted and `cat` does not.
+        art: result.segments.some((segment) => segment.preformatted),
       };
       showTurn(lastTurn);
       playBeats();
@@ -712,7 +715,7 @@ function showTurn(turn: LastTurn): void {
   const body = turn.error.length > 0 ? turn.error : turn.output;
   turnOut.textContent = body.replace(/\n$/, '');
   turnOut.classList.toggle('err', turn.error.length > 0);
-  turnOut.classList.toggle('art', turn.output.includes('\n') && !turn.error);
+  turnOut.classList.toggle('art', turn.art === true && turn.error.length === 0);
   turnOut.scrollTop = 0;
 }
 
@@ -813,8 +816,24 @@ function showFoldPage(page: readonly BeatLine[]): void {
   foldNext.textContent = foldPages.length > 0 ? 'tap to continue' : 'tap to close';
 }
 
+/**
+ * How many lines fit in the fold right now.
+ *
+ * Measured rather than assumed, because the room it has depends on the phone,
+ * the rotation and whether the keyboard is up -- and a fixed seven turned the
+ * opening into ten taps on a screen with space for three.
+ */
+function foldPageSize(): number {
+  const style = window.getComputedStyle(foldBody);
+  const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4 || 18;
+  const room = foldBody.getBoundingClientRect().height
+    || parseFloat(style.maxHeight)
+    || window.innerHeight * 0.4;
+  return Math.min(24, Math.max(5, Math.floor(room / line)));
+}
+
 function enqueueFold(lines: readonly BeatLine[]): void {
-  const pages = paginateBeats(lines);
+  const pages = paginateBeats(lines, foldPageSize());
   if (pages.length === 0) return;
   foldPages.push(...pages);
   if (foldEl.hidden) {
@@ -1232,31 +1251,54 @@ screen.addEventListener('click', () => {
   if (!input.disabled) input.focus();
 });
 
-// Scrolling the canvas is ours to implement: it is a picture, not a document.
+/*
+ * Scrolling the canvas is ours to implement: it is a picture, not a document.
+ *
+ * `view.scroll` counts rows *back* from the newest line, so both of these
+ * have to invert. They did not, and the result was a terminal that went the
+ * wrong way under your thumb -- drag down and it ran to the bottom, wheel
+ * down and it climbed. Going back is up, in both directions, the way it is in
+ * every other scrolling thing anybody has ever touched.
+ */
 screen.addEventListener(
   'wheel',
   (event) => {
     event.preventDefault();
-    view.scrollBy(Math.sign(event.deltaY));
+    // Wheel down means further down the page, which is towards the newest.
+    view.scrollBy(-Math.sign(event.deltaY));
     refreshScrollRail();
   },
   { passive: false },
 );
 
 let touchY: number | null = null;
-screen.addEventListener('touchstart', (e) => { touchY = e.touches[0]?.clientY ?? null; }, { passive: true });
+/** Sub-row drag, kept so a slow thumb still moves the screen. */
+let touchRows = 0;
+
+screen.addEventListener('touchstart', (e) => {
+  touchY = e.touches[0]?.clientY ?? null;
+  touchRows = 0;
+}, { passive: true });
+
 screen.addEventListener('touchmove', (e) => {
   const y = e.touches[0]?.clientY;
   if (y === undefined || touchY === null) return;
-  const delta = touchY - y;
-  const row = Math.max(14, view.rowHeight);
-  if (Math.abs(delta) >= row) {
-    view.scrollBy(Math.trunc(delta / row));
-    touchY = y;
-    refreshScrollRail();
-  }
+
+  // The content follows the thumb: drag down and what was above comes into
+  // view, which is further back. Accumulated in fractions of a row rather
+  // than thrown away below the threshold, so a slow drag is smooth instead of
+  // being ignored until it jumps.
+  touchRows += (y - touchY) / Math.max(14, view.rowHeight);
+  touchY = y;
+
+  const whole = Math.trunc(touchRows);
+  if (whole === 0) return;
+  touchRows -= whole;
+  view.scrollBy(whole);
+  refreshScrollRail();
 }, { passive: true });
-screen.addEventListener('touchend', () => { touchY = null; }, { passive: true });
+
+screen.addEventListener('touchend', () => { touchY = null; touchRows = 0; }, { passive: true });
 
 holdFocusOnTap(foldNext);
 foldNext.addEventListener('click', () => {
@@ -1264,15 +1306,80 @@ foldNext.addEventListener('click', () => {
   keepFocus();
 });
 
-// A rotation or a keyboard appearing changes the grid; the program has to be
-// told, or it keeps drawing to the old geometry.
-window.addEventListener('resize', () => {
+/*
+ * The whole panel turns the page, not just the button.
+ *
+ * On a phone the button is a thumb-width target in the middle of a screen the
+ * player is already tapping; the panel is the size of the thing they are
+ * reading. Selecting text is the one gesture that must not count as a tap,
+ * because copying a path out of a beat is a thing people do.
+ */
+holdFocusOnTap(foldEl);
+foldEl.addEventListener('click', (event) => {
+  if (event.target === foldNext) return;
+  if (window.getSelection()?.toString()) return;
+  advanceFold();
+  keepFocus();
+});
+
+/*
+ * How much of the page the player can actually see.
+ *
+ * `100dvh` is the whole screen whether or not a keyboard is sitting on top of
+ * it, and on a phone that is most of the screen. Every panel is sized off
+ * `--app-height` instead, so the last-turn strip and the fold give their room
+ * back the moment the keyboard arrives rather than holding a third of a
+ * screen the player cannot see.
+ *
+ * `visualViewport` is the only thing that knows this. Where it is missing the
+ * CSS fallback stands, which is the old behaviour and no worse.
+ */
+/** The tallest this viewport has been at its current width. */
+let tallest = 0;
+let lastWidth = 0;
+
+function syncViewport(): void {
+  const vv = window.visualViewport;
+  const width = vv?.width ?? window.innerWidth;
+  const height = vv?.height ?? window.innerHeight;
+
+  // A rotation is a different screen, not a shorter one.
+  if (width !== lastWidth) {
+    lastWidth = width;
+    tallest = 0;
+  }
+  tallest = Math.max(tallest, height);
+
+  document.documentElement.style.setProperty('--app-height', `${Math.round(height)}px`);
+
+  /*
+   * Measured against the tallest this screen has been rather than against
+   * `innerHeight`, because the two ways a browser can handle a soft keyboard
+   * need different sums: Android with `interactive-widget=resizes-content`
+   * shortens the layout viewport too, so the difference between them is zero
+   * and a keyboard would never be noticed. What both have in common is that
+   * the screen got shorter than it was.
+   */
+  document.documentElement.classList.toggle('keyboard', height < tallest * 0.8);
+
+  // iOS scrolls the *layout* viewport under the keyboard rather than
+  // shortening it, which walks the dock off the bottom of the screen. There
+  // is nothing on this page to scroll, so putting it back is safe and is what
+  // keeps the input where the player left it.
+  if ((vv?.offsetTop ?? 0) > 0 || window.scrollY > 0) window.scrollTo(0, 0);
+
   if (screenProgram) paintScreen();
   // The readout is clipped to the column count, so a rotation changes what
   // fits on it.
   refreshStatus();
   refreshScrollRail();
-});
+}
+
+window.addEventListener('resize', syncViewport);
+window.addEventListener('orientationchange', syncViewport);
+window.visualViewport?.addEventListener('resize', syncViewport);
+window.visualViewport?.addEventListener('scroll', syncViewport);
+syncViewport();
 
 /*
  * The host's own commands, registered here rather than beside `bootWreck`
@@ -1300,15 +1407,29 @@ if (saved) {
     },
   );
 } else {
-  sayBeat(coldOpen(machine));
-  enqueueFold(whatNow(questbook, machine));
-  sayBeat(whatNow(questbook, machine));
+  /*
+   * The opening pages through the fold, typed, rather than landing in the
+   * scrollback as a wall.
+   *
+   * It was going straight onto the CRT, which meant the first thing a new
+   * player had to do was scroll back up a screen and a half to find out where
+   * they were -- on a phone, with the keyboard covering half of it. The
+   * scrollback still gets every line, because looking back has to work; the
+   * fold is how it is read the first time.
+   */
+  const opening = [...coldOpen(machine), ...whatNow(questbook, machine)];
+  sayBeat(opening);
+  enqueueFold(opening);
 }
 refreshPrompt();
 buildSymbolRow();
 refreshChips();
 scrollToEnd();
 refreshScrollRail();
+// Again after the first frame: the view measures its grid from a
+// ResizeObserver, so the rail drawn during boot is sized off a guess and sits
+// in the wrong place until something else happens to refresh it.
+requestAnimationFrame(() => refreshScrollRail());
 input.focus();
 
 // Exported for the console during development.

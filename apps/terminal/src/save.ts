@@ -7,6 +7,16 @@ export interface LastTurn {
   command: string;
   output: string;
   error: string;
+  /**
+   * The output's columns are load-bearing, so the strip must clip it rather
+   * than wrap it.
+   *
+   * Taken from the command's own declaration, not guessed from the text. The
+   * guess was "does it contain a newline", which made every `cat` of a note
+   * and every manual page a drawing -- and a drawing is not wrapped, so a
+   * phone showed the left two thirds of each line and hid the rest.
+   */
+  art?: boolean;
 }
 
 export interface WreckSave {

@@ -29,7 +29,8 @@ No Act II, no Archive, until that pass is done. See §5c and §8.
 | PR #15–#17 | merged | objectives and colour, four palettes, five tubes, the synthesised soundtrack |
 | PR #18–#20 | merged | Act I canon lock; Pass 0 — last-turn dock, beat fold, bundled Plex Mono, autosave, the phone e2e |
 | PR #21 | merged | signals and puzzle five; the typed reveal and the status panel |
-| `feat/luna` | **open** | LUNA, Okonkwo, the two locked doors |
+| PR #22 | merged | LUNA, Okonkwo, the two locked doors |
+| `feat/phone-screen` | **open** | the keyboard, the scroll direction, the intro in the fold |
 
 `pnpm -r test`: **820 tests** — 248 machine, 153 crt, 130 editor, 117 wreck,
 55 ascii, 45 quest, 27 python, 26 terminal, 19 audio. Plus 8 Playwright specs
