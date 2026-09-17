@@ -164,7 +164,7 @@ function hullTelemetry(wakeMs: number): string[] {
 export function seedDeckC(vfs: Vfs, wakeMs: number): void {
   for (const dir of [
     '/home/vasquez', '/home/vasquez/notes',
-    '/home/chen', '/home/bowen',
+    '/home/chen', '/home/bowen', '/home/okonkwo',
     '/etc/hull', '/mnt/deck-c', '/usr/local/bin',
   ]) {
     vfs.mkdirp(dir, ROOT_USER);
@@ -173,6 +173,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
   vfs.chown('/home/vasquez/notes', CREW.vasquez, CREW.vasquez, ROOT_USER);
   vfs.chown('/home/chen', CREW.chen, CREW.chen, ROOT_USER);
   vfs.chown('/home/bowen', CREW.bowen, CREW.bowen, ROOT_USER);
+  vfs.chown('/home/okonkwo', CREW.okonkwo, CREW.okonkwo, ROOT_USER);
 
   // -------------------------------------------------------------- accounts
   // `ls -l /home` reads these. Four names and one of them is still logging in
@@ -412,6 +413,43 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     '                                                          -- Bowen',
     '',
   ], { uid: CREW.bowen, mode: 0o644 });
+
+  // ------------------------------------------------------------ Okonkwo
+  // Cargo. She counted things, which is the quietest way a person can be
+  // real -- and her count is the only record of what Bowen took with him.
+
+  file(vfs, '/home/okonkwo/manifest.csv', [
+    'day,item,qty,signed_out_to,note',
+    '1,ration case,40,-,sealed',
+    '3,coolant cartridge,6,vasquez,C6 loop',
+    '5,hull patch kit,2,vasquez,C2',
+    '5,hull patch kit,1,-,remaining',
+    '9,suit scrubber cartridge,2,vasquez,aft crawl',
+    '12,hull patch kit,1,bowen,pod 2',
+    '12,ration case,2,bowen,pod 2',
+    '12,nav slate,1,bowen,pod 2',
+    '13,hull patch kit,0,-,none remaining',
+    '',
+  ], { uid: CREW.okonkwo, mode: 0o644 });
+
+  file(vfs, '/home/okonkwo/c8.txt', [
+    'POD BAY -- C8',
+    '',
+    'Pod 2 left on day 12. The clamp did not release clean and it took a',
+    'strip of the bay wall with it. I patched it the same hour. It is the',
+    'only thing on my list that is finished.',
+    '',
+    'For the record, because somebody should have it in writing: he signed',
+    'out the last patch kit. He knew what it was for. He took it anyway and',
+    'I gave it to him, and I have decided I am not going to be angry about',
+    'that, because the alternative is being angry at somebody who is not',
+    'here.',
+    '',
+    'Count is in manifest.csv. It is short one kit and it will stay short.',
+    '',
+    '                                                        -- Okonkwo',
+    '',
+  ], { uid: CREW.okonkwo, mode: 0o644 });
 
   // ------------------------------------------------------------ the hull
 

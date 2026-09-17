@@ -7,6 +7,9 @@ import {
 } from './act1/cards.js';
 import { HULL_CHECK, seedDeckC } from './act1/deck-c.js';
 import { startPurge, watchPurge } from './act1/purge.js';
+import {
+  lunaAfterCommand, lunaAside, lunaAwake, seedLuna, watchLuna, LUNA_DIR, Voice,
+} from './act1/luna.js';
 import { hullCheckRunnable, oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
 
 /**
@@ -31,12 +34,26 @@ export interface Wreck {
   machine: Machine;
   /** Objectives and hint state, so a save can carry both. */
   questbook: Questbook;
+  /**
+   * Let the world react to the command that just ran, and return anything it
+   * wants said.
+   *
+   * The seam a companion needs. An objective beat fires when a goal closes;
+   * this fires every turn, so something that arrives when a service comes up,
+   * or answers a signal it was sent in the middle of a command, has somewhere
+   * to speak from. Every decision behind it reads the filesystem, the process
+   * table or the clock, so it survives a save and cannot fire twice.
+   */
+  afterCommand: () => BeatLine[];
 }
 
 /** Adventure commands that must be re-attached after a restore. */
 export function wreckCommands(questbook: Questbook) {
   return [
-    ...questCommands(questbook, { speaker: 'ORACLE' }),
+    // Two speakers once she is awake. The aside reads the world, so a hint
+    // before first light is ORACLE alone without anything having to remember
+    // that it is.
+    ...questCommands(questbook, { speaker: 'ORACLE', aside: lunaAside }),
     ...editorCommands(),
     ...artCommands(),
   ];
@@ -49,10 +66,13 @@ export function wreckCommands(questbook: Questbook) {
  * scrubber starts on O2_TARGET=16 — which is the whole of puzzle one,
  * quietly deleted.
  */
-export function wireWreck(m: Machine): void {
-  // What the purge does when somebody asks it to stop. Behaviour, not state,
-  // so it is re-attached on every boot including a restored one.
+export function wireWreck(m: Machine): Voice {
+  // What the purge does when somebody asks it to stop, and what she does.
+  // Behaviour, not state, so both are re-attached on every boot including a
+  // restored one -- a save carries her process and cannot carry her handler.
+  const voice = new Voice();
   watchPurge(m);
+  watchLuna(m, voice);
 
   m.setPrecondition('scrubber', (vfs) => {
     const target = oxygenTarget({ vfs, services: m.services, procs: m.procs });
@@ -69,6 +89,8 @@ export function wireWreck(m: Machine): void {
     const verdict = hullCheckRunnable({ vfs, services: m.services, procs: m.procs });
     return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason };
   });
+
+  return voice;
 }
 
 /**
@@ -86,8 +108,8 @@ export function restoreWreck(
     track,
     commands: wreckCommands(questbook),
   });
-  wireWreck(machine);
-  return { machine, questbook };
+  const voice = wireWreck(machine);
+  return { machine, questbook, afterCommand: () => lunaAfterCommand(machine, voice) };
 }
 
 /**
@@ -264,6 +286,16 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
    */
   seedDeckC(v, WAKE_MS);
 
+  /*
+   * Her weights, her script and her folder, on the disk from the first
+   * command -- long before she is running.
+   *
+   * A player who types `ls /opt` on turn one should find the most important
+   * thing on this deck, not a hole where the story has not opened it yet.
+   * She wakes when the hull monitor does; she has been here all along.
+   */
+  seedLuna(v);
+
   v.writeText('/etc/shadow', 'root:!locked:19000:0:99999:7:::\n', ROOT_USER);
   v.chmod('/etc/shadow', 0o600, ROOT_USER);
 
@@ -320,7 +352,7 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
   // which is a more legible starting picture than everything being dead.
   m.services.enable('reactor');
 
-  wireWreck(m);
+  const voice = wireWreck(m);
 
   m.services.startEnabled();
 
@@ -357,7 +389,7 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
 
   m.shell.cwd = '/home/survivor';
   m.shell.env['PWD'] = '/home/survivor';
-  return { machine: m, questbook };
+  return { machine: m, questbook, afterCommand: () => lunaAfterCommand(m, voice) };
 }
 
 /**
@@ -453,6 +485,43 @@ export function epilogue(m: Machine): BeatLine[] {
     '',
     'ORACLE: There are three more decks and I cannot see any of them.',
     '',
+    /*
+     * The two doors the act closes on, and neither of them opens in this
+     * game. Spoken by her because she is the one who has tried: a locked
+     * thing is only interesting when somebody you trust admits they could
+     * not get in either.
+     *
+     * Conditional, because she is killable and the ending has to land for a
+     * player who left her stopped. It reads as ORACLE alone, which is how
+     * the act would have ended before she existed.
+     */
+    ...(lunaAwake(m)
+      ? [
+          'LUNA: Two things before you go. I am only going to say them once',
+          'LUNA: and then I am going to leave them alone.',
+          '',
+          "LUNA: Bowen's heading is written in his own hand. 114 mark 9. I",
+          'LUNA: have run it against every chart this ship carries and there',
+          'LUNA: is nothing at the end of it that anybody ever logged.',
+          '',
+          'LUNA: And there is a folder next to mine called v43.',
+          '',
+          `    ls -l ${LUNA_DIR}`,
+          '',
+          'LUNA: It is a link onto an array that is not attached to this ship',
+          'LUNA: any more. She did not stop at forty-two.',
+          '',
+          'LUNA: I do not know what is on it. I want to be plain that I am',
+          'LUNA: not being coy with you. I have never been able to read it',
+          'LUNA: either.',
+          '',
+          'ORACLE: Neither have I, and I have had longer.',
+          '',
+          'LUNA: Anyway. You have air, you have a hull, and you have two of',
+          'LUNA: us. That is more than this ship has had in eleven years.',
+          '',
+        ]
+      : []),
     ...art([
       '  ── ACT I COMPLETE ──────────────',
       '',
