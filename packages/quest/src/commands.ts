@@ -10,6 +10,19 @@ export interface QuestCommandOptions {
    * the name here means the voice can be recast without touching a ladder.
    */
   speaker?: string;
+  /**
+   * A second voice, called after a hint has been given.
+   *
+   * `turn` is how many rungs have been taken across the adventure, so an
+   * adventure that wants two characters taking turns can decide from its
+   * parity -- which means the alternation is carried by the questbook's own
+   * snapshot and a restored save picks up where it left off. Returning an
+   * empty array is the normal answer and costs nothing.
+   *
+   * The aside never carries the answer. The ladder does that; this is the
+   * thing somebody says while somebody else is explaining.
+   */
+  aside?: (world: World, turn: number) => readonly string[];
 }
 
 const DEFAULT_SPEAKER = 'ORACLE';
@@ -25,6 +38,12 @@ export function questCommands(book: Questbook, opts: QuestCommandOptions = {}): 
   const speaker = opts.speaker ?? DEFAULT_SPEAKER;
   const say = (lines: readonly string[]): string =>
     lines.map((line) => (line === '' ? '' : `${speaker}: ${line}`)).join('\n') + '\n';
+  // Already attributed by whoever wrote them: an aside is a different voice,
+  // so it cannot go through the prefix the ladder uses.
+  const aside = (world: World): string => {
+    const lines = opts.aside?.(world, book.hintsTaken) ?? [];
+    return lines.length === 0 ? '' : lines.join('\n') + '\n';
+  };
 
   return [
     {
@@ -76,6 +95,7 @@ export function questCommands(book: Questbook, opts: QuestCommandOptions = {}): 
         switch (outcome.kind) {
           case 'hint':
             io.out(say(outcome.lines));
+            io.out(aside(ctx));
             if (outcome.last && !outcome.repeated) {
               io.out(`\n(That is the whole hint. Type \`hint\` again to re-read it.)\n`);
             }

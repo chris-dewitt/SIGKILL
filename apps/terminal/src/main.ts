@@ -653,10 +653,22 @@ function playBeats(): void {
     spoken.push(...(objective.onComplete ?? []));
     closed = true;
   }
+  /*
+   * And whatever the world itself has to say.
+   *
+   * After the objective beats, because a companion arriving is a reaction to
+   * the thing that just closed and reads wrong ahead of it -- and before the
+   * "so now what", which has to be the last thing on the screen or it is not
+   * doing its job. Runs on every command, not only the ones that finish
+   * something: she answers a signal that was sent in the middle of one.
+   */
+  spoken.push(...session.afterCommand());
+
   // Finishing one thing is exactly the moment a player asks "so now what".
   // Answering unprompted is the difference between a board they have to know
   // to ask for and one they cannot miss.
   if (closed && !questbook.complete(machine)) spoken.push(...whatNow(questbook, machine));
+
   // History still gets the beat — looking back must work — but the player
   // reads it in the fold, so the last command stays on the turn strip.
   if (spoken.length > 0) {

@@ -20,8 +20,18 @@ describe('paginateBeats', () => {
     const face = asArt(['  ▲▲  ', '  ▄▄  ']);
     const lines = ['a', 'b', 'c', 'd', 'e', 'f', ...face];
     const pages = paginateBeats(lines, 7);
-    expect(pages[0]?.slice(0, 6)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
-    expect(pageIsArt(pages[pages.length - 1] ?? [])).toBe(true);
+
+    expect(pages[0]).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    // Both rows on one page. Landing the sixth prose line and the first row
+    // of the face together would cut the face in half on the next tap.
+    expect(pages[1]).toEqual(face);
+    expect(pageIsArt(pages[1] ?? [])).toBe(true);
+  });
+
+  it('keeps a drawing taller than a page whole rather than cutting it', () => {
+    const face = asArt(Array.from({ length: 10 }, (_, i) => `row ${i}`));
+    const pages = paginateBeats(['before', ...face, 'after'], 7);
+    expect(pages).toEqual([['before'], face, ['after']]);
   });
 
   it('drops a page that is only blank lines', () => {

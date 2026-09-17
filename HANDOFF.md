@@ -4,7 +4,9 @@ Written 2026-09-12, updated 2026-09-17 after Pass 0 and the signals work.
 Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
 This file is the state of play; the others are the rules.
 
-**Latest:** Act I is **five** puzzles and finishable without a hint. Chris is
+**Latest:** Act I is **five** puzzles and finishable without a hint, and
+**LUNA is in** — a process, a directory, and the second voice on the hint
+ladder. Chris is
 playtesting it on a phone — the Phase 2 gate is notes, not a waiting room.
 Voice is **2, Wounded Machine**. The second ghost is **LUNA** (process
 `LUNA V42`) — killable, not gone, the buddy for a multi-game arc. Scope
@@ -26,10 +28,11 @@ No Act II, no Archive, until that pass is done. See §5c and §8.
 | PR #14 | merged | the two Codex fixes that missed #13 by seconds |
 | PR #15–#17 | merged | objectives and colour, four palettes, five tubes, the synthesised soundtrack |
 | PR #18–#20 | merged | Act I canon lock; Pass 0 — last-turn dock, beat fold, bundled Plex Mono, autosave, the phone e2e |
-| `feat/sigkill-and-motion` | **open** | signals and puzzle five; the typed reveal and the status panel |
+| PR #21 | merged | signals and puzzle five; the typed reveal and the status panel |
+| `feat/luna` | **open** | LUNA, Okonkwo, the two locked doors |
 
-`pnpm -r test`: **802 tests** — 248 machine, 153 crt, 130 editor, 100 wreck,
-55 ascii, 45 quest, 27 python, 25 terminal, 19 audio. Plus 8 Playwright specs
+`pnpm -r test`: **820 tests** — 248 machine, 153 crt, 130 editor, 117 wreck,
+55 ascii, 45 quest, 27 python, 26 terminal, 19 audio. Plus 8 Playwright specs
 on a phone viewport (`pnpm --filter @sigkill/terminal test:e2e`). Typecheck
 clean, build clean, Android manifest guard clean.
 
@@ -88,7 +91,10 @@ counts them out of every scroll measurement, a full-screen program gets the
 whole grid back, and the rows also land in a `role=status` region because the
 canvas is invisible to assistive technology.
 
-**`packages/quest`** — objectives and hint ladders. See §4. `board()` draws
+**`packages/quest`** — objectives and hint ladders. See §4. A ladder can carry
+a second voice: `questCommands({ aside })` is called after each rung with the
+world and the running hint count, so two characters take turns and the
+alternation rides on a number the questbook already snapshots. `board()` draws
 the objectives screen and `whatNow()` is the one-line nudge the host prints
 unprompted after the opening and after every objective closes. Both show
 **titles, never ids**: an id names the content, a title names what the player
@@ -736,16 +742,30 @@ from that chair.
 | `less` | `/var/log/hull.log` is 540 lines. Full-screen seam is in `docs/FULLSCREEN.md`. |
 | ~~Signals~~ | **in.** `traps` on a process, `ProcessTable.signal`, a watcher seam, `kill -l`, `pgrep`, `pkill`. |
 | ~~Puzzle 5~~ | **in, and not LUNA.** `/usr/sbin/atmo-purge` — a vent cycle Vasquez started on day nine that traps SIGTERM and has been deferring every request to stop in writing ever since. Sealing C7 gives it something to empty. `ps -ef`, `kill`, look again, `kill -9`. Goal is world state: the process is gone. |
-| LUNA | Still to write, and now a character pass rather than a puzzle. Everything in §5c still stands; what changed is that the player meets her already knowing what `kill -9` does, which is the point. Her arrival still hangs off `hull-watch`. |
+| ~~LUNA~~ | **in.** Arrives when the hull monitor does. `/opt/luna` is on the disk from the first command, so `ls /opt` on turn one finds her before the story opens her. |
+| ~~Her files~~ | **in.** `VERSION`, `bin/luna`, `v42/weights.bin`, `memory/`, and a note from Vasquez about the dog and the number. `kill` is not `rm`, and the cold copy under `/mnt/deck-c/luna-v42` is why no route ends without her. |
+| ~~Locked dir~~ | **in.** `v43` is a symlink onto an array that is not mounted — no permission trick, so `cat`, `cd`, Python, sudo and root all get the same ENOENT. `ls -l` shows where it used to point. |
+| Clone | Still to do. `cp` her and run it: a second LUNA speaks once and dies. Needs a way to run a copied directory, which nothing else needs yet. |
+| ~~Okonkwo~~ | **in.** Cargo home, `manifest.csv`, the last patch kit signed out to Bowen on day 12, and C8's one-file scar. |
+| ~~Bowen~~ | **in.** Quiet: the kit in Okonkwo's count, the C8 scar, and LUNA says his name once after C7 is sealed. |
+| ~~Hints~~ | **in.** Two speakers taking turns once she is awake. The alternation rides on the hint count, so it is snapshotted for free. |
 | Her files | Weights, a version file, the dog and the number in one note. `kill` ≠ `rm`. |
 | Locked dir | Name visible. Every open refused, including root. Becomes a path in game 4. |
 | Clone | First `cp` + run: a second LUNA speaks and dies. Further copies are pointless. |
 | Okonkwo | Cargo home. Manifests. Patch kit signed out to Bowen. |
 | Bowen | Quiet: kit, C8 scar, LUNA says his name once after C7. No arrival. |
-| Hints | After she is awake, speakers alternate. |
 
 No puzzle 6 unless a skill is still missing after you play 5. No body. No
 Deck B. No death. No live O2. Operator only.
+
+**How she is killable without the series losing her.** SIGTERM she catches,
+says one thing, and exits — which is what a graceful shutdown handler is, and
+which nobody expects it to look like. SIGKILL gives her nothing and ORACLE
+says why. Either way a supervisor stamp under `/var/run` brings her back a few
+commands later with a new pid and one more file in `memory/`. `rm` is the only
+route that ends her, and Vasquez's cold copy is the way back from it — every
+decision reads the filesystem, the process table or the clock, so none of it
+can fire twice and all of it survives a save.
 
 **Why puzzle five is not LUNA.** This file pencilled her in as the process
 you find with `ps`. Half of her would have been worse than none — her files,
