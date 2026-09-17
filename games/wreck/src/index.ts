@@ -8,5 +8,7 @@
 export { bootWreck, restoreWreck, wireWreck, wreckCommands, coldOpen, epilogue, WAKE_MS } from './world.js';
 export type { Wreck, WreckOptions } from './world.js';
 export { WRECK_OBJECTIVES, oxygenTarget } from './objectives.js';
+export { PURGE_BIN, PURGE_LOG, purgeProcess, ventingCompartments } from './act1/purge.js';
+export { readCompartment } from './act1/art.js';
 
 export const ADVENTURE = 'wreck' as const;

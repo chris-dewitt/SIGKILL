@@ -1,6 +1,6 @@
 import { GlyphAtlas, scaleFont } from './atlas.js';
 import { faceFont } from './faces.js';
-import type { LineKind, Row, TerminalBuffer } from './buffer.js';
+import { spansFor, type Line, type LineKind, type Row, type TerminalBuffer } from './buffer.js';
 import { backingSize, gridFor, visibleRange, type GridSize } from './metrics.js';
 
 /**
@@ -183,8 +183,14 @@ export class TerminalRenderer {
    * Draw.
    *
    * `scroll` is rows back from the newest output; 0 is pinned to the bottom.
+   *
+   * `status` is pinned to the top and never scrolls: the ship's own readout,
+   * drawn through the same shader as everything else because it is part of
+   * the same screen. It costs the scrollback its rows, which is the honest
+   * trade -- a status bar floating over the text would hide a line of it.
+   * Clipped, never wrapped: a readout that reflows is a readout that moves.
    */
-  render(buffer: TerminalBuffer, scroll = 0): void {
+  render(buffer: TerminalBuffer, scroll = 0, status: readonly Line[] = []): void {
     const ctx = this.ctx;
     const cellW = Math.ceil(this.atlas.cell.width * this.scale);
     const cellH = Math.ceil(this.atlas.cell.height * this.scale);
@@ -192,17 +198,27 @@ export class TerminalRenderer {
     ctx.fillStyle = this.palette.background;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const laid = buffer.layout(this.grid.cols);
-    const { start, end } = visibleRange(laid.length, this.grid.rows, scroll);
-
-    // Only the fallback path draws text directly, but the font has to be set
-    // before it is needed, not inside the per-glyph loop.
+    // Only the fallback path draws text directly, but the baseline has to be
+    // set before it is needed, not inside the per-glyph loop.
     ctx.textBaseline = 'top';
+
+    const pinned = Math.min(status.length, this.grid.rows);
+    for (let i = 0; i < pinned; i++) {
+      const line = status[i]!;
+      const text = line.text.slice(0, this.grid.cols);
+      const row: Row = { text, kind: line.kind, line: -1, first: true };
+      const spans = spansFor(line.spans, 0, text.length);
+      if (spans) row.spans = spans;
+      this.drawRow(row, this.originX, this.originY + i * cellH, cellW, cellH);
+    }
+
+    const laid = buffer.layout(this.grid.cols);
+    const { start, end } = visibleRange(laid.length, this.grid.rows - pinned, scroll);
 
     for (let i = start; i < end; i++) {
       const row = laid[i];
       if (!row) continue;
-      this.drawRow(row, this.originX, this.originY + (i - start) * cellH, cellW, cellH);
+      this.drawRow(row, this.originX, this.originY + (pinned + i - start) * cellH, cellW, cellH);
     }
   }
 

@@ -1,5 +1,6 @@
 import { ROOT_USER, SIGTERM, type Machine, type Process } from '@sigkill/machine';
 import type { World } from '@sigkill/quest';
+import { readCompartment } from './art.js';
 import { BREACHED, stamp } from './deck-c.js';
 
 /**
@@ -35,13 +36,22 @@ export function purgeProcess(world: World): Process | undefined {
   return world.procs.list().find((p) => p.argv[0] === PURGE_BIN);
 }
 
-/** Which compartment the running purge names, for the deck plan to flag. */
+/**
+ * Compartments that are shut and being emptied anyway.
+ *
+ * Only a *sealed* compartment counts. While the hatch is open the purge is
+ * venting a room that is already vacuum, which is exactly why nobody noticed
+ * it for eleven years -- and a readout that cried venting from the first
+ * command would give the whole thing away before the player had sealed
+ * anything.
+ */
 export function ventingCompartments(world: World): string[] {
   const purge = purgeProcess(world);
   if (!purge) return [];
   const at = purge.argv.indexOf('--compartment');
   const id = at >= 0 ? purge.argv[at + 1] : undefined;
-  return id === undefined ? [] : [id];
+  if (id === undefined) return [];
+  return readCompartment(world.vfs, id).sealed ? [id] : [];
 }
 
 function append(m: Machine, path: string, lines: string[]): void {
