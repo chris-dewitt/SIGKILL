@@ -71,3 +71,30 @@ describe('Typist', () => {
     expect(isSpeed(null)).toBe(false);
   });
 });
+
+describe('the budget', () => {
+  it('lands a long page inside it, and leaves a short one alone', () => {
+    const short = 'ORACLE: It started.';
+    const long = Array.from({ length: 30 }, () => 'ORACLE: a line of about fifty characters, give or').join('\n');
+    const budget = 3000;
+
+    const run = (text: string): number => {
+      const t = new Typist(text, { charMs: 20, punctuationMs: 150, newlineMs: 80, budgetMs: budget });
+      let ms = 0;
+      while (!t.done && ms < 60_000) { t.advance(10); ms += 10; }
+      return ms;
+    };
+
+    // The long one is pulled back to the budget rather than taking 15 seconds.
+    const taken = run(long);
+    expect(taken).toBeGreaterThan(budget * 0.8);
+    expect(taken).toBeLessThanOrEqual(budget + 50);
+
+    // The short one is already well inside it and keeps the rate it was given.
+    expect(run(short)).toBeLessThan(budget / 2);
+  });
+
+  it('leaves `off` off, budget or no budget', () => {
+    expect(new Typist('anything', { charMs: 0, budgetMs: 10 }).done).toBe(true);
+  });
+});

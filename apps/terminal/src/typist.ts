@@ -18,6 +18,15 @@ export interface TypistOptions {
   punctuationMs?: number;
   /** Extra pause at the end of a line. */
   newlineMs?: number;
+  /**
+   * The longest a page may take, however much text is on it.
+   *
+   * A rate alone is the wrong knob once pages can be different sizes: a
+   * twenty-line page at a speed tuned for seven is somebody sitting watching
+   * a machine type. The rate sets the feel and this sets the patience, and
+   * the rate gives way.
+   */
+  budgetMs?: number;
 }
 
 export type TypingSpeed = 'off' | 'slow' | 'normal' | 'fast';
@@ -28,9 +37,9 @@ export type TypingSpeed = 'off' | 'slow' | 'normal' | 'fast';
  */
 export const SPEEDS: Record<TypingSpeed, TypistOptions> = {
   off: { charMs: 0 },
-  slow: { charMs: 13, punctuationMs: 110, newlineMs: 70 },
-  normal: { charMs: 6, punctuationMs: 60, newlineMs: 40 },
-  fast: { charMs: 2, punctuationMs: 24, newlineMs: 16 },
+  slow: { charMs: 13, punctuationMs: 110, newlineMs: 70, budgetMs: 6000 },
+  normal: { charMs: 6, punctuationMs: 60, newlineMs: 40, budgetMs: 3200 },
+  fast: { charMs: 2, punctuationMs: 24, newlineMs: 16, budgetMs: 1600 },
 };
 
 export const SPEED_NAMES = Object.keys(SPEEDS) as TypingSpeed[];
@@ -41,6 +50,16 @@ export function isSpeed(name: string | null): name is TypingSpeed {
 
 const PAUSE_AFTER = new Set(['.', ',', ':', ';', '?', '!', '—']);
 
+/** What this text would cost at these rates, before any budget is applied. */
+function estimate(text: string, charMs: number, punctuationMs: number, newlineMs: number): number {
+  let total = text.length * charMs;
+  for (const ch of text) {
+    if (ch === '\n') total += newlineMs;
+    else if (PAUSE_AFTER.has(ch)) total += punctuationMs;
+  }
+  return total;
+}
+
 export class Typist {
   private index = 0;
   private credit = 0;
@@ -49,9 +68,27 @@ export class Typist {
   private readonly newlineMs: number;
 
   constructor(private readonly text: string, opts: TypistOptions = {}) {
-    this.charMs = Math.max(0, opts.charMs ?? SPEEDS.normal.charMs ?? 6);
-    this.punctuationMs = opts.punctuationMs ?? 0;
-    this.newlineMs = opts.newlineMs ?? 0;
+    let charMs = Math.max(0, opts.charMs ?? SPEEDS.normal.charMs ?? 6);
+    let punctuationMs = Math.max(0, opts.punctuationMs ?? 0);
+    let newlineMs = Math.max(0, opts.newlineMs ?? 0);
+
+    // Fit the page to the budget rather than the budget to the page. A long
+    // page types faster; a short one is unaffected, because most pages come
+    // in well under it.
+    const budget = opts.budgetMs;
+    if (charMs > 0 && budget !== undefined && budget > 0) {
+      const total = estimate(text, charMs, punctuationMs, newlineMs);
+      if (total > budget) {
+        const scale = budget / total;
+        charMs *= scale;
+        punctuationMs *= scale;
+        newlineMs *= scale;
+      }
+    }
+
+    this.charMs = charMs;
+    this.punctuationMs = punctuationMs;
+    this.newlineMs = newlineMs;
     if (this.charMs === 0) this.index = text.length;
   }
 

@@ -16,6 +16,18 @@
   --glow: 0 0 8px rgba(110, 231, 160, 0.45);
 
   --gutter: 16px;
+
+  /*
+   * The height the player can actually see.
+   *
+   * Set from `visualViewport` in main.ts, because that is the only number
+   * that knows about the soft keyboard. `dvh` is the fallback and it is
+   * wrong in the case that matters: on a phone with the keyboard up, `34vh`
+   * is a third of the whole screen and better than half of what is left, so
+   * the last-turn strip ate the terminal exactly when the player was typing
+   * into it. Every panel below is a fraction of this instead.
+   */
+  --app-height: 100dvh;
   --mono: "IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace;
 }
 
@@ -70,8 +82,8 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  /* dvh so the iOS/Android URL bar collapsing does not clip the input. */
-  height: 100dvh;
+  /* The visible height, keyboard included. dvh only until JS measures. */
+  height: var(--app-height);
   background:
     radial-gradient(ellipse 120% 100% at 50% 50%, #0b1510 0%, var(--screen) 60%, #030604 100%);
   padding-top: env(safe-area-inset-top);
@@ -101,7 +113,12 @@ body {
   position: relative;
   overflow: hidden;
   min-height: 0;
-  touch-action: pan-y;
+  /*
+   * The drag on this canvas is ours and nobody else's. `pan-y` left the
+   * browser trying to scroll a page that has nowhere to go, which on a phone
+   * is the rubber-band that made the terminal feel like it was fighting you.
+   */
+  touch-action: none;
 }
 
 #scroll-rail {
@@ -122,7 +139,7 @@ body {
 #turn,
 #fold {
   flex: 0 0 auto;
-  max-height: 34vh;
+  max-height: calc(var(--app-height) * 0.30);
   overflow: hidden;
   border-top: 1px solid var(--phosphor-faint);
   background: rgba(4, 12, 8, 0.96);
@@ -146,7 +163,7 @@ body {
 #turn-out,
 #fold-body {
   margin: 0;
-  max-height: 22vh;
+  max-height: calc(var(--app-height) * 0.22);
   overflow: auto;
   color: var(--phosphor);
   font-size: 12.5px;
@@ -167,8 +184,65 @@ body {
   font-style: italic;
 }
 
+/*
+ * The fold is the thing being read, so it gets more of the screen than the
+ * last-turn strip does -- and gives most of it back the moment the keyboard
+ * comes up, because then the player is typing rather than reading.
+ */
+#fold {
+  max-height: calc(var(--app-height) * 0.58);
+}
+
 #fold-body {
   color: #dceaff;
+  max-height: calc(var(--app-height) * 0.46);
+}
+
+/* ------------------------------------------------- while the keyboard is up */
+
+html.keyboard #fold {
+  max-height: calc(var(--app-height) * 0.42);
+}
+
+html.keyboard #fold-body {
+  max-height: calc(var(--app-height) * 0.30);
+}
+
+html.keyboard #turn {
+  max-height: calc(var(--app-height) * 0.26);
+}
+
+/*
+ * The dock tightens up rather than disappearing. Every row of it is something
+ * a phone player needs *while* typing -- the completions, the symbols Android
+ * buries -- so the answer is millimetres off each, not hiding one.
+ */
+html.keyboard #chips,
+html.keyboard #symbols {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+html.keyboard #symbols {
+  padding-top: 0;
+}
+
+html.keyboard .chip,
+html.keyboard .symbol,
+html.keyboard #tab {
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+html.keyboard #line {
+  padding-bottom: 6px;
+}
+
+html.keyboard #fold-next {
+  margin-top: 6px;
+  min-height: 30px;
+  padding: 5px;
 }
 
 #fold-next {
