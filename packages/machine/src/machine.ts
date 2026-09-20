@@ -13,7 +13,7 @@ import { Vfs } from './vfs/vfs.js';
 export interface MachineOptions {
   /** Hostname shown in the prompt. */
   hostname?: string;
-  /** The logged-in user. Defaults to an unprivileged survivor. */
+  /** The logged-in user. Defaults to an unprivileged dewitt. */
   user?: User;
   /** Seed an existing filesystem instead of an empty one. */
   snapshot?: VfsSnapshot;
@@ -63,7 +63,7 @@ export interface MachineSnapshot {
   epoch: number;
 }
 
-const DEFAULT_USER: User = { uid: 1000, gid: 1000, name: 'survivor' };
+const DEFAULT_USER: User = { uid: 1000, gid: 1000, name: 'dewitt' };
 
 /**
  * A virtual computer.

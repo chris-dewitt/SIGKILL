@@ -6,16 +6,17 @@ import { BREACHED, stamp } from './deck-c.js';
 /**
  * The fifth puzzle: a process that will not take no for an answer.
  *
- * On day nine Vasquez started a purge cycle on C7 so she could work in the
- * crawl without a suit. The cycle ends when the compartment reaches its target
- * pressure. C7 was open to space, so it never reached anything, so the cycle
- * never ended -- and the program traps SIGTERM specifically so that it can
- * close the valve before it exits, which it will not do until the cycle is
- * finished. It has been politely deferring every request to stop for eleven
- * years.
+ * The safing started a purge cycle on C7 the minute the ferry profile came
+ * up, and it was right to: with no crew aboard you vent a breached
+ * compartment rather than spend air filling one. The cycle ends when the
+ * compartment reaches its target pressure. C7 is open to space, so it never
+ * reaches anything, so the cycle never ends -- and the program traps SIGTERM
+ * specifically so that it can close the valve before it exits, which it will
+ * not do until the cycle is finished. It has been politely deferring every
+ * request to stop for two days, including three from Vasquez.
  *
- * While the hull was open this changed nothing: it was venting a compartment
- * that was already vacuum. The moment the player seals C7 it finally has a
+ * While the hull is open this changes nothing: it is venting a compartment
+ * that is already vacuum. The moment the player seals C7 it finally has a
  * sealed compartment to evacuate, and starts pulling the deck's air back out
  * through the hatch they just closed.
  *
@@ -40,8 +41,8 @@ export function purgeProcess(world: World): Process | undefined {
  * Compartments that are shut and being emptied anyway.
  *
  * Only a *sealed* compartment counts. While the hatch is open the purge is
- * venting a room that is already vacuum, which is exactly why nobody noticed
- * it for eleven years -- and a readout that cried venting from the first
+ * venting a room that is already vacuum, which is exactly why nobody aboard
+ * treated it as urgent -- and a readout that cried venting from the first
  * command would give the whole thing away before the player had sealed
  * anything.
  */
@@ -65,30 +66,36 @@ function append(m: Machine, path: string, lines: string[]): void {
 }
 
 /**
- * Eleven years of a program being asked nicely.
+ * Two days of a program being asked nicely.
  *
  * Seeded rather than generated because every line is doing narrative work:
- * the valve opening, the compartment failing to settle, and then Vasquez
- * trying three times in four days to stop the thing and being told each time
- * that it would get to it.
+ * the profile selecting the cycle, the valve opening, the compartment failing
+ * to settle, and then Vasquez trying three times in nine hours to stop the
+ * thing and being told each time that it would get to it. Her three attempts
+ * are the same three in her `.bash_history`, and the player usually finds one
+ * of those first.
+ *
+ * The last two lines are the ship alone. Nobody sent those.
  */
 function history(wakeMs: number): string[] {
-  const day = 24 * 60 * 60 * 1000;
-  const start = wakeMs - 4112 * day;
-  const at = (days: number, hours: number): string => stamp(start + days * day + hours * 3600_000);
+  const hour = 60 * 60 * 1000;
+  const event = wakeMs - 48 * hour;
+  const at = (hours: number, minutes = 0): string =>
+    stamp(event + hours * hour + minutes * 60_000);
+  const c7 = BREACHED.toUpperCase();
 
   return [
-    `${at(9, 4)} atmo-purge: cycle start, compartment ${BREACHED.toUpperCase()}, target 0.0kPa`,
-    `${at(9, 4)} atmo-purge: valve open`,
-    `${at(9, 6)} atmo-purge: ${BREACHED.toUpperCase()} not settling after 2h`,
-    `${at(9, 6)} atmo-purge: compartment may be open to vacuum. holding valve open`,
-    `${at(10, 2)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
-    `${at(11, 23)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
-    `${at(12, 9)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
-    `${at(12, 9)} atmo-purge: operator note: "just stop"`,
-    `${at(14, 1)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
-    `${at(400, 0)} atmo-purge: still holding. 0 of 1 cycles complete`,
-    `${at(4000, 0)} atmo-purge: still holding. 0 of 1 cycles complete`,
+    `${at(0, 2)} atmo-purge: profile ferry selected. breached compartments -> vent`,
+    `${at(0, 2)} atmo-purge: cycle start, compartment ${c7}, target 0.0kPa`,
+    `${at(0, 2)} atmo-purge: valve open`,
+    `${at(2, 14)} atmo-purge: ${c7} not settling after 2h`,
+    `${at(2, 14)} atmo-purge: compartment may be open to vacuum. holding valve open`,
+    `${at(4, 31)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
+    `${at(4, 33)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
+    `${at(9, 12)} atmo-purge: caught SIGTERM. deferring: cycle incomplete`,
+    `${at(9, 12)} atmo-purge: operator note: "just stop"`,
+    `${at(27, 40)} atmo-purge: still holding. 0 of 1 cycles complete`,
+    `${at(44, 0)} atmo-purge: still holding. 0 of 1 cycles complete`,
     '',
   ];
 }
@@ -105,13 +112,15 @@ export function startPurge(m: Machine): void {
   m.vfs.writeText(PURGE_LOG, history(m.epoch).join('\n'), ROOT_USER);
   m.vfs.chmod(PURGE_LOG, 0o644, ROOT_USER);
 
-  // Started on day nine of four thousand one hundred and twelve, so `ps -ef`
-  // reports an elapsed time with five digits in it. Nothing says "this has
-  // been running since before you were asleep" like the number does.
+  // Started two minutes after the profile changed, which `ps -ef` reports as
+  // an elapsed time just under forty-eight hours. It is the oldest thing on
+  // the process table by a wide margin, and it is exactly as old as the
+  // silence -- a player who reads the elapsed column has the timestamp of the
+  // event before anybody tells them there was one.
   m.procs.spawn([...PURGE_ARGV], {
     uid: 0,
     traps: [SIGTERM],
-    startedAt: -(4112 - 9) * 24 * 60 * 60 * 1000,
+    startedAt: -(48 * 60 * 60 * 1000 - 2 * 60 * 1000),
   });
 }
 

@@ -6,12 +6,12 @@ import { ROOT_USER } from '../src/vfs/vfs.js';
 function boot(): Machine {
   // 14 March 2387, 00:00 UTC — a Friday, which the day-of-week cases rely on.
   const m = new Machine({ hostname: 'nav7', epoch: Date.UTC(2387, 2, 14) });
-  m.vfs.mkdirp('/home/survivor', ROOT_USER);
-  m.vfs.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  m.vfs.mkdirp('/home/dewitt', ROOT_USER);
+  m.vfs.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   m.vfs.mkdirp('/var/log', ROOT_USER);
   m.vfs.chmod('/var/log', 0o777, ROOT_USER);
   m.vfs.mkdirp('/etc', ROOT_USER);
-  m.shell.cwd = '/home/survivor';
+  m.shell.cwd = '/home/dewitt';
   return m;
 }
 

@@ -24,12 +24,12 @@ function boot(): Machine {
   const v = m.vfs;
 
   v.mkdirp('/etc/systemd/system', ROOT_USER);
-  v.mkdirp('/home/survivor', ROOT_USER);
-  v.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  v.mkdirp('/home/dewitt', ROOT_USER);
+  v.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   v.writeText('/etc/systemd/system/scrubber.service', SCRUBBER_UNIT, ROOT_USER);
   v.writeText('/etc/life_support.conf', 'O2_TARGET=16\nSCRUBBER_DUTY=0.4\n', ROOT_USER);
   v.chmod('/etc/life_support.conf', 0o666, ROOT_USER);
-  v.writeText('/etc/sudoers', '# who may act as root\nroot ALL=(ALL) ALL\nsurvivor ALL=(ALL) ALL\n', ROOT_USER);
+  v.writeText('/etc/sudoers', '# who may act as root\nroot ALL=(ALL) ALL\ndewitt ALL=(ALL) ALL\n', ROOT_USER);
   v.chmod('/etc/sudoers', 0o644, ROOT_USER);
 
   // Authored by the adventure, not the Machine: a real atmosphere controller
@@ -49,7 +49,7 @@ function boot(): Machine {
     return { ok: true };
   });
 
-  m.shell.cwd = '/home/survivor';
+  m.shell.cwd = '/home/dewitt';
   return m;
 }
 
@@ -188,9 +188,9 @@ describe('privilege', () => {
 
   it('sudo elevates for exactly one command', async () => {
     const m = boot();
-    expect((await m.exec('whoami')).stdout).toBe('survivor\n');
+    expect((await m.exec('whoami')).stdout).toBe('dewitt\n');
     expect((await m.exec('sudo whoami')).stdout).toBe('root\n');
-    expect((await m.exec('whoami')).stdout).toBe('survivor\n');
+    expect((await m.exec('whoami')).stdout).toBe('dewitt\n');
   });
 
   it('refuses sudo to a user absent from sudoers', async () => {

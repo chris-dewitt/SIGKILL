@@ -5,8 +5,8 @@ import { applyWrite, editorCommands, flushPendingWrite } from '../src/commands.j
 function boot(): Machine {
   const m = new Machine({ hostname: 'nav7', commands: editorCommands() });
   const v = m.vfs;
-  v.mkdirp('/home/survivor', ROOT_USER);
-  v.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  v.mkdirp('/home/dewitt', ROOT_USER);
+  v.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   v.mkdirp('/etc', ROOT_USER);
   v.writeText('/etc/life_support.conf', 'O2_TARGET=16\nSCRUBBER_DUTY=0.4\n', ROOT_USER);
   v.chmod('/etc/life_support.conf', 0o666, ROOT_USER);
@@ -14,8 +14,8 @@ function boot(): Machine {
   v.chmod('/etc/shadow', 0o600, ROOT_USER);
   // Without this, sudo correctly refuses and every sudo test fails for the
   // wrong reason.
-  v.writeText('/etc/sudoers', 'root ALL=(ALL) ALL\nsurvivor ALL=(ALL) ALL\n', ROOT_USER);
-  m.shell.cwd = '/home/survivor';
+  v.writeText('/etc/sudoers', 'root ALL=(ALL) ALL\ndewitt ALL=(ALL) ALL\n', ROOT_USER);
+  m.shell.cwd = '/home/dewitt';
   return m;
 }
 
@@ -57,7 +57,7 @@ describe('launching an editor', () => {
     const m = boot();
     await m.exec('echo hi > notes.txt');
     const r = await m.exec('vi notes.txt');
-    expect(r.screen?.path).toBe('/home/survivor/notes.txt');
+    expect(r.screen?.path).toBe('/home/dewitt/notes.txt');
   });
 
   it('asks which file rather than opening nothing', async () => {

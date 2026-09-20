@@ -29,6 +29,7 @@
    */
   --app-height: 100dvh;
   --mono: "IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace;
+  --dock-reserve: 116px;
 }
 
 @font-face {
@@ -80,8 +81,6 @@ body {
 
 #crt {
   position: relative;
-  display: flex;
-  flex-direction: column;
   /* The visible height, keyboard included. dvh only until JS measures. */
   height: var(--app-height);
   background:
@@ -102,15 +101,15 @@ body {
  * handlers in main.ts.
  */
 #stage {
-  flex: 1 1 auto;
-  position: relative;
+  position: absolute;
+  inset: 0 0 calc(var(--dock-reserve) + env(safe-area-inset-bottom) + 8px) 0;
   min-height: 0;
-  display: flex;
+  z-index: 1;
 }
 
 #screen {
-  flex: 1 1 auto;
-  position: relative;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   min-height: 0;
   /*
@@ -122,9 +121,13 @@ body {
 }
 
 #scroll-rail {
-  flex: 0 0 10px;
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 10px;
   background: rgba(110, 231, 160, 0.06);
+  pointer-events: none;
 }
 
 #scroll-thumb {
@@ -136,81 +139,7 @@ body {
   background: rgba(110, 231, 160, 0.35);
 }
 
-#turn,
-#fold {
-  flex: 0 0 auto;
-  max-height: calc(var(--app-height) * 0.30);
-  overflow: hidden;
-  border-top: 1px solid var(--phosphor-faint);
-  background: rgba(4, 12, 8, 0.96);
-  padding: 8px var(--gutter) 10px;
-}
-
-#turn[hidden],
-#fold[hidden] {
-  display: none;
-}
-
-#turn-cmd {
-  color: var(--phosphor-hot);
-  font-weight: 700;
-  font-size: 13px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin-bottom: 6px;
-}
-
-#turn-out,
-#fold-body {
-  margin: 0;
-  max-height: calc(var(--app-height) * 0.22);
-  overflow: auto;
-  color: var(--phosphor);
-  font-size: 12.5px;
-  font-family: var(--mono);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overscroll-behavior: contain;
-}
-
-#turn-out.art,
-#fold-body.art {
-  white-space: pre;
-  overflow-x: auto;
-}
-
-#turn-out.err {
-  color: var(--alarm);
-  font-style: italic;
-}
-
-/*
- * The fold is the thing being read, so it gets more of the screen than the
- * last-turn strip does -- and gives most of it back the moment the keyboard
- * comes up, because then the player is typing rather than reading.
- */
-#fold {
-  max-height: calc(var(--app-height) * 0.58);
-}
-
-#fold-body {
-  color: #dceaff;
-  max-height: calc(var(--app-height) * 0.46);
-}
-
 /* ------------------------------------------------- while the keyboard is up */
-
-html.keyboard #fold {
-  max-height: calc(var(--app-height) * 0.42);
-}
-
-html.keyboard #fold-body {
-  max-height: calc(var(--app-height) * 0.30);
-}
-
-html.keyboard #turn {
-  max-height: calc(var(--app-height) * 0.26);
-}
 
 /*
  * The dock tightens up rather than disappearing. Every row of it is something
@@ -230,43 +159,13 @@ html.keyboard #symbols {
 html.keyboard .chip,
 html.keyboard .symbol,
 html.keyboard #tab {
-  min-height: 30px;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  min-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 
 html.keyboard #line {
   padding-bottom: 6px;
-}
-
-html.keyboard #fold-next {
-  margin-top: 6px;
-  min-height: 30px;
-  padding: 5px;
-}
-
-#fold-next {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--phosphor-dim);
-  background: transparent;
-  border: 1px solid var(--phosphor-faint);
-  border-radius: 3px;
-  padding: 8px;
-  min-height: 36px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-#fold-next:active {
-  color: var(--phosphor-hot);
-  background: rgba(110, 231, 160, 0.12);
 }
 
 .crt-screen {
@@ -297,18 +196,23 @@ html.keyboard #fold-next {
 /* ------------------------------------------------------------------ the dock */
 
 #dock {
-  flex: 0 0 auto;
-  z-index: 2;
-  border-top: 1px solid var(--phosphor-faint);
-  background: rgba(3, 8, 5, 0.92);
-  backdrop-filter: blur(2px);
+  position: absolute;
+  left: var(--gutter);
+  right: calc(var(--gutter) + 12px);
+  bottom: calc(env(safe-area-inset-bottom) + 6px);
+  z-index: 5;
+  border: 1px solid rgba(62, 127, 92, 0.35);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(4, 13, 9, 0.62) 0%, rgba(3, 10, 7, 0.52) 100%);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(110, 231, 160, 0.08);
 }
 
 #chips,
 #symbols {
   display: flex;
-  gap: 6px;
-  padding: 7px var(--gutter);
+  gap: 5px;
+  padding: 5px var(--gutter);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -320,28 +224,28 @@ html.keyboard #fold-next {
 
 #symbols {
   padding-top: 0;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
 }
 
 .chip,
 .symbol {
   flex: 0 0 auto;
   font-family: var(--mono);
-  background: rgba(110, 231, 160, 0.07);
+  background: rgba(110, 231, 160, 0.06);
   color: var(--phosphor);
   border: 1px solid var(--phosphor-faint);
   border-radius: 3px;
-  padding: 6px 11px;
-  font-size: 12.5px;
+  padding: 5px 10px;
+  font-size: 12px;
   cursor: pointer;
   /* Comfortable thumb target without making the bar tall. */
-  min-height: 34px;
+  min-height: 31px;
   touch-action: manipulation;
 }
 
 .symbol {
-  min-width: 38px;
-  font-size: 15px;
+  min-width: 34px;
+  font-size: 14px;
   color: var(--phosphor-dim);
 }
 
@@ -356,14 +260,14 @@ html.keyboard #fold-next {
 #line {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 var(--gutter) 10px;
+  gap: 7px;
+  padding: 0 var(--gutter) 7px;
 }
 
 #prompt {
   flex: 0 0 auto;
   color: var(--phosphor-dim);
-  font-size: 13px;
+  font-size: 12px;
   text-shadow: var(--glow);
   white-space: nowrap;
   max-width: 45%;
@@ -383,7 +287,7 @@ html.keyboard #fold-next {
   font-size: 16px;
   text-shadow: var(--glow);
   caret-color: var(--phosphor);
-  padding: 6px 0;
+  padding: 4px 0;
 }
 
 #input:disabled {
@@ -424,14 +328,14 @@ html.keyboard #fold-next {
 #tab {
   flex: 0 0 auto;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
   background: transparent;
   color: var(--phosphor-dim);
   border: 1px solid var(--phosphor-faint);
   border-radius: 3px;
-  padding: 7px 9px;
-  min-height: 34px;
+  padding: 5px 8px;
+  min-height: 31px;
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -447,6 +351,11 @@ html.keyboard #fold-next {
 }
 
 @media (min-width: 760px) {
+  #dock {
+    left: 18px;
+    right: 24px;
+  }
+
   /* The symbol row is a phone affordance; a real keyboard has these keys. */
   #symbols {
     display: none;

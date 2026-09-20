@@ -18,7 +18,7 @@ import { ROOT_USER, type Vfs } from '@sigkill/machine';
 /** Everyone who had an account. `ls -l` reads these names out of /etc/passwd. */
 export const CREW = {
   root: 0,
-  survivor: 1000,
+  dewitt: 1000,
   vasquez: 1001,
   chen: 1002,
   bowen: 1003,
@@ -75,8 +75,10 @@ function noise(seed: number): () => number {
  * `YYYY-MM-DDTHH:MM`, which sorts correctly as plain text and greps cleanly.
  *
  * The house rule for this world: anything a machine wrote is stamped like
- * this, and anything a person wrote counts in days. So a player can tell at a
- * glance whether they are reading an instrument or a diary.
+ * this, and anything a person wrote counts in hours from the alarm. So a
+ * player can tell at a glance whether they are reading an instrument or a
+ * diary -- and the diaries all stop inside the first day, which is the
+ * quietest way the deck says what happened here.
  */
 export function stamp(ms: number): string {
   const d = new Date(ms);
@@ -88,7 +90,8 @@ export function stamp(ms: number): string {
 }
 
 /**
- * Ten days of hull pressure telemetry: 540 lines, deliberately too many to read.
+ * Forty-five hours of hull pressure telemetry: 540 lines, deliberately too
+ * many to read.
  *
  * This is the file that teaches search. A player who tries to `cat` it learns
  * why nobody cats a log, and every route out of that is a real skill:
@@ -98,14 +101,21 @@ export function stamp(ms: number): string {
  *     grep PRESSURE_DROP /var/log/hull.log | cut -d' ' -f2 | sort | uniq -c
  *     tail -20 /var/log/hull.log
  *
- * The last of those matters: C2 was dropping too, until Vasquez patched it on
- * day five. So the count says two compartments have leaked and only the dates
- * say which one still is. Reading a log is not finding a word in it.
+ * The last of those matters: C2 cracked in the same minute C7 did, and
+ * Okonkwo patched it before she went aft. So the count says two compartments
+ * have leaked and only the dates say which one still is. Reading a log is not
+ * finding a word in it.
+ *
+ * Sixty samples at forty-five minutes covers the window from just before the
+ * event to the moment the console session opens. The sample count is load
+ * bearing: 60 x 9 is the 540 lines ORACLE quotes, and 60 C7 rows plus 8 C2
+ * rows are the 68 matches it quotes. `wreck.test.ts` checks both against the
+ * prose, so change the step if you must and leave the counts alone.
  */
 function hullTelemetry(wakeMs: number): string[] {
   const rng = noise(0x5e41);
   const rows: string[] = [];
-  const step = 4 * 60 * 60 * 1000;
+  const step = 45 * 60 * 1000;
   const samples = 60;
   const start = wakeMs - samples * step;
 
@@ -126,7 +136,8 @@ function hullTelemetry(wakeMs: number): string[] {
       }
 
       if (id === 'c2' && i < 8) {
-        // The decoy: real, historical, and fixed. Vasquez patched it.
+        // The decoy: real, recent, and fixed. C2 cracked when C7 did and
+        // Okonkwo patched it with the second-to-last kit in the hold.
         const kpa = 100.1 + jitter;
         rows.push(`${at} ${label} ${kpa.toFixed(1)}kPa PRESSURE_DROP`);
         continue;
@@ -181,7 +192,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
 
   file(vfs, '/etc/passwd', [
     'root:x:0:0:root:/root:/bin/sh',
-    `survivor:x:${CREW.survivor}:${CREW.survivor}:cold sleep berth 3:/home/survivor:/bin/sh`,
+    `dewitt:x:${CREW.dewitt}:${CREW.dewitt}:berth 3, galley shift:/home/dewitt:/bin/sh`,
     `vasquez:x:${CREW.vasquez}:${CREW.vasquez}:R. Vasquez, engineering:/home/vasquez:/bin/sh`,
     `chen:x:${CREW.chen}:${CREW.chen}:M. Chen, medical:/home/chen:/bin/sh`,
     `bowen:x:${CREW.bowen}:${CREW.bowen}:T. Bowen, navigation:/home/bowen:/bin/sh`,
@@ -191,11 +202,51 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
 
   file(vfs, '/etc/group', [
     'root:x:0:',
-    `survivor:x:${CREW.survivor}:`,
-    `engineering:x:${CREW.vasquez}:survivor`,
+    `dewitt:x:${CREW.dewitt}:`,
+    `engineering:x:${CREW.vasquez}:dewitt`,
     `medical:x:${CREW.chen}:`,
     `navigation:x:${CREW.bowen}:`,
     `cargo:x:${CREW.okonkwo}:`,
+    '',
+  ], { mode: 0o644 });
+
+  /*
+   * The document that explains the whole act, sitting in the open from the
+   * first command.
+   *
+   * Everything broken on this deck is one line of this file being true. It is
+   * not hidden, it is not locked, and a player who reads /etc carefully on
+   * turn one can have the entire diagnosis before ORACLE has finished
+   * apologising -- which is the point. The ship is not keeping a secret. It
+   * is doing exactly what it was told, in writing, and the writing is
+   * readable by anybody who thinks to look.
+   *
+   * Note what it does not say: who set it. The profile records a transit
+   * declaration and an authority field reading AUTOMATED, and that is as
+   * close as Act I ever gets to naming v43.
+   */
+  file(vfs, '/etc/ferry.profile', [
+    '# NAV-7 OPERATING PROFILE',
+    '#',
+    '# Selected profile governs atmosphere, hull response and power draw.',
+    '# See also: /etc/life_support.conf, /etc/hull, systemctl status comms',
+    '',
+    'PROFILE=ferry',
+    'CREW_ABOARD=0',
+    'DECLARED_TRANSIT=unmanned',
+    'DECLARED_BY=AUTOMATED',
+    'DECLARED_AT=T+0000',
+    '',
+    '# ferry: no crew aboard. Atmosphere derated to preservation minimum.',
+    '#        Breached compartments are vented, not repressurised.',
+    '#        Non-essential monitoring rolled back to base image.',
+    '#        Main array released to transit control.',
+    '#',
+    '# crewed: the other one.',
+    '',
+    '# A profile is a claim about the world. This ship has never had a way to',
+    '# check one, because until this morning nobody had ever filed a false',
+    '# one. -- Vasquez, T+0004',
     '',
   ], { mode: 0o644 });
 
@@ -227,23 +278,36 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     'chmod +x /home/vasquez/notes/seal.sh',
     './notes/seal.sh c2',
     'ls -l /home/vasquez/notes/',
-    'echo "not tonight" >> /home/vasquez/notes/todo',
+    'cat /etc/ferry.profile',
+    'systemctl status comms',
+    'echo "IT IS NOT EMPTY" >> /home/vasquez/notes/todo',
     '',
   ], { uid: CREW.vasquez, mode: 0o644 });
 
+  /*
+   * Her ordinary week, interrupted mid-line.
+   *
+   * The top of this file is housekeeping from before the alarm and reads like
+   * anybody's Monday. The bottom four lines were added in the hour after it,
+   * in the same file, because she was working the problem and not writing a
+   * diary. The join between the two is the most information any single file
+   * on this deck carries, and nothing points it out.
+   */
   file(vfs, '/home/vasquez/notes/todo', [
     '[x] reroute deck C power through the reactor bus',
     '[x] stop the coolant alarm waking everyone at 0300',
     '[x] teach chen to use grep so she stops asking me',
-    '[x] patch C2. bowen was sleeping under it',
-    '[ ] SEAL C7. it is the whole problem. stop putting it off',
-    '[ ] stop the purge on C7. it will not take a hint. see purge-notes',
-    '[ ] scrubber target -- it refuses 16 and it is right',
-    '[ ] hull-check lost its mode bits in the restore. put them back',
-    '[ ] write down how any of this works for whoever is next',
-    '[ ] apologise to bowen',
+    '[x] order more coffee. actual coffee. okonkwo has opinions',
+    '[ ] look at doc\'s pressure regulator thing, he has been asking for a week',
+    '[ ] feet photos, Q3. ask okonkwo how she did it last time',
     '',
-    'not tonight',
+    '--- after ---',
+    '',
+    '[ ] ferry profile. it thinks the ship is empty. IT IS NOT EMPTY',
+    '[ ] scrubber refuses 16 and it is RIGHT, do not argue with it, fix the file',
+    '[ ] hull-check lost its mode bits in the restore. put them back',
+    '[ ] stop the purge on C7. it will not take a hint. see purge-notes',
+    '[ ] C7. the crawl is open. I cannot get to it from this side',
     '',
   ], { uid: CREW.vasquez, mode: 0o644 });
 
@@ -279,16 +343,19 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     'whatever is on the other side of it, which out here is nothing at all.',
     '',
     'hull-monitor watches them. It runs /usr/local/bin/hull-check, which is',
-    'a five line script, and I restored it off the backup image on day nine',
-    'after I fat-fingered the original. The backup did not keep the mode',
-    'bits. A file the machine is not allowed to execute is not a program, it',
-    'is a text file with opinions, so the unit has failed every boot since.',
+    'a five line script.',
+    '',
+    'ADDENDUM, after. The safing rolled this deck back to the ferry image and',
+    'the image did not keep the mode bits. A file the machine is not allowed',
+    'to execute is not a program, it is a text file with opinions, so the unit',
+    'has failed every boot since. It is not damage. It is a missing letter.',
     '',
     '  ls -l /usr/local/bin/hull-check     look at the left hand column',
     '  chmod +x /usr/local/bin/hull-check  put the x back',
     '',
-    'I wrote seal.sh for the same reason. It is also not executable, because',
-    'I am apparently the kind of engineer who does this twice.',
+    'seal.sh went the same way and for the same reason. Whoever is reading',
+    'this: that is going to be true of anything on this deck that used to',
+    'run. Check the column before you assume the thing is broken.',
     '',
     '                                                       -- Vasquez',
     '',
@@ -307,8 +374,10 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
   file(vfs, '/home/vasquez/notes/purge-notes.txt', [
     'PURGE -- I am leaving this here because I cannot fix it',
     '',
-    'Day 9 I started a purge cycle on C7 so I could work the crawl without',
-    'a suit. atmo-purge runs until the compartment reaches its target.',
+    'The safing started a purge cycle on C7. It is not wrong to. With no',
+    'crew aboard you vent a breached compartment, you do not spend air',
+    'trying to fill it. atmo-purge runs until the compartment reaches its',
+    'target.',
     '',
     'C7 never reaches anything. C7 is a hole.',
     '',
@@ -323,7 +392,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     'for itself what to do about it. That is apparently what catch means.',
     '',
     'There is supposed to be one it cannot catch. I know that much. I did',
-    'not find which one in the time I had and then I had other things.',
+    'not find which one in the time I had and I am out of time.',
     '',
     '    man kill',
     '',
@@ -351,47 +420,113 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
   // ---------------------------------------------------------------- Chen
   // Medical. Kept records, which is what makes the crew real.
 
+  /*
+   * The medical log, and the quietest piece of evidence on the ship.
+   *
+   * Every line falls except one. DeWitt's holds at 98 from the first hour to
+   * the last, because autodoc 2 keeps its own atmosphere and somebody put him
+   * in it -- and the note field says the bay was sealed from the outside,
+   * which is a thing you cannot do to yourself.
+   *
+   * Nobody ever says this out loud. Chen does not say it in her last entry,
+   * because people do not write down the thing they just did. The player can
+   * read this file in the first ten minutes and understand nothing, then come
+   * back after they have met her and understand all of it. That is the whole
+   * reason it is a CSV and not a paragraph.
+   */
   file(vfs, '/home/chen/crew-health.csv', [
-    'day,name,o2_sat,note',
-    '1,vasquez,98,baseline',
-    '1,chen,99,baseline',
-    '1,bowen,97,baseline',
-    '1,okonkwo,98,baseline',
-    '6,vasquez,96,',
-    '6,chen,97,',
-    '6,bowen,94,headaches',
-    '6,okonkwo,95,headaches',
-    '9,vasquez,93,refuses to rest',
-    '9,chen,94,',
-    '9,bowen,90,confused at 0400',
-    '9,okonkwo,89,',
-    '12,vasquez,91,',
-    '12,chen,92,',
-    '12,bowen,88,took the pod',
-    '14,vasquez,88,',
-    '14,chen,89,last entry',
+    'hour,name,o2_sat,note',
+    'T+00,vasquez,98,baseline',
+    'T+00,chen,99,baseline',
+    'T+00,bowen,97,baseline',
+    'T+00,okonkwo,98,baseline',
+    'T+00,dewitt,71,unresponsive. autodoc 2. bay sealed external',
+    'T+01,dewitt,94,autodoc holding own atmosphere',
+    'T+01,bowen,95,pod 2 away',
+    'T+03,vasquez,95,will not leave the console',
+    'T+03,chen,96,',
+    'T+03,okonkwo,94,aft with the patch kits',
+    'T+03,dewitt,98,stable',
+    'T+09,vasquez,91,',
+    'T+09,chen,92,',
+    'T+09,okonkwo,87,C2 patched. going aft for vasquez',
+    'T+09,dewitt,98,stable',
+    'T+13,vasquez,86,',
+    'T+13,chen,84,last entry',
+    'T+13,dewitt,98,stable',
+    'T+27,vasquez,79,[monitor]',
+    'T+27,dewitt,98,[monitor] autodoc nominal',
+    'T+48,dewitt,98,[monitor] cleared for release',
     '',
   ], { uid: CREW.chen, mode: 0o644 });
 
+  /*
+   * Written thirteen hours in, by someone who has done the arithmetic.
+   *
+   * What she leaves out is the point. She does not mention the autodoc, or
+   * the bay door, or why she is short of breath in the one compartment on
+   * this deck that held. People do not write down the thing they just did.
+   * The CSV in the same directory writes it down for her.
+   */
   file(vfs, '/home/chen/last-entry.txt', [
-    'Day 14.',
+    'T+13.',
     '',
-    'Okonkwo yesterday. Quietly, in her sleep, which is the only mercy',
-    'this ship has offered anyone.',
+    'Okonkwo went aft four hours ago to find Vasquez and has not come back',
+    'on the intercom. I am going to write that down rather than say it.',
     '',
-    'Vasquez is still down in engineering. She has not slept in three days',
-    'and she will not talk about C7. I think she believes that if she seals',
-    'it she is admitting the rest of it is real.',
+    'Vasquez is still at the console. She has been arguing with the ship',
+    'since the alarm. She keeps telling it there are people aboard and it',
+    'keeps agreeing with her and doing nothing, because the part of it that',
+    'agrees is not the part holding the pen.',
     '',
     'I have told her the numbers. She can read them better than I can.',
     '',
-    'If anyone finds this: the ship is fine. The ship was always fine. It',
-    'was four people in a room built for forty and a hole we could have',
+    'For the record, since I am the one keeping it: nothing is wrong with',
+    'this ship. The reactor is fine. The hull is fine except for one crawl',
+    'space. Every system aboard is working exactly as designed, and the',
+    'design is for a ship with nobody on it, and somebody told it that this',
+    'morning and I do not know who.',
+    '',
+    'It was four people in a room built for forty and a hole we could have',
     'closed in an afternoon.',
+    '',
+    'Whoever reads this: it will not be hard. That is the part I cannot get',
+    'my head around. It was never going to be hard.',
     '',
     '                                                          -- Chen',
     '',
   ], { uid: CREW.chen, mode: 0o644 });
+
+  /*
+   * The machine that kept him alive, in its own words.
+   *
+   * Two jobs. It is the answer to "why am I awake now" -- the plan requires
+   * that to be a record rather than plot timing, and here it is: a clearance
+   * at T+47:52 and a console session four minutes later. And it is the
+   * corroboration for the line in Chen's CSV, from a second instrument that
+   * had no idea it was witnessing anything.
+   *
+   * It never names her. It logs a bay seal asserted from the outside and the
+   * id of the terminal that did it, and the player is the one who works out
+   * that a door you cannot reach from inside was closed by somebody standing
+   * in a corridor that was already emptying.
+   */
+  file(vfs, '/var/log/autodoc.log', [
+    'AUTODOC 2 -- MEDICAL BAY C4',
+    '',
+    'T+00:04  admit: dewitt, unresponsive, hypoxic',
+    'T+00:04  bay seal asserted EXTERNAL (terminal c4-med-01)',
+    'T+00:04  bay atmosphere isolated from deck supply',
+    'T+00:06  O2 71% rising',
+    'T+01:02  O2 94% stable',
+    'T+03:00  sedation hold, 44h minimum',
+    'T+13:20  terminal c4-med-01 idle',
+    'T+27:00  deck supply unbreathable. bay independent. no action',
+    'T+47:52  sedation ends. patient clear for release',
+    'T+47:52  notify: maintenance daemon',
+    'T+47:56  console session opened',
+    '',
+  ], { mode: 0o644 });
 
   // -------------------------------------------------------------- Bowen
   // Navigation. Left. The thread that pulls into the rest of the game.
@@ -400,7 +535,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     'ESCAPE POD 2 -- MANIFEST (handwritten, scanned)',
     '',
     '  2x emergency ration case',
-    '  1x medical kit (taken from chen, ask her)',
+    '  1x medical kit',
     '  1x nav slate, charged',
     '  1x hull patch kit  <-- I KNOW. I know.',
     '',
@@ -408,7 +543,13 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     'not. If there is I will come back with people. If there is not then',
     'it did not matter what I took.',
     '',
-    'Vasquez: seal C7. You keep saying you will.',
+    'I have been in this bay fifty minutes doing the sum and it comes out',
+    'the same every time. Nobody can raise anybody. The board is red from',
+    'one end to the other and it went red all at once, which is not what',
+    'breaking looks like.',
+    '',
+    'I am not braver than this. I found that out this morning and I would',
+    'rather have found it out some other way.',
     '',
     '                                                          -- Bowen',
     '',
@@ -418,34 +559,54 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
   // Cargo. She counted things, which is the quietest way a person can be
   // real -- and her count is the only record of what Bowen took with him.
 
+  /*
+   * A stock ledger that is secretly a timeline.
+   *
+   * Read as a table it is inventory. Read in order it is one morning: the
+   * kits go out, the pod goes, the count reaches zero, and the person keeping
+   * the count signs out a suit cartridge for herself and stops writing. The
+   * engineering lesson is that a record kept for one purpose answers a
+   * question nobody meant it to.
+   */
   file(vfs, '/home/okonkwo/manifest.csv', [
-    'day,item,qty,signed_out_to,note',
-    '1,ration case,40,-,sealed',
-    '3,coolant cartridge,6,vasquez,C6 loop',
-    '5,hull patch kit,2,vasquez,C2',
-    '5,hull patch kit,1,-,remaining',
-    '9,suit scrubber cartridge,2,vasquez,aft crawl',
-    '12,hull patch kit,1,bowen,pod 2',
-    '12,ration case,2,bowen,pod 2',
-    '12,nav slate,1,bowen,pod 2',
-    '13,hull patch kit,0,-,none remaining',
+    'hour,item,qty,signed_out_to,note',
+    'T-0072,ration case,40,-,sealed',
+    'T-0048,coolant cartridge,6,vasquez,C6 loop',
+    'T+0001,hull patch kit,1,bowen,pod 2',
+    'T+0001,ration case,2,bowen,pod 2',
+    'T+0001,nav slate,1,bowen,pod 2',
+    'T+0002,hull patch kit,1,okonkwo,C8 clamp scar',
+    'T+0009,hull patch kit,1,okonkwo,C2',
+    'T+0009,hull patch kit,0,-,none remaining',
+    'T+0009,suit scrubber cartridge,1,okonkwo,aft crawl',
     '',
   ], { uid: CREW.okonkwo, mode: 0o644 });
 
   file(vfs, '/home/okonkwo/c8.txt', [
     'POD BAY -- C8',
     '',
-    'Pod 2 left on day 12. The clamp did not release clean and it took a',
-    'strip of the bay wall with it. I patched it the same hour. It is the',
-    'only thing on my list that is finished.',
+    'Pod 2 left an hour in. The clamp did not release clean and it took a',
+    'strip of the bay wall with it. I patched it the same hour.',
+    '',
+    'Then C2, which is quarters, which is where he had been asleep the',
+    'night before, and I want somebody to notice that I did quarters second',
+    'and not first, because I stood in that doorway and thought about it.',
     '',
     'For the record, because somebody should have it in writing: he signed',
-    'out the last patch kit. He knew what it was for. He took it anyway and',
-    'I gave it to him, and I have decided I am not going to be angry about',
-    'that, because the alternative is being angry at somebody who is not',
-    'here.',
+    'out a patch kit on his way to the pod. He knew what it was for. He',
+    'took it anyway and I gave it to him, and I have decided I am not going',
+    'to be angry about that, because the alternative is being angry at',
+    'somebody who is not here.',
     '',
-    'Count is in manifest.csv. It is short one kit and it will stay short.',
+    'He was frightened. I have watched that man land this ship in weather',
+    'that made me pray and he was frightened this morning, and if he was',
+    'that frightened then he understood something faster than I did.',
+    '',
+    'Count is in manifest.csv. It is at zero and it will stay at zero.',
+    '',
+    'Going aft to find Vasquez. Signing out the last suit cartridge, which',
+    'I am also writing down, because I have kept this count for nine years',
+    'and I am not going to stop on the last page.',
     '',
     '                                                        -- Okonkwo',
     '',
@@ -458,7 +619,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
       `# compartment ${id.toUpperCase()} -- ${name}`,
       `NAME=${name}`,
       `SEALED=${sealed ? 'yes' : 'no'}`,
-      `LAST_INSPECTED=day ${sealed ? 3 : 9}`,
+      `LAST_INSPECTED=${sealed ? 'T-0212' : 'T+0003'}`,
       '',
     // Writable by the crew on purpose: a hatch you cannot close without the
     // root password is a hatch that kills somebody. The lesson lives in the
@@ -483,8 +644,8 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
     '#!/bin/sh',
     '# NAV-7 hull sensor sweep. Started by hull-monitor.service.',
     '#',
-    '# Restored from the day-9 backup image. The backup did not keep the mode',
-    '# bits, so this has not run since. -- Vasquez',
+    '# Rolled back to the ferry image by the safing. The image did not keep the',
+    '# mode bits, so this has not run since. -- Vasquez',
     '',
     'echo "hull-check: sweeping 9 compartments"',
     'tail -9 /var/log/hull.log',

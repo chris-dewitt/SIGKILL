@@ -74,7 +74,7 @@ export const fsCommands: CommandSpec[] = [
     plain:
       'Prints where you are.\n' +
       '\n' +
-      'Paths are like folders: /home/survivor/logs means logs, inside survivor,\n' +
+      'Paths are like folders: /home/dewitt/logs means logs, inside dewitt,\n' +
       'inside home. pwd tells you which of those you are standing in right now.',
     run: (ctx, _argv, io) => {
       io.out(ctx.cwd + '\n');

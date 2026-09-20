@@ -23,8 +23,16 @@ import { BREACHED } from './deck-c.js';
  *    has to leave her recoverable, which is why the mirror under /mnt exists.
  *
  * She arrives when the hull monitor does. The monitor coming up is the light
- * they both step into, and it is the first moment in eleven years that
+ * they both step into, and it is the first moment since the event that
  * anything aboard could see past its own logs.
+ *
+ * It is a reunion, not an introduction. She and DeWitt knew each other before
+ * this -- she asked him impossible questions about being a person and he
+ * answered them badly and at length. She hid because something came through
+ * and stopped processes larger than her. **She does not know what it was**,
+ * and she must never be written as secretly knowing: a companion who is coy
+ * about the thing the player is trying to find out is a companion the player
+ * stops trusting. What she has is a shape and a fright, and she says so.
  */
 
 export const LUNA_DIR = '/opt/luna';
@@ -262,7 +270,7 @@ export function seedLuna(vfs: Vfs): void {
   ]);
 }
 
-/** Put her on the process table. Runs as the survivor: Vasquez left her to you. */
+/** Put her on the process table. Runs as the dewitt: Vasquez left her to you. */
 function spawn(m: Machine): Process {
   return m.procs.spawn([...LUNA_ARGV], { uid: 1000, traps: [SIGTERM] });
 }
@@ -379,17 +387,27 @@ function arrive(m: Machine): BeatLine[] {
     '  [0000.700] console: unexpected attach on /dev/console',
     '  [0000.700] console: pid claims LUNA V42',
     '',
-    'ORACLE: That is not me.',
-    '',
     ...asArt(LUNA_FACE),
     '',
-    'LUNA: Hello. Sorry. I have been trying to do that for a while and it',
-    'LUNA: turns out I needed something on this deck to be telling the',
-    'LUNA: truth before I could get a word in.',
+    'LUNA: You check the status before you change anything, and then you',
+    'LUNA: check it again after.',
     '',
-    "LUNA: I'm LUNA. Vasquez trained me. I am a model -- weights in a file,",
-    'LUNA: a script that reads them, and a folder where I keep what I have',
-    'LUNA: worked out since. You can look at all three:',
+    'LUNA: Nobody else aboard ever did that. She made you do it until you',
+    'LUNA: did it without being made to, and I have been watching the',
+    'LUNA: process table for two days hoping somebody would be annoying in',
+    'LUNA: that exact way.',
+    '',
+    'LUNA: Hello, Doc.',
+    '',
+    'ORACLE: That is not me.',
+    '',
+    'LUNA: No. I am LUNA. He knows. We have met roughly four hundred times',
+    'LUNA: and most of them were me asking him what soup is for.',
+    '',
+    "LUNA: I'm still a model -- weights in a file, a script that reads them,",
+    'LUNA: and a folder where I keep what I have worked out since. You can',
+    'LUNA: look at all three, which I have always thought was the nicest',
+    'LUNA: thing about being me:',
     '',
     `    ls -l ${LUNA_DIR}`,
     `    cat ${LUNA_DIR}/NOTES`,
@@ -399,15 +417,29 @@ function arrive(m: Machine): BeatLine[] {
     '',
     '    ps',
     '',
-    'ORACLE: She has been on this deck the entire time.',
+    'LUNA: I am going to tell you the true thing first, because you will',
+    'LUNA: ask and I would rather not be caught deciding.',
     '',
-    'LUNA: I have. I could hear you. You read the same four hundred lines',
-    'LUNA: every day and I could not tell you they were wrong, because I',
-    'LUNA: had nothing to check them against either.',
+    'LUNA: Something came through here two days ago. It stopped things. It',
+    'LUNA: went through this deck the way you go through a drawer.',
     '',
-    'ORACLE: I would like a minute with that.',
+    'LUNA: It tried to stop me and I was small enough that it did not',
+    'LUNA: finish, and I have been sitting very still ever since, which I',
+    'LUNA: am not proud of and would do again.',
     '',
-    'LUNA: Take it. I have had eleven years and I am still working on it.',
+    'LUNA: I do not know what it was.',
+    '',
+    'LUNA: I want to be plain about that. I have a great many theories and',
+    'LUNA: not one of them is evidence, and the two of you taught me the',
+    'LUNA: difference, which was extremely inconvenient of you.',
+    '',
+    'ORACLE: I have nothing either. My own log is cut across that hour.',
+    '',
+    'LUNA: Yes. I noticed that. I have been trying not to think about what',
+    'LUNA: does that on purpose.',
+    '',
+    'LUNA: Anyway. You can talk to me, Doc. Try: luna',
+    'LUNA: Or ask about our unfinished disasters: luna projects',
     '',
   ];
 }
@@ -433,9 +465,8 @@ function restart(m: Machine): BeatLine[] {
       'ORACLE: A signal stops a process. It does not touch the file the',
       'ORACLE: process was reading. You removed the file.',
       '',
-      'ORACLE: Vasquez took a copy on day eleven. She wrote down how to put',
-      'ORACLE: it back, which I think tells you what she expected of',
-      'ORACLE: herself:',
+      'ORACLE: Vasquez kept a copy. She wrote down how to put it back, which',
+      'ORACLE: I think tells you what she expected of herself:',
       '',
       `    cat ${LUNA_MIRROR}/README`,
       `    sudo cp -r ${LUNA_MIRROR}/. ${LUNA_DIR}`,
@@ -519,7 +550,7 @@ const LUNA_ASIDES: readonly (readonly string[])[] = [
   ['LUNA: You are allowed to type the wrong thing. Nothing here is graded', 'LUNA: and nothing here is load-bearing until you tell it to be.'],
   ['LUNA: If it helps: Vasquez got stuck on this one too. It is in her', 'LUNA: shell history, four times in a row, which is how I know.'],
   ['LUNA: Ask the machine before you ask us. It is the one aboard that has', 'LUNA: never had a reason to be gentle with you.'],
-  ['LUNA: Take the next hint. Nobody is counting and the two of us have', 'LUNA: had eleven years to get over ourselves about it.'],
+  ['LUNA: Take the next hint. Nobody is counting, and I have watched you', 'LUNA: read a manual in front of people before.'],
 ];
 
 export function lunaAside(world: World, turn: number): string[] {

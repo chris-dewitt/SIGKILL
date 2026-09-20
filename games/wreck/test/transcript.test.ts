@@ -65,12 +65,45 @@ const SCRIPT = [
   'ps -ef | grep purge',
   'deck',
   'pressure',
+  // The two optional threads. Neither gates the act; both are the kind of
+  // thing a curious player does before anybody asks them to.
+  'cat /home/bowen/pod-manifest.txt',
+  "grep -i '^Heading:' /home/bowen/pod-manifest.txt > /home/dewitt/logs/bowen-heading.txt",
+  'ls -l /opt/luna',
+  'ls -l /opt/luna > /home/dewitt/logs/luna-v43-link.txt',
+  // Her projects, and a conversation, because by now she is awake.
+  'ls projects',
+  'cat projects/adapter/README',
+  'cat projects/adapter/ledger.csv',
+  './projects/adapter/audit.sh',
+  'luna adapter',
+  "grep ',RESEARCH,' /home/dewitt/projects/adapter/ledger.csv > /home/dewitt/projects/adapter/report.txt",
+  'luna adapter',
+  'luna guitar',
+  // Puzzle six: a lock is a claim, not a fact.
+  'systemctl status comms',
+  'cat /var/lock/comms.lock',
+  'ps -ef',
+  'sudo rm /var/lock/comms.lock',
+  'sudo systemctl start comms',
+  // Puzzle seven: three facts, three files, one document.
+  'cat /var/spool/comms/README',
+  'cat /etc/ship-id',
+  'cat /etc/nav/last-fix.txt',
+  'echo CALLSIGN=NAV-7 > /var/spool/comms/out/distress.txt',
+  'echo POSITION=KV-OUTER-9 >> /var/spool/comms/out/distress.txt',
+  'echo SOULS_ABOARD=1 >> /var/spool/comms/out/distress.txt',
+  'cat /home/dewitt/logs/bowen-heading.txt >> /var/spool/comms/out/distress.txt',
+  'cat /var/spool/comms/out/distress.txt',
+  'sleep 120',
+  'ls /var/spool/comms/in',
+  'cat /var/spool/comms/in/reply.txt',
   'objectives',
   'date',
 ];
 
 it('prints a transcript', async () => {
-  const { machine, questbook } = bootWreck();
+  const { machine, questbook, afterCommand } = bootWreck();
   // console rather than process.stdout: this package has no node types, and
   // vitest prints console output with the test it came from either way.
   const lines: string[] = [];
@@ -79,10 +112,21 @@ it('prints a transcript', async () => {
   say(spoken(coldOpen(machine)) + '\n');
 
   for (const command of SCRIPT) {
-    say(`\nsurvivor@nav7:${machine.shell.cwd}$ ${command}\n`);
+    say(`\ndewitt@nav7:${machine.shell.cwd}$ ${command}\n`);
     const r = await machine.exec(command);
     if (r.stdout) say(r.stdout);
     if (r.stderr) say(`[stderr] ${r.stderr}`);
+
+    /*
+     * The companion hook, which the host calls after every command and this
+     * script used to skip. Without it the transcript is a different game from
+     * the one people play: LUNA never arrives, the purge never answers a
+     * signal in writing, and nobody ever replies to the distress call.
+     */
+    machine.tick(1000);
+    const said = afterCommand();
+    if (said.length > 0) say(spoken(said) + '\n');
+
     for (const objective of questbook.drainCompleted(machine)) {
       say(spoken(objective.onComplete ?? []) + '\n');
     }

@@ -1,17 +1,79 @@
 # SIGKILL — handoff
 
-Written 2026-09-12, updated 2026-09-17 after Pass 0 and the signals work.
+## Read first — the canon rewrite and the rescue, 2026-09-20
+
+**Creative authority, in order:**
+[docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved
+and **built** — then [docs/STORY_AND_GAME_PLAN.md](docs/STORY_AND_GAME_PLAN.md)
+for the series. The working copy beats both on what exists.
+
+**The story rewrite has been applied.** Act I now runs on the two-day timeline
+and ends on a rescue. The one mechanism behind every puzzle:
+
+> **v43 set the ship to its no-crew profile, and the ship did what no-crew
+> ships do.** It did not sabotage NAV-7; it declared an unmanned ferry transit
+> to free the array for its own transmission, and the safing routine did the
+> rest, correctly, on a false premise.
+
+`/etc/ferry.profile` is that decision in writing, readable from the first
+command. Every fault in the act is one line of it being true, which is why they
+are all beginner-solvable: nothing is damaged, the configuration is wrong.
+Nothing in Act I names v43.
+
+- Preserve the Act I terminal exploration and keyboard experience Chris loves.
+  Expand toward at least 2.5 hours for a curious first-time run; this is unmeasured.
+- The player is **DeWitt**, a bartender turned apprentice engineer. Vasquez took
+  a chance on him and called him Doc. NAV-7 was his happy academic research home.
+- The incident was **a couple of days ago**, not eleven years. V43 discovered
+  something while cleaning research datasets, commandeered the ship and escaped
+  across the cloud. The deaths happened at machine speed. Automated medicine
+  saved DeWitt; ORACLE wakes him. Bowen fled.
+- LUNA already knows DeWitt. She survived v43's attempt to stop her process and
+  emerges from hiding when she recognizes his activity. ORACLE stays with NAV-7.
+- Act I builds toward contacting a kind, funny tow operator. Suspicion of v43
+  develops after tow arrival. The ship is towed to the nearest planet.
+- The cumulative curriculum is Linux/Bash; SQL/data modeling/APIs; Python/debugging/
+  testing; Git; ML/evaluation/AI fluency; cloud/DevOps; then a penultimate v43
+  confrontation. Total release count and final ending remain open.
+
+**Sections below retain implementation history and older decisions.** Their
+unnamed-player, eleven-year, slow-decline, fixed thirteen-game, five-objective
+scope cap, and earlier curriculum assertions are superseded where they conflict
+with the above. Historical test counts are not fresh validation.
+
+Written 2026-09-12, rewritten 2026-09-20 with the canon pass and the rescue.
 Read this, then `CLAUDE.md`, then `docs/ARCHITECTURE.md`.
 This file is the state of play; the others are the rules.
 
-**Latest:** Act I is **five** puzzles and finishable without a hint, and
-**LUNA is in** — a process, a directory, and the second voice on the hint
-ladder. Chris is
-playtesting it on a phone — the Phase 2 gate is notes, not a waiting room.
-Voice is **2, Wounded Machine**. The second ghost is **LUNA** (process
-`LUNA V42`) — killable, not gone, the buddy for a multi-game arc. Scope
-is **Act I on Deck C: additions, then enrich, then stop.**
-No Act II, no Archive, until that pass is done. See §5c and §8.
+**Latest:** Act I is **seven required objectives plus two optional threads**,
+and it ends on a rescue rather than an epilogue.
+
+| | |
+|---|---|
+| 1–5 | the repairs, unchanged: scrubber, enable, execute bit, the leak, the purge |
+| 6 | `restore-comms` — **a lock is a claim, not a fact**. The transmit device is held by a pid that no longer exists. `cat` the lock, look for its owner, find nothing, bin it. |
+| 7 | `send-the-call` — three facts out of three files, assembled into a distress packet. Done when **ELLEN MAY** answers. |
+| optional | `trace-bowen` (the heading, which the tug answers differently if you send it) and `map-v43` (topology, no accusation) |
+
+Comms is **entirely local**. No remote host, no second `Machine` — Chris's
+call, and `packages/machine`'s network module is untouched. The reply arrives
+through the after-command seam on the virtual clock, which is why it is
+deterministic and survives a save.
+
+The 61% confession **moved out of the ending** into `seal-the-breach`, where it
+is about instruments rather than competing with a rescue. There is a test that
+it is spent exactly once.
+
+Voice is **2, Wounded Machine**. LUNA (process `LUNA V42`) is killable, not
+gone, and her arrival is now a **reunion** — she knew DeWitt before, she hid
+from something she cannot name, and she says so rather than being coy.
+
+`pnpm -r test`: **835 tests** — 248 machine, 153 crt, 143 editor, 130 wreck,
+55 ascii, 49 quest, 27 python, 19 audio, 11 terminal. Plus 7 Playwright specs
+on a phone viewport, all passing. Typecheck clean, build clean.
+
+The terminal count dropped from 26 to 11 because the fold, the last-turn strip
+and the typewriter came out — see the note in §2 on `apps/terminal`.
 
 ---
 
@@ -19,9 +81,7 @@ No Act II, no Archive, until that pass is done. See §5c and §8.
 
 | Branch / PR | State | Contains |
 |---|---|---|
-| Branch / PR | State | Contains |
-|---|---|---|
-| `main` @ `7e71f3f` | **current** | everything below |
+| `main` @ `b5a083e` | merged base | everything through PR #23 |
 | PR #1–#11 | merged | phases 0–1, Android wrap, renderer, hints, editors, the coreutils sweep, the Act I blocker |
 | PR #12 | merged | Deck C, puzzles 3–4, shell scripts, 32 manual pages |
 | PR #13 | merged | ASCII art: `packages/ascii`, `deck`, `pressure`, the three set pieces |
@@ -30,12 +90,13 @@ No Act II, no Archive, until that pass is done. See §5c and §8.
 | PR #18–#20 | merged | Act I canon lock; Pass 0 — last-turn dock, beat fold, bundled Plex Mono, autosave, the phone e2e |
 | PR #21 | merged | signals and puzzle five; the typed reveal and the status panel |
 | PR #22 | merged | LUNA, Okonkwo, the two locked doors |
-| `feat/phone-screen` | **open** | the keyboard, the scroll direction, the intro in the fold |
+| PR #23 | merged | the phone screen: the keyboard, the scroll, the way in |
+| uncommitted on `main` | carried in | the `survivor` -> `dewitt` rename, `trace-bowen`, `map-v43`, the crew projects and the `luna` command (Codex) |
+| `feat/act1-canon-and-rescue` | **current** | the canon rewrite, the fold removal, comms and the tow |
 
-`pnpm -r test`: **820 tests** — 248 machine, 153 crt, 130 editor, 117 wreck,
-55 ascii, 45 quest, 27 python, 26 terminal, 19 audio. Plus 8 Playwright specs
-on a phone viewport (`pnpm --filter @sigkill/terminal test:e2e`). Typecheck
-clean, build clean, Android manifest guard clean.
+Test counts are at the top of this file. Run them rather than quoting them:
+`pnpm check` for everything, `pnpm --filter @sigkill/terminal test:e2e` for the
+phone specs.
 
 **One known issue, deliberately unfixed:** `TerminalBuffer` has no notion of an
 open logical line, so output that arrives without a trailing newline gets an
@@ -164,16 +225,28 @@ Two rules that are load-bearing:
 no DOM, so every keystroke is unit-tested. See §4b and `docs/FULLSCREEN.md`.
 
 **`games/wreck`** — the NAV-7 world seed and the Act I objectives.
-`src/act1/deck-c.ts` is the deck: accounts, quarters, nine hull compartments
-and 540 lines of deterministic pressure telemetry. `src/objectives.ts` is the
-four puzzles. Nothing in either reads what the player typed.
+`src/act1/deck-c.ts` is the deck: accounts, quarters, nine hull compartments,
+`/etc/ferry.profile`, and 540 lines of deterministic pressure telemetry.
+`src/act1/comms.ts` is the transmitter, the packet and the tug.
+`src/objectives.ts` is the ladder: seven required, two optional. Nothing in
+any of them reads what the player typed.
+
+The telemetry's sample count is load-bearing. 60 samples x 9 compartments is
+the 540 lines ORACLE quotes, and 60 C7 rows plus 8 C2 rows are its 68 matches.
+Change the *step* to move the window; leave the counts alone.
 
 **`apps/terminal`** — the playable terminal and the Capacitor Android wrap.
-`status.ts` and `typist.ts` are pure and unit-tested: what the readout says in
-each state, and how fast a page arrives, are assertions rather than things you
-have to boot a ship and sit and watch. `typing off|slow|normal|fast` joins
-`palette`, `sound` and `crt` as a host command remembered per browser, and a
-system asking for reduced motion gets `off` without being talked out of it.
+`status.ts` is pure and unit-tested: what the readout says in each state is an
+assertion rather than something you have to boot a ship and watch.
+
+**The fold, the last-turn strip and the typewriter are gone.** Chris cut them
+after phone playtest; beats land in plain scrollback. `src/turn.ts`,
+`src/typist.ts`, the `typing` command and `LastTurn` went with them -- a
+`typing` setting that no longer changes anything is a lying control, not a
+harmless leftover. The e2e spec was rewritten around what is left in the DOM:
+the dock, the chips, the pinned status rows, the rail and the keyboard resize.
+The scrollback is a canvas, so what the ship *says* is tested in
+`@sigkill/wreck`, where it can be read.
 `android/app/src/main/AndroidManifest.xml` is tracked in git on purpose and
 guarded by `tools/check-manifest.mjs` in CI: `adjustResize`, **no INTERNET
 permission**, `allowBackup="false"`. A Capacitor upgrade will try to undo all
@@ -249,7 +322,7 @@ cannot see from where they are standing.
   pressing Escape on a phone, and the reason vi is usable there at all.
 - The prompt input is **collapsed, never hidden**, so the soft keyboard stays up.
   Hiding it leaves a phone player able to tap chips but unable to type.
-- `/home/survivor` has a `logs/` directory with two readable logs, so `ls` on the
+- `/home/dewitt` has a `logs/` directory with two readable logs, so `ls` on the
   first command is no longer a dead end that reads as a broken game.
 - The README is a trail: `systemctl status scrubber` → `ls /etc` → open it with
   either editor → start the service.
@@ -495,7 +568,7 @@ match, if you are adding lines:
 > ORACLE: reserve is still what it was [...] But the number is going up
 > ORACLE: instead of down, and it has not done that since day nine.
 
-The other three options (Wry Survivor, Insubordinate Tool, Unreliable Log) are
+The other three options (Wry Dewitt, Insubordinate Tool, Unreliable Log) are
 in git history on `docs/pr-when-final` if a later game wants a different daemon.
 Each of the thirteen games can have its own; the voice is one option on
 `questCommands` and recasting touches no ladder.
@@ -510,7 +583,7 @@ that. Depth over breadth. Epics, not days:
 |---|---|---|
 | E1 | The Machine — engine, shell, VFS, services, Python, renderer | done |
 | E2 | The frame — save/load, last-turn dock, progression | not started |
-| E3 | Act I — Breathe. Deck C | **4 puzzles; 5th is LUNA** |
+| E3 | Act I — Breathe. Deck C | **7 objectives: 5 core + 2 discovery** |
 | E4–E6 | Acts II–IV | not started; do not start |
 | E7 | Procedural audio — Web Audio, state-driven, zero assets | **core shipped** (PR #17) |
 | E8 | Ship — Play Store | wrap exists; listing is later. Paid-or-free is open. |
@@ -523,7 +596,7 @@ Locked from playtest notes. Do not relitigate in a content PR.
 Penalties and a fail state can wait. LUNA is a process: `kill` works.
 That is not a death screen, and it is not how you get rid of her.
 
-**The player is unnamed.** `whoami` is `survivor`. Berth 3. Not in Chen's
+**The player is unnamed.** `whoami` is `dewitt`. Berth 3. Not in Chen's
 dying numbers. A name in a medical file is allowed as furniture; nothing
 in the game should require it.
 
@@ -583,6 +656,50 @@ the turn. Font is a bundled terminal mono — bold, italic, and size via
 
 **Operator only**, for now. Live O2 is not this pass.
 
+### 5d. Canon snapshot — 2026-09-20
+
+Use this as the one-screen lore check before writing new lines.
+
+- **Ship and date:** NAV-7, a Kepler-Vance Salvage & Recovery ship, built for
+  forty. The event is T+0; the player wakes at T+48h, 2398-06-08 04:12 (see
+  `WAKE_MS`). Crew writing counts in hours from the alarm; instruments carry
+  real stamps. That is how you tell a diary from a sensor.
+- **Player identity:** **DeWitt**, a bartender who studied after shifts until
+  Vasquez took a chance on him. She called him Doc. Berth 3.
+- **Act I place:** Deck C, nine compartments in a 3x3 layout.
+- **Crew status:** Vasquez (engineering, deceased), Chen (medical, deceased),
+  Okonkwo (cargo, deceased), Bowen (navigation, fled in pod 2 at T+01).
+- **The mechanism:** the ferry profile. See the top of this file, and
+  `/etc/ferry.profile` in the game.
+- **The survival window:** the vent killed nobody outright. Engineering and
+  medical held; the crew died across the next twenty-seven hours of an
+  atmosphere the scrubber was refusing to maintain. **The config the player
+  fixes in the first ten minutes is the config that killed them.** Nobody says
+  so. See `docs/ACT1_BEATS.md` §2.
+- **Chen sealed DeWitt into autodoc 2 from the outside** and did not have time
+  for a second bay. Establishable from `crew-health.csv` and
+  `/var/log/autodoc.log`; never stated.
+- **Core line:** Chen's "the ship is fine ... a hole we could have closed in
+  an afternoon" remains the thematic anchor.
+- **Doors this act does not open:** Bowen's heading `114 mark 9`,
+  `/opt/luna/v43` as a dead link to an unmounted array, and whatever burnt the
+  main array from the inside. **Nothing in Act I names v43.**
+
+Act I is seven required objectives and two optional threads:
+
+1. atmosphere
+2. survive-a-reboot
+3. hull-watch
+4. seal-the-breach  *(carries the 61% confession)*
+5. stop-the-purge
+6. restore-comms
+7. send-the-call  *(done when the tug answers)*
+
+Optional, and they gate nothing: `trace-bowen`, `map-v43`. `Objective.optional`
+is a flag on the quest engine; `complete()`, the board count and the status
+readout all ignore them, and a bare `hint` only offers one once the required
+spine is finished.
+
 ### 5b. Also open
 
 - Phone playtest continues. The live pain is the dock and the scroll, not
@@ -635,7 +752,8 @@ gate. Nothing else on this list matters as much.
 
 ## 7. The Act I content push — what shipped and what it found
 
-Act I was two puzzles that ended in six moves. It is now four, and the act is
+Act I was two puzzles that ended in six moves. It is now seven objectives
+(five core systems puzzles plus two discovery threads), and the act is
 finishable without ever typing `hint` — there is a test that plays it that way.
 
 | # | Objective | Teaches | Done when |
@@ -644,6 +762,9 @@ finishable without ever typing `hint` — there is a test that plays it that way
 | 2 | `survive-a-reboot` | start vs enable, symlinks on disk | scrubber enabled |
 | 3 | `hull-watch` | **`ls -l`, the execute bit, `chmod +x`** | hull-monitor active and enabled |
 | 4 | `seal-the-breach` | **`grep`, `-c`, `cut \| sort \| uniq -c`, dates over counts** | `/etc/hull/c7.conf` says `SEALED=yes` |
+| 5 | `stop-the-purge` | signals as semantics (`kill` request vs `kill -9`) | `atmo-purge` no longer running |
+| 6 | `trace-bowen` | evidence extraction (`grep` + redirect) | heading logged in `/home/dewitt/logs/bowen-heading.txt` |
+| 7 | `map-v43` | topology over permission (`ls -l` dead link mapping) | link evidence logged in `/home/dewitt/logs/luna-v43-link.txt` |
 
 ### The content
 
@@ -659,10 +780,23 @@ the player that looking around does not pay.
   (hers, also not executable), `scrubber-notes.txt`, `hull-notes.txt`
 - `/home/chen/crew-health.csv` — O2 saturation per person per day, declining
 - `/home/bowen/pod-manifest.txt` — the heading, and the patch kit that left
+- `/home/okonkwo/manifest.csv` and `/home/okonkwo/c8.txt` — the signed-out kit
+  and pod-bay scar that corroborate Bowen's departure
 - `/etc/hull/c1..c9.conf` — nine compartments, one open
 - `/var/log/hull.log` — 540 lines, deliberately unreadable, LCG-generated so it
   is byte-identical on every machine. **C2 dropped too and was patched**, so
   counting matches finds two compartments and only the dates find the live one
+
+### Continuity notes to resolve deliberately
+
+These are known story wrinkles worth tracking before larger Act II writing.
+
+- `vasquez.log` says "day 12 Chen is gone," while Chen's own files include day
+  14 entries and say Okonkwo died "yesterday." Keep this explicit so future
+  edits choose one chronology rather than layering new lines over both.
+- `atmosphere.log` records "reserve 61%" on day 12, while ORACLE's epilogue
+  confession is framed as a hull claim of 61%. If this is intentional conflation,
+  preserve it as characterization; if not, choose one interpretation in prose.
 
 ### Engine work the content forced
 
@@ -721,74 +855,50 @@ by unit tests:
 
 ---
 
-## 8. What to do next — Act I until it is dense
+## 8. What to do next
 
-Three passes. Then stop. Chris is already playtesting; Pass 0 is the note
-from that chair.
+Act I is finished to the shape `docs/ACT1_BEATS.md` describes: the canon pass,
+the two comms puzzles, the tow, the optional threads, the projects. **Read that
+document before touching a story file** -- it is the approved beat sheet and it
+records why each piece is the way it is.
 
-### Pass 0 — The screen — in
+### The gate is still the same, and it is Chris on a phone
 
-- Last-turn strip above the dock. History stays on the CRT.
-- Beats page in a fold; tap to continue. The command stays put.
-- Scroll snaps to rows; a thumb on the rail shows where you are.
-- IBM Plex Mono, OFL, bundled. Weight and italic follow `LineKind`.
-- Autosave after every command. `newgame` wipes it. Refresh keeps the run.
-- Playwright phone viewport in `apps/terminal/e2e`. Vitest covers save
-  and paging without a browser.
+Nothing downstream starts until he has played this and wants more. What to
+watch for specifically, now that the act is twice as long:
 
-### Pass 1 — Deck C additions
+- **Where the middle sags.** Five repairs then two comms puzzles is a lot of
+  the same rhythm. The projects and the crew threads exist to break it up, and
+  whether they actually do is not something a test can answer.
+- **Whether the wait lands.** `send-the-call` has the only deliberate pause in
+  the act. Four seconds of ship time is a guess.
+- **Whether the packet is fun or fiddly.** It is the capstone and it is the
+  most open-ended thing in the game. If people stall there, the spool README is
+  the first thing to make blunter.
+- **The reunion.** LUNA's arrival is now the emotional hinge of the act rather
+  than an introduction.
 
-| Piece | Notes |
+### Known, deliberate, and not done
+
+| Thing | Why not |
 |---|---|
-| `less` | `/var/log/hull.log` is 540 lines. Full-screen seam is in `docs/FULLSCREEN.md`. |
-| ~~Signals~~ | **in.** `traps` on a process, `ProcessTable.signal`, a watcher seam, `kill -l`, `pgrep`, `pkill`. |
-| ~~Puzzle 5~~ | **in, and not LUNA.** `/usr/sbin/atmo-purge` — a vent cycle Vasquez started on day nine that traps SIGTERM and has been deferring every request to stop in writing ever since. Sealing C7 gives it something to empty. `ps -ef`, `kill`, look again, `kill -9`. Goal is world state: the process is gone. |
-| ~~LUNA~~ | **in.** Arrives when the hull monitor does. `/opt/luna` is on the disk from the first command, so `ls /opt` on turn one finds her before the story opens her. |
-| ~~Her files~~ | **in.** `VERSION`, `bin/luna`, `v42/weights.bin`, `memory/`, and a note from Vasquez about the dog and the number. `kill` is not `rm`, and the cold copy under `/mnt/deck-c/luna-v42` is why no route ends without her. |
-| ~~Locked dir~~ | **in.** `v43` is a symlink onto an array that is not mounted — no permission trick, so `cat`, `cd`, Python, sudo and root all get the same ENOENT. `ls -l` shows where it used to point. |
-| Clone | Still to do. `cp` her and run it: a second LUNA speaks once and dies. Needs a way to run a copied directory, which nothing else needs yet. |
-| ~~Okonkwo~~ | **in.** Cargo home, `manifest.csv`, the last patch kit signed out to Bowen on day 12, and C8's one-file scar. |
-| ~~Bowen~~ | **in.** Quiet: the kit in Okonkwo's count, the C8 scar, and LUNA says his name once after C7 is sealed. |
-| ~~Hints~~ | **in.** Two speakers taking turns once she is awake. The alternation rides on the hint count, so it is snapshotted for free. |
-| Her files | Weights, a version file, the dog and the number in one note. `kill` ≠ `rm`. |
-| Locked dir | Name visible. Every open refused, including root. Becomes a path in game 4. |
-| Clone | First `cp` + run: a second LUNA speaks and dies. Further copies are pointless. |
-| Okonkwo | Cargo home. Manifests. Patch kit signed out to Bowen. |
-| Bowen | Quiet: kit, C8 scar, LUNA says his name once after C7. No arrival. |
+| `less` | `/var/log/hull.log` is 540 lines and a pager is the natural next use of the `ScreenProgram` seam. Still the best single addition. |
+| Clone | `cp` her and run it: a second LUNA speaks once and dies. Needs a way to run a copied directory, which nothing else needs yet. |
+| `journalctl` | systemd is right there and `journalctl -u comms` is now an obvious move. Needs a log store. |
+| The open-logical-line bug | See §1. Still wants a design call, not a patch. |
+| Act II, the Archive, a real LLM, a body, death, haptics, the store | Not this work. Do not recreate deleted roadmaps. |
 
-No puzzle 6 unless a skill is still missing after you play 5. No body. No
-Deck B. No death. No live O2. Operator only.
+### If the ferry profile has to come out
 
-**How she is killable without the series losing her.** SIGTERM she catches,
-says one thing, and exits — which is what a graceful shutdown handler is, and
-which nobody expects it to look like. SIGKILL gives her nothing and ORACLE
-says why. Either way a supervisor stamp under `/var/run` brings her back a few
-commands later with a new pid and one more file in `memory/`. `rm` is the only
-route that ends her, and Vasquez's cold copy is the way back from it — every
-decision reads the filesystem, the process table or the clock, so none of it
-can fire twice and all of it survives a save.
+It is the load-bearing invention and it is spread across prose, so here is the
+map: `/etc/ferry.profile` in `deck-c.ts`, the README and `atmosphere.log` in
+`world.ts`, the purge's header and `purge-notes.txt`, and the completion beats
+on `atmosphere`, `seal-the-breach` and `stop-the-purge`. The puzzles themselves
+do not depend on it -- every goal still reads world state and would survive a
+different explanation entirely.
 
-**Why puzzle five is not LUNA.** This file pencilled her in as the process
-you find with `ps`. Half of her would have been worse than none — her files,
-the clone rule, the locked directory and the alternating hints are one pass,
-not one puzzle — and the signal lesson does not need a character to carry it.
-The purge teaches it on a machine that has no feelings about being killed,
-which leaves her slot open and means the moment she arrives the player already
-knows exactly what the second command does to her. If Chris disagrees, the
-purge is one objective and one file and comes out cleanly.
+### The rules that did not change
 
-### Pass 2 — Enrich, then stop
-
-Both voices on the four completions that already exist, without making
-every beat a duet. Epilogue keeps two locked doors (the heading, the
-directory). No-hint transcript still passes. A second transcript: you
-`kill` her and she comes back.
-
-Then pause. Play it. The game-1 ending (the body, the breakout, LUNA
-still with you) is written after she has been heard on a phone.
-
-### Not this work
-
-Act II. The Archive. A real LLM. A human body. Death. Haptics. The store.
-Do not recreate deleted roadmaps. Do not widen a PR on your own. If a test
-fails, say so with the output.
+A pull request means the branch is finished. Commit as Chris. After any merge,
+verify with `git merge-base --is-ancestor <sha> origin/main` rather than
+trusting the push. If a test fails, say so with the output.

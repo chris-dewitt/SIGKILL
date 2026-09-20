@@ -79,10 +79,10 @@ describe('first light', () => {
     const said = await firstLight(w);
 
     expect(said).toContain('LUNA');
-    expect(said).toContain("I'm LUNA");
+    expect(said).toContain('Hello, Doc');
     expect(lunaProcess(w.machine)).toBeDefined();
 
-    // She is in the process list under the survivor's own account, so a bare
+    // She is in the process list under the dewitt's own account, so a bare
     // `ps` finds her. That is how she is meant to be discovered.
     expect((await turn(w, 'ps')).out).toContain(LUNA_BIN);
 
@@ -175,7 +175,7 @@ describe('rm is the other thing', () => {
 
     // And she wakes on that same turn, from the day-11 copy, not remembering
     // any of it -- which is exactly what her own README said would happen.
-    expect(restored.said).toContain("I'm LUNA");
+    expect(restored.said).toContain('Hello, Doc');
     expect(lunaProcess(w.machine)).toBeDefined();
   });
 });
@@ -235,16 +235,15 @@ describe('Bowen, once', () => {
   });
 });
 
-describe('the act closes on two doors', () => {
-  it('lets her name the heading and the folder, once she is awake', async () => {
+describe('the ending is no longer the lore dump', () => {
+  it('does not dump heading and v43 details in the epilogue', async () => {
     const w = bootWreck();
     await firstLight(w);
 
     const ending = spoken(epilogue(w.machine));
-    expect(ending).toContain('114 mark 9');
-    expect(ending).toContain('v43');
-    // Neither opens in this game, and she says so rather than teasing it.
-    expect(ending).toContain('never been able to read it');
+    expect(ending).not.toContain('114 mark 9');
+    expect(ending).not.toContain('v43');
+    expect(ending).toContain('ACT I COMPLETE');
   });
 
   it('still ends, in ORACLE alone, for a player who left her stopped', async () => {
@@ -266,6 +265,6 @@ describe('Okonkwo counted things', () => {
     const manifest = (await turn(w, 'grep bowen /home/okonkwo/manifest.csv')).out;
     expect(manifest).toContain('hull patch kit');
     expect((await turn(w, 'tail -2 /home/okonkwo/manifest.csv')).out).toContain('none remaining');
-    expect((await turn(w, 'cat /home/okonkwo/c8.txt')).out).toContain('Pod 2 left on day 12');
+    expect((await turn(w, 'cat /home/okonkwo/c8.txt')).out).toContain('Pod 2 left an hour in');
   });
 });

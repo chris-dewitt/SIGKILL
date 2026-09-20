@@ -406,7 +406,7 @@ describe('a file the player cannot write', () => {
 
 describe('a file that does not exist yet', () => {
   it('opens empty and says so', () => {
-    const e = new ViEditor('', { rows: 8, cols: 40, path: '/home/survivor/notes', isNew: true });
+    const e = new ViEditor('', { rows: 8, cols: 40, path: '/home/dewitt/notes', isNew: true });
     expect(screen(e).at(-1)).toContain('[New File]');
     send(e, 'ifirst line<Escape>:wq<Enter>');
     expect(e.exit?.text).toBe('first line\n');

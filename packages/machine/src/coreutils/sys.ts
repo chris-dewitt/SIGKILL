@@ -238,7 +238,7 @@ export const sysCommands: CommandSpec[] = [
       'Set an environment variable so commands started afterwards inherit it.\n' +
       '\n' +
       '  export EDITOR=vi\n' +
-      '  export PATH=$PATH:/home/survivor/bin\n' +
+      '  export PATH=$PATH:/home/dewitt/bin\n' +
       '\n' +
       'Without export, an assignment is only known to this shell. With it, it\n' +
       'reaches everything this shell runs.',

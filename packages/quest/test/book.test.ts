@@ -402,3 +402,68 @@ describe('beats play in the order the story needs them', () => {
     expect(book.drainCompleted(w)).toEqual([]);
   });
 });
+
+/**
+ * Optional objectives: offered, hinted and celebrated, but never load-bearing.
+ *
+ * The failure this guards against is an act that will not end until the player
+ * has read every file, which teaches people to stop reading.
+ */
+describe('optional objectives', () => {
+  const side = (id: string, path: string, optional: boolean): Objective => ({
+    id,
+    title: id,
+    optional,
+    done: (w) => w.vfs.exists(path, ROOT_USER),
+    steps: [
+      {
+        id: 'do-it',
+        label: `touch ${path}`,
+        pending: (w) => !w.vfs.exists(path, ROOT_USER),
+        rungs: [{ tier: 'command', lines: [`    touch ${path}`], command: `touch ${path}` }],
+      },
+    ],
+  });
+
+  const book = (): Questbook =>
+    new Questbook([side('spine', '/a', false), side('aside', '/b', true)]);
+
+  it('does not hold the act open', () => {
+    const b = book();
+    const w = world();
+    expect(b.complete(w)).toBe(false);
+
+    w.vfs.writeText('/a', '', ROOT_USER);
+    expect(b.complete(w), 'the spine alone should finish it').toBe(true);
+    expect(b.status(w).find((o) => o.id === 'aside')?.done).toBe(false);
+  });
+
+  it('does not finish the act on its own either', () => {
+    const b = book();
+    const w = world();
+    w.vfs.writeText('/b', '', ROOT_USER);
+    expect(b.complete(w)).toBe(false);
+  });
+
+  it('is reported as optional, and counted out of the board total', () => {
+    const b = book();
+    const w = world();
+    expect(b.required.map((o) => o.id)).toEqual(['spine']);
+    expect(b.status(w).find((o) => o.id === 'aside')?.optional).toBe(true);
+    expect(b.status(w).find((o) => o.id === 'spine')?.optional).toBe(false);
+  });
+
+  it('never steers a bare hint off required work, and picks it up afterwards', () => {
+    const b = book();
+    const w = world();
+    expect(b.current(w)?.id).toBe('spine');
+
+    w.vfs.writeText('/a', '', ROOT_USER);
+    // The act is over, so a bare `hint` may now offer the side thread rather
+    // than claiming there is nothing left to do.
+    expect(b.current(w)?.id).toBe('aside');
+
+    w.vfs.writeText('/b', '', ROOT_USER);
+    expect(b.current(w)).toBeUndefined();
+  });
+});

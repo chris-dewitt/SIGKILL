@@ -13,8 +13,17 @@ import { WRECK_OBJECTIVES } from '../src/objectives.js';
 describe('the ladders', () => {
   for (const track of ['operator', 'cadet'] as const) {
     it(`reads in order on the ${track} track`, async () => {
-      const { machine, questbook } = bootWreck({ track });
+      const { machine, questbook, afterCommand } = bootWreck({ track });
       const lines: string[] = [];
+
+      // Same as the host: the world gets to react between commands. The tow
+      // answers on that seam, so a walker that skips it never finishes.
+      const run = async (command: string): Promise<string> => {
+        const result = await machine.exec(command);
+        machine.tick(1000);
+        afterCommand();
+        return result.stderr;
+      };
 
       // Walk the act, asking for every rung of each step before taking it.
       for (const objective of WRECK_OBJECTIVES) {
@@ -29,8 +38,7 @@ describe('the ladders', () => {
           }
           // Clear the step so the next one is the pending one.
           const command = ladder.find((r) => r.tier === 'command')?.command;
-          const r = await machine.exec(command!);
-          expect(r.stderr, `${step.id}: ${command} -> ${r.stderr}`).toBe('');
+          expect(await run(command!), `${step.id}: ${command}`).toBe('');
           expect(step.pending(machine), `${command} did not clear ${step.id}`).toBe(false);
         }
       }
