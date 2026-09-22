@@ -541,8 +541,12 @@ function refreshStatus(): void {
 function shipSound(): AudioState {
   const open = COMPARTMENTS.some((id) => !readCompartment(machine.vfs, id).sealed);
 
-  const done = questbook.status(machine).filter((row) => row.done).length;
-  const total = Math.max(1, questbook.status(machine).length);
+  // The spine only, matching the board and the readout. Counting the optional
+  // threads here would ease the room tone for reading a file, and would mean
+  // a player who skips them never hears the ship fully settle.
+  const spine = questbook.status(machine).filter((row) => !row.optional);
+  const done = spine.filter((row) => row.done).length;
+  const total = Math.max(1, spine.length);
 
   return {
     scrubber: machine.services.get('scrubber')?.state === 'active',
@@ -1120,6 +1124,20 @@ machine.shell.commands.set('newgame', newgameCommand());
 refreshTube();
 refreshStatus();
 
+/*
+ * Tell the mixer what the ship is doing before anybody touches the page.
+ *
+ * It cannot make a sound yet -- no browser will start an AudioContext outside
+ * a gesture -- but `resume()` applies whatever state it is holding, and
+ * without this that state is `SILENT_SHIP`. So the reactor, the open
+ * compartment and the stopped scrubber all arrived a command late: the cold
+ * open played into silence, and `newgame` reloaded into silence, which is
+ * what made it look broken rather than quiet.
+ *
+ * Now the first keystroke resumes into the real room.
+ */
+sound.setState(shipSound());
+
 if (saved) {
   write('NAV-7 session restored. The ship has not forgotten.', 'system');
   write('Type:  objectives      start over:  newgame', 'system');
@@ -1139,4 +1157,4 @@ requestAnimationFrame(() => refreshScrollRail());
 input.focus();
 
 // Exported for the console during development.
-Object.assign(window, { machine, questbook, vpath, view });
+Object.assign(window, { machine, questbook, vpath, view, sound });

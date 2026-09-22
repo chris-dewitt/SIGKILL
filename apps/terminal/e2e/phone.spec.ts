@@ -147,3 +147,44 @@ test.describe('the phone screen', () => {
     expect(input.y + input.height).toBeLessThanOrEqual(421);
   });
 });
+
+/**
+ * The mixer has to know what the ship is doing before anybody touches the page.
+ *
+ * It cannot make a sound before a gesture and must not try. But `resume()`
+ * applies whatever state the mixer is holding, so a host that never calls
+ * `setState` at boot resumes into a silent ship -- the cold open plays into
+ * nothing and `newgame` reloads into nothing. That shipped, and it reads as
+ * broken audio rather than as quiet.
+ */
+test.describe('the ship is audible from the first keystroke', () => {
+  test('knows the ship state at boot, before any command', async ({ page }) => {
+    await page.goto('/');
+    const state = await page.evaluate(
+      () => (window as unknown as { sound: { shipState: Record<string, unknown> } }).sound.shipState,
+    );
+    // A stopped scrubber and an open compartment: the opening state of the
+    // act, not the silent default.
+    // SILENT_SHIP has `breached: false`, so this is the assertion that would
+    // have caught the bug: a mixer that was never told resumes into a ship
+    // with no hole in it.
+    expect(state.scrubber).toBe(false);
+    expect(state.monitor).toBe(false);
+    expect(state.breached).toBe(true);
+  });
+
+  test('still knows it after newgame reloads the cold open', async ({ page }) => {
+    await page.goto('/');
+    await run(page, 'cd /etc');
+
+    await page.locator('#input').fill('newgame');
+    await page.locator('#input').press('Enter');
+    await expect(page.locator('#prompt')).toContainText('~', { timeout: 10_000 });
+
+    const state = await page.evaluate(
+      () => (window as unknown as { sound: { shipState: Record<string, unknown> } }).sound.shipState,
+    );
+    expect(state.breached).toBe(true);
+    expect(state.scrubber).toBe(false);
+  });
+});

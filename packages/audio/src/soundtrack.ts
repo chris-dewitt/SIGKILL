@@ -50,6 +50,19 @@ export class Soundtrack {
   }
 
   /**
+   * What the mixer currently believes the ship is doing.
+   *
+   * Public so the host's own wiring can be checked. `resume()` applies
+   * whatever this is holding, so a host that starts an AudioContext without
+   * ever having called `setState` resumes into `SILENT_SHIP` and the room
+   * stays empty until something else happens to set it -- which is a silence
+   * that looks exactly like broken audio. That shipped once.
+   */
+  get shipState(): ShipState {
+    return this.state;
+  }
+
+  /**
    * Begin, or resume after the browser suspended us.
    *
    * Must be called from inside a user gesture: every browser refuses to start
