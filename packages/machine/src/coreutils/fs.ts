@@ -468,15 +468,44 @@ export const fsCommands: CommandSpec[] = [
 
       let code = 0;
       const copy = (from: string, to: string): void => {
-        const stat = ctx.vfs.stat(from, ctx.user);
+        /*
+         * `lstat`, not `stat`: a symlink is copied as a symlink.
+         *
+         * That is what POSIX `cp -R` says and what GNU `cp -r` does, and here
+         * it is load-bearing rather than pedantic. `/opt/luna` contains a
+         * dangling link to an array that is not mounted, so dereferencing
+         * threw ENOENT and took the whole directory copy down with it --
+         * which made `cp -r /opt/luna` impossible, and that copy is a thing
+         * the adventure wants the player to be able to make.
+         */
+        const stat = ctx.vfs.lstat(from, ctx.user);
+
+        if (stat.kind === 'symlink') {
+          ctx.vfs.symlink(ctx.vfs.readlink(from, ctx.user), to, ctx.user);
+          return;
+        }
+
         if (stat.kind === 'dir') {
           if (!recursive) throw new FsError('EISDIR', from);
           ctx.vfs.mkdirp(to, ctx.user);
           for (const child of ctx.vfs.readdir(from, ctx.user)) {
-            copy(p.join(from, child), p.join(to, child));
+            /*
+             * One child that cannot be copied is reported and skipped, not a
+             * reason to abandon the rest. Same rule the recursive `grep` was
+             * given, and for the same reason: a tool that silently gives up
+             * halfway through a tree tells the player their files are gone
+             * when they are not.
+             */
+            try {
+              copy(p.join(from, child), p.join(to, child));
+            } catch (e) {
+              io.err(`cp: cannot copy '${p.join(from, child)}': ${isFsError(e) ? e.reason : String(e)}\n`);
+              code = 1;
+            }
           }
           return;
         }
+
         ctx.vfs.write(to, ctx.vfs.read(from, ctx.user), ctx.user, stat.mode);
       };
 

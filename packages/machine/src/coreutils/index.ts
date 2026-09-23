@@ -1,5 +1,6 @@
 import type { CommandSpec } from '../shell/exec.js';
 import { fsCommands } from './fs.js';
+import { inspectCommands } from './inspect.js';
 import { jobCommands } from './jobs.js';
 import { netCommands } from './net.js';
 import { procCommands } from './proc.js';
@@ -8,6 +9,7 @@ import { textCommands } from './text.js';
 
 export const ALL_COMMANDS: CommandSpec[] = [
   ...fsCommands,
+  ...inspectCommands,
   ...textCommands,
   ...procCommands,
   ...jobCommands,

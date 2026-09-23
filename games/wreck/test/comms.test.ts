@@ -224,3 +224,38 @@ describe('the answer', () => {
     expect(await play()).toBe(await play());
   });
 });
+
+/*
+ * The journal, on the ship it was added for.
+ *
+ * `systemctl status comms` answers "why will this not start". `journalctl -u
+ * comms` answers "what has been happening to it", and after the player fixes
+ * the lock the refusal is still there -- which is the difference between a
+ * status line and a history, and the reason the command exists.
+ */
+describe('journalctl on the wreck', () => {
+  it('keeps the stale-lock refusal after the carrier is up', async () => {
+    const w = await connected();
+    const journal = (await w.machine.exec('journalctl -u comms')).stdout;
+
+    expect(journal).toContain('204');
+    expect(journal).toContain('stale lock');
+    expect(journal).toContain('Started Long-range communications.');
+    // In order: refused first, started after.
+    expect(journal.indexOf('204')).toBeLessThan(journal.indexOf('Started'));
+
+    // And status has moved on, which is the whole contrast.
+    expect((await w.machine.exec('systemctl status comms')).stdout).not.toContain('stale lock');
+  });
+
+  it('has something to say about all three units that failed at boot', async () => {
+    const w = bootWreck();
+    for (const unit of ['scrubber', 'hull-monitor', 'comms']) {
+      const out = (await w.machine.exec(`journalctl -u ${unit}`)).stdout;
+      expect(out, unit).not.toContain('No entries');
+      expect(out, unit).toContain(unit);
+    }
+    // The scrubber's refusal names the number, same as status does.
+    expect((await w.machine.exec('journalctl -u scrubber')).stdout).toContain('19-23');
+  });
+});

@@ -208,7 +208,11 @@ export class Machine {
     return {
       version: 1,
       vfs: this.vfs.snapshot(),
-      proc: { ...this.procs.snapshot(), services: this.services.snapshot() },
+      proc: {
+        ...this.procs.snapshot(),
+        services: this.services.snapshot(),
+        journal: this.services.snapshotJournal(),
+      },
       jobs: this.jobs.snapshot(),
       cwd: this.shell.cwd,
       env: { ...this.shell.env },
@@ -232,6 +236,7 @@ export class Machine {
     });
     machine.procs.restore(snap.proc);
     machine.services.restore(snap.proc.services);
+    machine.services.restoreJournal(snap.proc.journal);
     machine.jobs.restore(snap.jobs);
     machine.shell.cwd = snap.cwd;
     machine.shell.env = { ...snap.env };

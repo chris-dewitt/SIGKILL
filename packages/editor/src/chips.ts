@@ -17,6 +17,9 @@ const NAMED: Record<string, EditorKey[]> = {
   ENTER: [{ key: 'Enter' }],
   TAB: [{ key: 'Tab' }],
   BACK: [{ key: 'Backspace' }],
+  // The pager's page-forward key. Without it, `SPACE` is five letters, and
+  // in `less` the letters s, p, a, c and e mean five different things.
+  SPACE: [{ key: ' ' }],
   '←': [{ key: 'ArrowLeft' }],
   '→': [{ key: 'ArrowRight' }],
   '↑': [{ key: 'ArrowUp' }],
@@ -24,7 +27,10 @@ const NAMED: Record<string, EditorKey[]> = {
 };
 
 export function chipKeystrokes(label: string): EditorKey[] {
-  const named = NAMED[label];
+  // Matched case-insensitively: a program that labels its chip `Enter` rather
+  // than `ENTER` should not silently type five characters into a file. That
+  // is the same class of bug as `^O` typing a caret, and it got in once.
+  const named = NAMED[label.toUpperCase()];
   if (named) return named;
 
   // `^O` is Ctrl-O, not a caret followed by an O.

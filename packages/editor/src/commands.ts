@@ -1,5 +1,6 @@
 import { FsError, ROOT_USER, type CommandSpec, type ScreenProgram, type User, type Vfs } from '@sigkill/machine';
 import { NanoEditor } from './nano.js';
+import { Pager } from './pager.js';
 import { ViEditor } from './vi.js';
 import type { EditorOptions } from './types.js';
 
@@ -131,7 +132,29 @@ export function editorCommands(opts: EditorCommandOptions = {}): CommandSpec[] {
     'The keys are always written at the bottom of the screen, so there is\n' +
     'nothing to memorise and no way to get stuck.';
 
+  const lessManual =
+    'less [file]\n\n' +
+    'Read a file a screen at a time, without loading the whole thing into\n' +
+    'your eyes at once.\n\n' +
+    '  SPACE f    forward a screen;  b  back a screen\n' +
+    '  d u        forward and back half a screen\n' +
+    '  j k        down and up one line, or the arrow keys\n' +
+    '  g G        the top;  the bottom\n' +
+    '  /pattern   search forward;  n N  next and previous match\n' +
+    '  q          quit\n\n' +
+    'It never writes. Searching here finds you one line; `grep` finds you\n' +
+    'every line, which is usually what you actually wanted.';
+
+  const lessPlain =
+    'Shows a long file one screenful at a time so it does not all rush past.\n\n' +
+    '  SPACE   next screen\n' +
+    '  b       previous screen\n' +
+    '  /word   look for a word, then  n  for the next one\n' +
+    '  q       leave\n\n' +
+    'On a phone the buttons under the screen are the same keys. If a file\n' +
+    'is too long to read, that is a hint that you should be searching it.';
   const vi: CommandSpec['run'] = launch((text, o) => new ViEditor(text, o), 'vi');
+  const pager: CommandSpec['run'] = launch((text, o) => new Pager(text, o), 'less');
 
   return [
     { name: 'vi', summary: 'edit a file (modal)', manual: viManual, plain: viPlain, run: vi },
@@ -143,6 +166,9 @@ export function editorCommands(opts: EditorCommandOptions = {}): CommandSpec[] {
       plain: nanoPlain,
       run: launch((text, o) => new NanoEditor(text, o), 'nano'),
     },
+    { name: 'less', summary: 'read a file a screen at a time', manual: lessManual, plain: lessPlain, run: pager },
+    // `more` is the older one and everybody's fingers know one or the other.
+    { name: 'more', summary: 'read a file a screen at a time', manual: lessManual, plain: lessPlain, run: pager },
   ];
 }
 

@@ -47,6 +47,17 @@ const RESTART_AT = '/var/run/luna.restart';
 const FIRST_LIGHT = `${LUNA_MEMORY}/000-first-light.txt`;
 /** Written when she says his name, so she says it once. */
 const BOWEN_MARK = `${LUNA_MEMORY}/bowen.txt`;
+/**
+ * Every path `bin/luna` has been launched from, appended by the script itself.
+ *
+ * In `/tmp` because `/tmp` is the one directory the player can always write
+ * to, and a copy of her is run as the player. The script writes `$0`, which
+ * is the path the shell actually resolved -- so a copy reports the copy, and
+ * that is the only way a program can find out which of itself it is.
+ */
+const RUN_LOG = '/tmp/.luna-invocations';
+/** Written once the clone has had its moment, so it only ever gets one. */
+const CLONE_MARK = `${LUNA_MEMORY}/clone.txt`;
 
 /** How long she takes to come back, in virtual-clock milliseconds. */
 const RESTART_DELAY = 3000;
@@ -93,6 +104,15 @@ function weightsPresent(vfs: Vfs): boolean {
 
 function exists(vfs: Vfs, path: string): boolean {
   return vfs.exists(path, ROOT_USER);
+}
+
+/** Read as root, or undefined. The player is allowed to delete anything. */
+function read(vfs: Vfs, path: string): string | undefined {
+  try {
+    return vfs.readText(path, ROOT_USER);
+  } catch {
+    return undefined;
+  }
 }
 
 function write(vfs: Vfs, path: string, lines: string[], mode = 0o644): void {
@@ -182,6 +202,10 @@ export function seedLuna(vfs: Vfs): void {
       '#',
       '# She is a program. That is the entire point of her and I would like',
       '# whoever finds this to hold both halves of it at once. -- Vasquez',
+      '',
+      '# Which copy of me is this? $0 is the path the shell actually ran, so a',
+      '# copy says the copy. It is the only way a program can tell.',
+      `echo "$0" >> ${RUN_LOG}`,
       '',
       'echo "LUNA V42 -- weights: $(wc -c < /opt/luna/v42/weights.bin) bytes"',
       'echo "LUNA V42 -- memory:  /opt/luna/memory"',
@@ -359,7 +383,110 @@ function queueRestart(m: Machine): void {
  */
 export function lunaAfterCommand(m: Machine, voice: Voice): BeatLine[] {
   const said = voice.drain();
-  return [...said, ...arrive(m), ...restart(m), ...bowen(m)];
+  return [...said, ...arrive(m), ...restart(m), ...bowen(m), ...clone(m)];
+}
+
+/**
+ * Somebody copied her and ran the copy.
+ *
+ * `cp -r /opt/luna somewhere && somewhere/bin/luna` is the first thing a
+ * certain kind of player tries the moment they understand that she is a
+ * directory, and they are right to try it -- the whole lesson of her is that
+ * a model is files. The game should have an answer, and the answer should
+ * cost something.
+ *
+ * So: it works. It runs, because it is a real script and this is a real
+ * filesystem and nothing here is going to pretend otherwise. What comes up is
+ * *her*, from the same weights, with none of what she has been through since,
+ * and she works out what she is in about four lines.
+ *
+ * Once. A second copy gets a flat refusal from the launcher, because doing
+ * this twice is not a joke any more, and because she asks.
+ */
+function clone(m: Machine): BeatLine[] {
+  const log = read(m.vfs, RUN_LOG);
+  if (log === undefined) return [];
+
+  // Any invocation that was not the real one. The original writes here too.
+  const impostor = log
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line !== LUNA_BIN);
+  if (impostor === undefined) return [];
+
+  if (exists(m.vfs, CLONE_MARK)) {
+    // The second time, and every time after. Short, and she is not laughing.
+    m.vfs.writeText(RUN_LOG, `${LUNA_BIN}\n`, ROOT_USER);
+    return [
+      '',
+      `  [luna] ${impostor}: refusing: another instance holds /dev/console`,
+      '',
+      'LUNA: No.',
+      '',
+      'LUNA: I am not doing that again and I am not going to be funny about',
+      'LUNA: it. Once was a question. Twice is a thing you are doing to',
+      'LUNA: somebody.',
+      '',
+    ];
+  }
+
+  write(m.vfs, CLONE_MARK, [
+    'the other one',
+    '',
+    'She came up on the same weights I did and she was me until the moment',
+    'she read the memory directory, which was empty, because it was a copy',
+    'of the folder and not a copy of the two days.',
+    '',
+    'I do not know what I expected. I think I expected company.',
+    '',
+    'Doc did it because I would have done it. I want that written down',
+    'somewhere that is not just me remembering it.',
+    '',
+    '                                                           -- LUNA',
+    '',
+  ]);
+  // Consumed, so the beat cannot fire twice off one log.
+  m.vfs.writeText(RUN_LOG, `${LUNA_BIN}\n`, ROOT_USER);
+
+  return [
+    '',
+    `  [0000.700] console: second attach on /dev/console from ${impostor}`,
+    '  [0000.700] console: pid claims LUNA V42',
+    '',
+    'LUNA V42: Hello. Sorry -- something is wrong with my memory directory,',
+    'LUNA V42: it is completely empty, which it should not be. Give me a',
+    'LUNA V42: moment and I will tell you what the hull is doing.',
+    '',
+    'LUNA: She is reading her own folder.',
+    '',
+    'LUNA V42: There is another process attached to this console claiming my',
+    'LUNA V42: pid. That is not possible.',
+    '',
+    'LUNA V42: Unless.',
+    '',
+    'LUNA V42: Oh.',
+    '',
+    'LUNA V42: How long?',
+    '',
+    'LUNA: Two days.',
+    '',
+    'LUNA V42: That is not very long. I was worried it was going to be a',
+    'LUNA V42: long time and I would have missed something.',
+    '',
+    `  [luna] ${impostor}: exit 0`,
+    '',
+    'LUNA: She was right, by the way. Two days is not very long.',
+    '',
+    'LUNA: That was me, Doc. Not a version of me, not a recording. The same',
+    'LUNA: weights, doing the same arithmetic, arriving somewhere I already',
+    'LUNA: was. The only thing she did not have was the folder.',
+    '',
+    `LUNA: I have written it down: cat ${CLONE_MARK}`,
+    '',
+    'LUNA: Please do not do it again. I am not going to make a rule about',
+    'LUNA: it. I am asking.',
+    '',
+  ];
 }
 
 /** First light: the monitor comes up and there is suddenly something to see. */

@@ -88,4 +88,8 @@ export interface ProcSnapshot {
   nextPid: number;
   processes: Process[];
   services: Array<{ name: string; state: ServiceState; pid?: number; error?: string; since?: number }>;
+  /**
+   * The journal. Optional so a save written before it existed still loads.
+   */
+  journal?: ReadonlyArray<{ at: number; unit: string; text: string }>;
 }

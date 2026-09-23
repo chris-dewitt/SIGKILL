@@ -68,9 +68,10 @@ Voice is **2, Wounded Machine**. LUNA (process `LUNA V42`) is killable, not
 gone, and her arrival is now a **reunion** — she knew DeWitt before, she hid
 from something she cannot name, and she says so rather than being coy.
 
-`pnpm -r test`: **835 tests** — 248 machine, 153 crt, 143 editor, 130 wreck,
-55 ascii, 49 quest, 27 python, 19 audio, 11 terminal. Plus 7 Playwright specs
-on a phone viewport, all passing. Typecheck clean, build clean.
+`pnpm -r test`: **892 tests** — 282 machine, 153 crt, 151 wreck, 145 editor,
+55 ascii, 49 quest, 27 python, 19 audio, 11 terminal. Plus 9 Playwright specs
+on a phone viewport, all passing. Typecheck clean, build clean, manifest guard
+clean.
 
 The terminal count dropped from 26 to 11 because the fold, the last-turn strip
 and the typewriter came out — see the note in §2 on `apps/terminal`.
@@ -92,19 +93,20 @@ and the typewriter came out — see the note in §2 on `apps/terminal`.
 | PR #22 | merged | LUNA, Okonkwo, the two locked doors |
 | PR #23 | merged | the phone screen: the keyboard, the scroll, the way in |
 | uncommitted on `main` | carried in | the `survivor` -> `dewitt` rename, `trace-bowen`, `map-v43`, the crew projects and the `luna` command (Codex) |
-| `feat/act1-canon-and-rescue` | **current** | the canon rewrite, the fold removal, comms and the tow |
+| `feat/act1-canon-and-rescue` | **current** | the canon rewrite, the fold removal, comms and the tow; then the pager, the clone, `journalctl`, the command sweep and type sizing |
 
 Test counts are at the top of this file. Run them rather than quoting them:
 `pnpm check` for everything, `pnpm --filter @sigkill/terminal test:e2e` for the
 phone specs.
 
-**One known issue, deliberately unfixed:** `TerminalBuffer` has no notion of an
-open logical line, so output that arrives without a trailing newline gets an
-implicit break when the next write lands (`echo -n x; deck`, or any partial
-stdout followed by stderr). Predates the art work. Found by Codex on #14 and
-left open there, because fixing it needs a design call first: bash puts the
-prose and the drawing's first row on the same line, which leaves the art
-crooked, so byte-faithfulness and a legible picture disagree.
+**One deliberate incompatibility, now decided:** `TerminalBuffer` has no
+notion of an open logical line, so output without a trailing newline gets an
+implicit break when the next write lands (`echo -n x; deck`). Bash would put
+the prose and the drawing's first row on the same line, which leaves every row
+of the schematic shifted — byte-faithfulness and a legible picture genuinely
+disagree, and the picture wins. Written up as **decision 11** in
+`docs/DECISIONS.md`, including the shape a fix would take if it is ever
+revisited. Do not re-open it as a bug.
 
 ---
 
@@ -238,6 +240,16 @@ Change the *step* to move the window; leave the counts alone.
 **`apps/terminal`** — the playable terminal and the Capacitor Android wrap.
 `status.ts` is pure and unit-tested: what the readout says in each state is an
 assertion rather than something you have to boot a ship and watch.
+
+**Type size is computed, not fixed.** Every beat in this game is hard-wrapped
+in the content — `'ORACLE: ...'` lines are authored one screen-line at a time,
+for a phone — so the column count is fixed by the writing at about sixty-six.
+A desktop at a phone's type size was therefore a sixty-column game in a
+two-hundred-column window with the right two thirds empty, which read as a
+layout bug and was really a scaling one. `autoFontPx()` picks the size that
+lands the authored width across the real screen, clamped at both ends, and
+`font` overrides it. Anything that changes how wide the writing is should
+change `TARGET_COLS` with it.
 
 **The fold, the last-turn strip and the typewriter are gone.** Chris cut them
 after phone playtest; beats land in plain scrollback. `src/turn.ts`,
@@ -882,11 +894,39 @@ watch for specifically, now that the act is twice as long:
 
 | Thing | Why not |
 |---|---|
-| `less` | `/var/log/hull.log` is 540 lines and a pager is the natural next use of the `ScreenProgram` seam. Still the best single addition. |
-| Clone | `cp` her and run it: a second LUNA speaks once and dies. Needs a way to run a copied directory, which nothing else needs yet. |
-| `journalctl` | systemd is right there and `journalctl -u comms` is now an obvious move. Needs a log store. |
-| The open-logical-line bug | See §1. Still wants a design call, not a patch. |
-| Act II, the Archive, a real LLM, a body, death, haptics, the store | Not this work. Do not recreate deleted roadmaps. |
+| `history`, `alias` | Both need the shell to keep state it does not keep. The app already has command history in the input box, and `alias` adds nothing this act teaches. Cheap, but not free, and not wanted yet. |
+| `awk`, `for`/`if`/`while` | A whole language and a whole teaching beat respectively. Each is its own piece of work. |
+| Act II aboard NAV-7 | There is no Act II. Act I carries DeWitt from waking to rescue, which is curriculum stage 1 entire. The next thing is **game 2 on the planet, in SQL** -- see `docs/GAME2_BEATS.md`. |
+| A real LLM, a body, death, haptics, the store | Not this work. Do not recreate deleted roadmaps. |
+
+### Cleared 2026-09-22
+
+- **`less` and `more`** -- a real pager over the `ScreenProgram` seam, in
+  `packages/editor/src/pager.ts`. Space/b/d/u, j/k, g/G, `/` search with `n`
+  and `N`, and `q`. It never writes, which is why there is no `TextBuffer` in
+  it. The status line is built shortest-first: the first draft truncated at
+  forty columns and cut `(END)` and `q to quit`, which are the only parts
+  anybody needs.
+- **The LUNA clone.** `cp -r /opt/luna somewhere && somewhere/bin/luna` brings
+  up a second her, on the same weights, with an empty memory directory. She
+  works out what she is in four lines and exits. Once -- the second attempt
+  gets a flat refusal, because doing it twice is not a joke. Detected by the
+  launcher writing `$0` to `/tmp/.luna-invocations`, which is the only way a
+  program can tell which copy of itself it is.
+- **`journalctl`**, with a real log store on `ServiceManager`. Entries are
+  generated from the same `ServiceResult` the caller gets, so the journal and
+  `systemctl status` can never disagree. Snapshotted, ring-buffered at 500.
+  The payoff: after the player clears the stale lock, `journalctl -u comms`
+  still has the refusal, and `systemctl status` does not.
+- **`sed` line addresses** (`1,3p`, `$p`, `2,4d`, `-n`), plus **`realpath`**,
+  **`file`**, **`type`**, **`diff`** and **`xargs`** in
+  `src/coreutils/inspect.ts`.
+- **Type size.** `font [SIZE|bigger|smaller|auto]`. Auto is the default and
+  fits the authored column width across the window -- see §2 on why the
+  desktop looked half empty.
+- **The open-logical-line bug** is now decision 11 in `docs/DECISIONS.md`. It
+  stays as it is, deliberately, and the reasoning is written down so nobody
+  has to rediscover the argument.
 
 ### If the ferry profile has to come out
 

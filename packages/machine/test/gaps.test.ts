@@ -520,3 +520,59 @@ describe('every command has a manual, on both tracks', () => {
     }
   });
 });
+
+/*
+ * `cp -r` and symlinks.
+ *
+ * Found by content: `/opt/luna` holds a dangling link to an array that is not
+ * mounted, so dereferencing it threw ENOENT and took the whole recursive copy
+ * down with it. POSIX `cp -R` copies a symlink as a symlink, and one child it
+ * cannot handle is reported and skipped rather than abandoning the tree --
+ * the same rule recursive `grep` was given, for the same reason.
+ */
+describe('cp -r follows the rules about links', () => {
+  it('copies a symlink as a symlink, not as its target', async () => {
+    const m = new Machine();
+    m.vfs.mkdirp('/work/src', ROOT_USER);
+    m.vfs.chown('/work', 1000, 1000, ROOT_USER);
+    m.vfs.chown('/work/src', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/work/src/real.txt', 'hello\n', ROOT_USER);
+    m.vfs.symlink('/work/src/real.txt', '/work/src/link.txt', ROOT_USER);
+
+    expect((await m.exec('cp -r /work/src /work/dst')).stderr).toBe('');
+    expect(m.vfs.lstat('/work/dst/link.txt', ROOT_USER).kind).toBe('symlink');
+    expect(m.vfs.readlink('/work/dst/link.txt', ROOT_USER)).toBe('/work/src/real.txt');
+  });
+
+  it('copies a dangling link without giving up on the directory', async () => {
+    const m = new Machine();
+    m.vfs.mkdirp('/work/src', ROOT_USER);
+    m.vfs.chown('/work', 1000, 1000, ROOT_USER);
+    m.vfs.chown('/work/src', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/work/src/kept.txt', 'kept\n', ROOT_USER);
+    m.vfs.symlink('/mnt/never-mounted/thing', '/work/src/broken', ROOT_USER);
+
+    const r = await m.exec('cp -r /work/src /work/dst');
+    expect(r.stderr, 'a dangling link is not an error, it is a link').toBe('');
+    expect(r.code).toBe(0);
+    expect(m.vfs.readText('/work/dst/kept.txt', ROOT_USER)).toBe('kept\n');
+    expect(m.vfs.lstat('/work/dst/broken', ROOT_USER).kind).toBe('symlink');
+  });
+
+  it('reports one unreadable child and copies the rest, exiting 1', async () => {
+    const m = new Machine();
+    m.vfs.mkdirp('/work/src', ROOT_USER);
+    m.vfs.chown('/work', 1000, 1000, ROOT_USER);
+    m.vfs.chown('/work/src', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/work/src/open.txt', 'open\n', ROOT_USER);
+    m.vfs.writeText('/work/src/shut.txt', 'shut\n', ROOT_USER);
+    m.vfs.chmod('/work/src/shut.txt', 0o000, ROOT_USER);
+
+    const r = await m.exec('cp -r /work/src /work/dst');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('shut.txt');
+    expect(r.stderr).not.toContain('open.txt');
+    // The point: the readable file still arrived.
+    expect(m.vfs.readText('/work/dst/open.txt', ROOT_USER)).toBe('open\n');
+  });
+});

@@ -181,3 +181,36 @@ process is a way for it to leave.
 
 **Cost:** no telemetry, so playtesting has to be done by watching people
 play. For a game of this size that is the better method anyway.
+
+---
+
+## 11. Output without a newline breaks the line anyway
+
+**Decided:** `TerminalBuffer` has no notion of an open logical line. Output
+that arrives without a trailing newline gets an implicit break when the next
+write lands, so `echo -n x; deck` puts the `x` on its own row and starts the
+drawing on the next one.
+
+This is not what a real terminal does, and it stays.
+
+**Why:** the two things we want here genuinely disagree. Bash puts the prose
+and the drawing's first row on the same line, which is byte-faithful and
+leaves every row of the schematic shifted by the width of whatever came
+before it. A crooked picture is a worse lie than a spare newline: the player
+reads it as the art being broken, and the art is how this act says what state
+the ship is in.
+
+`echo -n` is rare. Drawings are constant — `deck` and `pressure` are on the
+critical path of the act and the status panel redraws every turn. So the cost
+falls in the right place.
+
+**Cost:** one genuine incompatibility with bash, in a project whose whole
+pitch is that the commands are real. That is the part that makes this a
+decision rather than a bug: we are knowingly wrong, in one narrow case, and
+it is written down here so nobody has to rediscover the argument.
+
+**If it is ever revisited,** the shape that works is open lines for ordinary
+output plus a forced break before any `preformatted` segment. The Machine
+already declares which those are — `RunResult.segments` carries it — so the
+information is there. It was not done because it is more code for a case
+nobody has hit while playing.

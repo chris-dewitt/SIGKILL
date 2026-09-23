@@ -18,6 +18,31 @@ export interface ServiceResult {
 }
 
 /**
+ * One line of the journal.
+ *
+ * Written by the manager at the moments a real unit would log: a start that
+ * took, a start that was refused and why, a stop. Deliberately not a parallel
+ * fiction -- every entry is generated from the same `ServiceResult` the
+ * caller gets back, so `journalctl -u comms` and `systemctl status comms` can
+ * never tell different stories about the same event.
+ */
+export interface JournalEntry {
+  /** Virtual-clock milliseconds, from the same `now` the manager uses. */
+  at: number;
+  unit: string;
+  text: string;
+}
+
+/**
+ * How much journal is kept.
+ *
+ * A ring, because the alternative is a save that grows without bound for a
+ * player who sits in a restart loop. Generous enough that nothing an Act I
+ * player does can push a real event off the end.
+ */
+const JOURNAL_LIMIT = 500;
+
+/**
  * A small systemd.
  *
  * Two decisions worth knowing:
@@ -32,6 +57,7 @@ export interface ServiceResult {
 export class ServiceManager {
   private runtime = new Map<string, Runtime>();
   private preconditions = new Map<string, Precondition>();
+  private journal: JournalEntry[] = [];
 
   constructor(
     private readonly vfs: Vfs,
@@ -45,6 +71,24 @@ export class ServiceManager {
    */
   setPrecondition(name: string, check: Precondition): void {
     this.preconditions.set(unitName(name), check);
+  }
+
+  /** Append to the journal, oldest dropped first. */
+  private log(unit: string, text: string): void {
+    this.journal.push({ at: this.now(), unit, text });
+    if (this.journal.length > JOURNAL_LIMIT) this.journal.shift();
+  }
+
+  /**
+   * The journal, oldest first, optionally for one unit.
+   *
+   * Returned as data rather than as text: `journalctl` formats it, and the
+   * Machine has no screen to format for.
+   */
+  logs(unit?: string): readonly JournalEntry[] {
+    if (unit === undefined) return this.journal;
+    const wanted = unitName(unit);
+    return this.journal.filter((entry) => entry.unit === wanted);
   }
 
   private rt(name: string): Runtime {
@@ -117,6 +161,7 @@ export class ServiceManager {
       r.error = `Unit ${unit.name}.service has no ExecStart= and cannot be started.`;
       r.since = this.now();
       delete r.pid;
+      this.log(unit.name, r.error);
       return { ok: false, reason: r.error };
     }
 
@@ -127,6 +172,11 @@ export class ServiceManager {
       r.error = verdict.reason;
       r.since = this.now();
       delete r.pid;
+      // The refusal, in the unit's own words. This is the line that makes
+      // `journalctl -u <unit>` worth typing: it is the whole history of a
+      // thing that would not start, not just its current mood.
+      this.log(unit.name, `${verdict.reason ?? 'refused to start'}`);
+      this.log(unit.name, 'Failed to start ' + unit.description + '.');
       return { ok: false, reason: verdict.reason };
     }
 
@@ -135,6 +185,7 @@ export class ServiceManager {
     r.pid = process.pid;
     r.since = this.now();
     delete r.error;
+    this.log(unit.name, `Started ${unit.description}.`);
     return { ok: true };
   }
 
@@ -151,6 +202,7 @@ export class ServiceManager {
     r.since = this.now();
     delete r.pid;
     delete r.error;
+    this.log(unit.name, `Stopped ${unit.description}.`);
     return { ok: true };
   }
 
@@ -182,6 +234,24 @@ export class ServiceManager {
     for (const unit of listUnits(this.vfs)) {
       if (this.isEnabled(unit.name)) this.start(unit.name);
     }
+  }
+
+  /**
+   * The journal goes in the save.
+   *
+   * It is history, and history that vanishes on reload is worse than no
+   * history: a player who reads `journalctl -u scrubber`, reloads and finds
+   * the refusal gone concludes the game forgot, not that the log was never
+   * real. Returned as a separate array rather than folded into the unit rows
+   * because entries outlive units -- a `.service` file the player deletes
+   * should not take its past with it.
+   */
+  snapshotJournal(): readonly JournalEntry[] {
+    return this.journal;
+  }
+
+  restoreJournal(entries: readonly JournalEntry[] | undefined): void {
+    this.journal = entries ? entries.slice(-JOURNAL_LIMIT) : [];
   }
 
   snapshot(): Array<{ name: string; state: ServiceState; pid?: number; error?: string; since?: number }> {

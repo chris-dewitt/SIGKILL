@@ -2,6 +2,7 @@ export { TextBuffer } from './buffer.js';
 export type { Cursor } from './buffer.js';
 export { ViEditor } from './vi.js';
 export { NanoEditor } from './nano.js';
+export { Pager } from './pager.js';
 export type {
   EditorExit,
   EditorKey,

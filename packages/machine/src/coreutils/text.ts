@@ -440,11 +440,18 @@ export const textCommands: CommandSpec[] = [
     name: 'sed',
     summary: 'stream editor — supports s/pattern/replacement/[g]',
     manual:
-      'sed [-i] s/PATTERN/REPLACEMENT/[g] [FILE...]\n' +
+      'sed [-n] [-i] SCRIPT [FILE...]\n' +
       '\n' +
-      'Substitute. PATTERN is a regular expression; only the s command is\n' +
-      'implemented aboard.\n' +
+      'Two kinds of script are implemented aboard: substitute, and addresses.\n' +
       '\n' +
+      '  s/PATTERN/REPLACEMENT/[gi]   substitute; PATTERN is a regex\n' +
+      '  1,3p                         lines one to three\n' +
+      '  5p     $p                    one line; the last line\n' +
+      '  2,4d                         delete those lines\n' +
+      '\n' +
+      '  -n  print nothing except what the script asks for, which is what\n' +
+      '      makes  -n 1,3p  print three lines instead of the whole file\n' +
+      '      with three of them repeated\n' +
       '  -i  edit the file in place instead of printing the result\n' +
       '  g   replace every match on a line, not just the first\n' +
       '  i   match without regard to case\n' +
@@ -476,9 +483,72 @@ export const textCommands: CommandSpec[] = [
       const script = operands[0]!;
       const inPlace = flags.has('-i');
 
+      const quiet = flags.has('-n');
+
+      /*
+       * `1,3p` and friends, tried before the substitute form.
+       *
+       * Addresses are the other half of sed that people actually use, and the
+       * half that makes `sed -n '1,3p' file` the obvious way to look at the
+       * top of something without reaching for `head`. `$` is the last line,
+       * the way it is everywhere else in this shell.
+       */
+      const range = /^(\d+|\$)(?:,(\d+|\$))?([pd])$/.exec(script);
+      if (range) {
+        const [, fromText = '1', toText, action = 'p'] = range;
+        const edit = (text: string): string => {
+          const trailing = text.endsWith('\n');
+          const rows = lines(text);
+          const resolve = (t: string | undefined, fallback: number): number =>
+            t === undefined ? fallback : t === '$' ? rows.length : Number(t);
+          const from = resolve(fromText, 1);
+          const to = resolve(toText, from);
+          const inRange = (n: number): boolean => n >= from && n <= to;
+
+          // `p` without `-n` prints every line *and* the range again, which
+          // is real sed and surprises everybody exactly once. `-n` is what
+          // makes it the tool people think it is.
+          const kept: string[] = [];
+          rows.forEach((row, i) => {
+            const n = i + 1;
+            if (action === 'd') {
+              if (!inRange(n)) kept.push(row);
+              return;
+            }
+            if (!quiet) kept.push(row);
+            if (inRange(n)) kept.push(row);
+          });
+          if (kept.length === 0) return '';
+          return kept.join('\n') + (trailing ? '\n' : '');
+        };
+
+        const targets = operands.slice(1);
+        if (targets.length === 0) {
+          io.out(edit(io.stdin));
+          return 0;
+        }
+        let rangeCode = 0;
+        for (const file of targets) {
+          const abs = ctx.resolve(file);
+          try {
+            const result = edit(ctx.vfs.readText(abs, ctx.user));
+            if (inPlace) ctx.vfs.writeText(abs, result, ctx.user);
+            else io.out(result);
+          } catch (e) {
+            const reason = e instanceof Error && 'reason' in e ? (e as { reason: string }).reason : String(e);
+            io.err(`sed: ${file}: ${reason}\n`);
+            rangeCode = 1;
+          }
+        }
+        return rangeCode;
+      }
+
       const m = /^s(.)(.*?)(?<!\\)\1(.*?)(?<!\\)\1([gi]*)$/.exec(script);
       if (!m) {
-        io.err(`sed: unsupported script '${script}' (only s/pattern/replacement/ is implemented)\n`);
+        io.err(
+          `sed: unsupported script '${script}'\n` +
+            'sed: this machine has s/pattern/replacement/ and addresses like 1,3p\n',
+        );
         return 2;
       }
       const [, , pattern = '', replacement = '', modifiers = ''] = m;

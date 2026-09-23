@@ -69,6 +69,73 @@ function newgameCommand(): CommandSpec {
 }
 
 
+/**
+ * Type size, which on a phone is the only font choice that means anything.
+ *
+ * Family stacks barely vary -- you get whatever monospace the OS ships -- and
+ * fetching one would be the first network request this project has ever made.
+ * Size is the real lever, so it is the one that is offered.
+ */
+function fontCommand(): CommandSpec {
+  return {
+    name: 'font',
+    summary: 'change the type size',
+    manual:
+      'font [SIZE|bigger|smaller|auto]\n\n' +
+      'With no argument, say what size the type is and how wide the screen is\n' +
+      'in columns.\n\n' +
+      '  font 18       set it, and remember it in this browser\n' +
+      '  font bigger   two points up;  font smaller  two points down\n' +
+      '  font auto     size it to the window again\n\n' +
+      'auto is the default and fits the written column width across the\n' +
+      'screen, which is why the same game is readable on a phone and on a\n' +
+      'monitor. No font is downloaded; the face is bundled.',
+    plain:
+      'Makes the text bigger or smaller.\n\n' +
+      '  font bigger\n' +
+      '  font smaller\n' +
+      '  font auto     let it choose\n\n' +
+      'It remembers what you picked.',
+    run: (_ctx, argv, io) => {
+      const wanted = argv[1]?.toLowerCase();
+      const current = fontPx ?? autoFontPx();
+
+      if (wanted === undefined) {
+        io.out(
+          `font: ${current.toFixed(1)}px ${fontPx === null ? '(auto)' : '(set)'}, ` +
+            `${view.columns} columns\n`,
+        );
+        return 0;
+      }
+
+      let next: number | null;
+      if (wanted === 'auto') next = null;
+      else if (wanted === 'bigger') next = Math.min(48, current + 2);
+      else if (wanted === 'smaller') next = Math.max(8, current - 2);
+      else {
+        const value = Number(wanted);
+        if (!Number.isFinite(value) || value < 8 || value > 48) {
+          io.err(`font: size must be a number between 8 and 48, or bigger/smaller/auto\n`);
+          return 1;
+        }
+        next = value;
+      }
+
+      fontPx = next;
+      try {
+        if (next === null) window.localStorage.removeItem('sigkill:font');
+        else window.localStorage.setItem('sigkill:font', String(next));
+      } catch {
+        // Private window. The choice holds for this session.
+      }
+      view.setFont(fontSpec());
+      refreshStatus();
+      io.out(`font: ${(fontPx ?? autoFontPx()).toFixed(1)}px, ${view.columns} columns\n`);
+      return 0;
+    },
+  };
+}
+
 function crtCommand(): CommandSpec {
   return {
     name: 'crt',
@@ -277,8 +344,51 @@ const savedPalette = ((): string | null => {
   }
 })();
 
+const FACE = '"IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace';
+
+/**
+ * The type size this screen should use, in CSS pixels.
+ *
+ * Every beat in this game is hard-wrapped in the content -- `'ORACLE: ...'`
+ * lines are authored one screen-line at a time, for a phone. So the column
+ * count is fixed by the writing at somewhere around sixty-six, and a desktop
+ * showing them at a phone's type size is a sixty-column game sitting in a
+ * two-hundred-column window with the right two thirds empty. It looked like a
+ * layout bug and it was really a scaling one.
+ *
+ * So the cell grows instead: pick the size that lands the authored width
+ * across the real screen. Clamped at both ends -- never smaller than a phone
+ * needs, never so large that a maximised window shows six words a line.
+ */
+const TARGET_COLS = 104;
+const MIN_PX = 13.5;
+const MAX_PX = 21;
+
+function autoFontPx(): number {
+  // The 0.6 is the width-to-size ratio of a monospace cell; Plex Mono is
+  // 0.6 exactly, which is why the guess does not need measuring.
+  const usable = Math.max(240, (window.visualViewport?.width ?? window.innerWidth) - 48);
+  return Math.min(MAX_PX, Math.max(MIN_PX, usable / TARGET_COLS / 0.6));
+}
+
+/** A size the player chose, if they chose one. `auto` clears it. */
+let fontPx: number | null = ((): number | null => {
+  const asked = query.get('font');
+  const stored = (() => {
+    try {
+      return window.localStorage.getItem('sigkill:font');
+    } catch {
+      return null;
+    }
+  })();
+  const value = Number(asked ?? stored);
+  return Number.isFinite(value) && value >= 8 && value <= 48 ? value : null;
+})();
+
+const fontSpec = (): string => `${(fontPx ?? autoFontPx()).toFixed(1)}px ${FACE}`;
+
 const view = new TerminalView(screen, {
-  font: '13.5px "IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
+  font: fontSpec(),
   gutter: 16,
   plain: query.has('plain'),
   palette: paletteByName(savedPalette),
@@ -1062,6 +1172,8 @@ bindSurface(screen);
 /** The tallest this viewport has been at its current width. */
 let tallest = 0;
 let lastWidth = 0;
+/** The width the auto type size was last computed for. */
+let lastFontWidth = 0;
 
 function syncViewport(): void {
   const vv = window.visualViewport;
@@ -1076,6 +1188,13 @@ function syncViewport(): void {
   tallest = Math.max(tallest, height);
 
   document.documentElement.style.setProperty('--app-height', `${Math.round(height)}px`);
+
+  // Auto type size follows the window. A size the player chose does not: they
+  // chose it, and having it silently move on rotate would be the app arguing.
+  if (fontPx === null && width !== lastFontWidth) {
+    lastFontWidth = width;
+    view.setFont(fontSpec());
+  }
 
   /*
    * Measured against the tallest this screen has been rather than against
@@ -1121,6 +1240,7 @@ machine.shell.commands.set('palette', paletteCommand());
 machine.shell.commands.set('sound', soundCommand());
 machine.shell.commands.set('crt', crtCommand());
 machine.shell.commands.set('newgame', newgameCommand());
+machine.shell.commands.set('font', fontCommand());
 refreshTube();
 refreshStatus();
 
