@@ -182,6 +182,23 @@ counts them out of every scroll measurement, a full-screen program gets the
 whole grid back, and the rows also land in a `role=status` region because the
 canvas is invisible to assistive technology.
 
+**The puzzle schema.** Every objective declares `teaches`, at least three
+`routes` and at least two `nearMisses`, and CI runs all of them against a real
+Machine. `PLAN.md` locked this in on day one and it did not get built until
+after a bug shipped that it would have caught: `trace-bowen` checked one
+hard-coded filename, so recording Bowen's heading in a log of your own
+choosing did the whole job and was ignored.
+
+Routes catch a goal that is **too tight** — a second route with a different
+filename goes red immediately. Near-misses catch a goal that is **too loose**,
+which is the failure nobody reports because the player is never stopped. Both
+directions were verified by breaking a real goal and watching the suite go
+red, not merely by writing the test.
+
+`teaches` is checked against `commandRegistry()`, so a puzzle claiming to
+teach `awk` fails the build. `taught()` derives the skill map rather than
+keeping a second list to forget to update.
+
 **`packages/quest`** — objectives and hint ladders. See §4. A ladder can carry
 a second voice: `questCommands({ aside })` is called after each rung with the
 world and the running hint count, so two characters take turns and the

@@ -162,6 +162,47 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     id: 'atmosphere',
     title: 'Get the atmosphere scrubber running',
     done: scrubberRunning,
+    teaches: ['systemctl', 'sed', 'cat', 'sudo'],
+    routes: [
+      {
+        name: 'sed the one number',
+        commands: [
+          "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
+          'sudo systemctl start scrubber',
+        ],
+      },
+      {
+        name: 'a different breathable number',
+        commands: [
+          "sed -i 's/16/22/' /etc/life_support.conf",
+          'sudo systemctl start scrubber',
+        ],
+      },
+      {
+        name: 'rebuild the file from the shell',
+        commands: [
+          'grep -v O2_TARGET /etc/life_support.conf > /tmp/conf',
+          'echo O2_TARGET=21 >> /tmp/conf',
+          'cp /tmp/conf /etc/life_support.conf',
+          'sudo systemctl start scrubber',
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'a number the controller still refuses',
+        commands: [
+          "sed -i 's/^O2_TARGET=.*/O2_TARGET=18/' /etc/life_support.conf",
+          'sudo systemctl start scrubber',
+        ],
+        because: '18 is outside 19-23, so the interlock refuses and nothing starts',
+      },
+      {
+        name: 'start it without fixing anything',
+        commands: ['sudo systemctl start scrubber'],
+        because: 'the config is still 16; starting a unit does not change what it reads',
+      },
+    ],
     /*
      * `systemctl start` prints nothing on success, which is correct and worth
      * learning. But this is the moment the air comes back, and the first
@@ -312,6 +353,33 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     title: 'Make the scrubber come back on its own',
     requires: ['atmosphere'],
     done: (world) => world.services.isEnabled('scrubber'),
+    teaches: ['systemctl', 'ln', 'ls'],
+    routes: [
+      { name: 'the second verb', commands: ['sudo systemctl enable scrubber'] },
+      { name: 'the full unit name', commands: ['sudo systemctl enable scrubber.service'] },
+      {
+        // Enabled is not a field, it is a symlink -- so making the symlink by
+        // hand is not a trick, it is the same act spelled out.
+        name: 'make the symlink yourself',
+        commands: [
+          'sudo mkdir -p /etc/systemd/system/multi-user.target.wants',
+          'sudo ln -s /etc/systemd/system/scrubber.service ' +
+            '/etc/systemd/system/multi-user.target.wants/scrubber.service',
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'start it again',
+        commands: ['sudo systemctl start scrubber'],
+        because: 'start is now, enable is every boot; this is the whole lesson',
+      },
+      {
+        name: 'enable the other unit',
+        commands: ['sudo systemctl enable hull-monitor'],
+        because: 'right verb, wrong unit',
+      },
+    ],
     onComplete: [
       '',
       '  [0000.000] systemd: created symlink',
@@ -398,6 +466,47 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     title: 'Get the hull monitor running',
     requires: ['survive-a-reboot'],
     done: (world) => monitorRunning(world) && monitorEnabled(world),
+    teaches: ['chmod', 'ls', 'systemctl', 'file'],
+    routes: [
+      {
+        name: 'chmod +x',
+        commands: [
+          `sudo chmod +x ${HULL_CHECK}`,
+          'sudo systemctl start hull-monitor',
+          'sudo systemctl enable hull-monitor',
+        ],
+      },
+      {
+        name: 'octal',
+        commands: [
+          `sudo chmod 755 ${HULL_CHECK}`,
+          'sudo systemctl start hull-monitor',
+          'sudo systemctl enable hull-monitor',
+        ],
+      },
+      {
+        // Root still needs one x bit somewhere, which is the difference
+        // between "chmod is the fix" and "sudo is the fix".
+        name: 'just the owner bit',
+        commands: [
+          `sudo chmod u+x ${HULL_CHECK}`,
+          'sudo systemctl enable hull-monitor',
+          'sudo systemctl start hull-monitor',
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'start it without the execute bit',
+        commands: ['sudo systemctl start hull-monitor', 'sudo systemctl enable hull-monitor'],
+        because: 'a file nobody said was a program is not a program, even for root',
+      },
+      {
+        name: 'running now but not after a reboot',
+        commands: [`sudo chmod +x ${HULL_CHECK}`, 'sudo systemctl start hull-monitor'],
+        because: 'this objective wants both verbs, the same as the scrubber did',
+      },
+    ],
     onComplete: [
       '',
       '  [0000.140] hull-check: sweeping 9 compartments',
@@ -581,6 +690,41 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     title: 'Find the leak and close it',
     requires: ['hull-watch'],
     done: (world) => sealed(world, BREACHED),
+    teaches: ['grep', 'cut', 'sort', 'uniq', 'sed', 'tail'],
+    routes: [
+      {
+        name: 'sed the config',
+        commands: [`sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/${BREACHED}.conf`],
+      },
+      {
+        // Hers, and it is the reason the script exists on the deck at all.
+        name: "Vasquez's own script",
+        commands: [
+          'sudo chmod +x /home/vasquez/notes/seal.sh',
+          `sudo /home/vasquez/notes/seal.sh ${BREACHED}`,
+        ],
+      },
+      {
+        name: 'rebuild the file',
+        commands: [
+          `grep -v SEALED /etc/hull/${BREACHED}.conf > /tmp/c7`,
+          'echo SEALED=yes >> /tmp/c7',
+          `cp /tmp/c7 /etc/hull/${BREACHED}.conf`,
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'seal the one that is already patched',
+        commands: ["sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c2.conf"],
+        because: 'C2 stopped dropping hours ago; the count finds it and only the dates rule it out',
+      },
+      {
+        name: 'comment it instead of setting it',
+        commands: [`echo '# SEALED=yes' >> /etc/hull/${BREACHED}.conf`],
+        because: 'a commented setting is not a setting, and the hatch is still open',
+      },
+    ],
     onComplete: [
       '',
       '  [0000.000] hull-check: sweeping 9 compartments',
@@ -761,6 +905,30 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     title: 'Find out what is still emptying C7, and stop it',
     requires: ['seal-the-breach'],
     done: (world) => purgeProcess(world) === undefined,
+    teaches: ['ps', 'kill', 'pkill', 'pgrep'],
+    routes: [
+      { name: 'pkill by name', commands: ['sudo pkill -9 atmo-purge'] },
+      {
+        name: 'find the pid, then kill it',
+        commands: ['sudo kill -9 $(pgrep atmo-purge)'],
+      },
+      {
+        name: 'the signal by name rather than number',
+        commands: ['sudo kill -KILL $(pgrep -f atmo-purge)'],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'ask it politely',
+        commands: ['sudo pkill atmo-purge'],
+        because: 'SIGTERM is a request and this program traps it; that is the whole puzzle',
+      },
+      {
+        name: 'ask it politely twice',
+        commands: ['sudo kill $(pgrep atmo-purge)', 'sudo kill $(pgrep atmo-purge)'],
+        because: 'it declines every time, exits zero, and writes the refusal down',
+      },
+    ],
     onComplete: [
       '',
       '  [0000.000] atmo-purge: SIGKILL. no handler. process ended',
@@ -894,6 +1062,33 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     title: 'Get the transmitter back',
     requires: ['stop-the-purge'],
     done: commsUp,
+    teaches: ['cat', 'ps', 'rm', 'systemctl', 'pgrep'],
+    routes: [
+      {
+        name: 'bin the stale lock',
+        commands: [`sudo rm ${COMMS_LOCK}`, 'sudo systemctl start comms'],
+      },
+      {
+        name: 'move it aside instead of deleting it',
+        commands: [`sudo mv ${COMMS_LOCK} /tmp/comms.lock.old`, 'sudo systemctl start comms'],
+      },
+      {
+        name: 'clear it and restart rather than start',
+        commands: [`sudo rm -f ${COMMS_LOCK}`, 'sudo systemctl restart comms'],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'start it and hope',
+        commands: ['sudo systemctl start comms', 'sudo systemctl start comms'],
+        because: 'the lock is still there, and the unit is right to keep refusing',
+      },
+      {
+        name: 'clear the lock and walk away',
+        commands: [`sudo rm ${COMMS_LOCK}`],
+        because: 'nothing has told the service to try again',
+      },
+    ],
     onComplete: [
       '',
       '  [0000.100] commsd: /dev/array0 acquired',
@@ -1031,6 +1226,74 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
      * `sleep`, and there is plenty left on this deck to read.
      */
     done: replyArrived,
+    teaches: ['echo', 'cat', 'cp', 'sed', 'grep', 'sleep'],
+    /*
+     * Every route carries its own prerequisite.
+     *
+     * The harness runs each from a fresh world, so these open with the two
+     * commands that free the transmitter. That is not padding: a packet with
+     * no carrier goes nowhere, and a route that assumed somebody else had
+     * already fixed comms would be a route that passes for the wrong reason.
+     */
+    routes: [
+      {
+        name: 'three echoes',
+        commands: [
+          `sudo rm ${COMMS_LOCK}`,
+          'sudo systemctl start comms',
+          `echo CALLSIGN=NAV-7 > ${PACKET}`,
+          `echo POSITION=KV-OUTER-9 >> ${PACKET}`,
+          `echo SOULS_ABOARD=1 >> ${PACKET}`,
+          'sleep 120',
+        ],
+      },
+      {
+        name: 'fill in the template with sed',
+        commands: [
+          `sudo rm ${COMMS_LOCK}`,
+          'sudo systemctl start comms',
+          `cp ${SPOOL_OUT}/distress.template ${PACKET}`,
+          `sed -i 's/^CALLSIGN=.*/CALLSIGN=NAV-7/' ${PACKET}`,
+          `sed -i 's/^POSITION=.*/POSITION=KV-OUTER-9/' ${PACKET}`,
+          `sed -i 's/^SOULS_ABOARD=.*/SOULS_ABOARD=1/' ${PACKET}`,
+          'sleep 120',
+        ],
+      },
+      {
+        name: 'pipe the real files in',
+        commands: [
+          `sudo rm ${COMMS_LOCK}`,
+          'sudo systemctl start comms',
+          `grep CALLSIGN ${SHIP_ID} > ${PACKET}`,
+          `grep POSITION ${LAST_FIX} >> ${PACKET}`,
+          `echo SOULS_ABOARD=1 >> ${PACKET}`,
+          'sleep 120',
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'a packet with nobody in it',
+        commands: [
+          `sudo rm ${COMMS_LOCK}`,
+          'sudo systemctl start comms',
+          `echo CALLSIGN=NAV-7 > ${PACKET}`,
+          `echo POSITION=KV-OUTER-9 >> ${PACKET}`,
+          'sleep 300',
+        ],
+        because: 'no souls aboard, so the receiver has nothing to send anyone for',
+      },
+      {
+        name: 'a perfect packet and no carrier',
+        commands: [
+          `echo CALLSIGN=NAV-7 > ${PACKET}`,
+          `echo POSITION=KV-OUTER-9 >> ${PACKET}`,
+          `echo SOULS_ABOARD=1 >> ${PACKET}`,
+          'sleep 300',
+        ],
+        because: 'the transmitter is still locked; a spool nobody reads is a spool',
+      },
+    ],
     onComplete: [
       '',
       'LUNA: Forty hours.',
@@ -1170,6 +1433,35 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
      */
     optional: true,
     done: headingRecorded,
+    teaches: ['grep', 'cat', 'cp'],
+    routes: [
+      {
+        name: 'grep it into a log of your own',
+        commands: ["grep -i '^Heading:' /home/bowen/pod-manifest.txt > logs/bowen-heading.txt"],
+      },
+      {
+        // The one the goal used to reject. It is the whole reason this
+        // objective carries routes at all.
+        name: 'any other filename',
+        commands: ["grep -i heading /home/bowen/pod-manifest.txt > notes.txt"],
+      },
+      {
+        name: 'keep the whole manifest',
+        commands: ['cp /home/bowen/pod-manifest.txt /home/dewitt/logs/'],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'read it and remember it',
+        commands: ['cat /home/bowen/pod-manifest.txt'],
+        because: 'reading is not recording; nothing of yours says where he went',
+      },
+      {
+        name: 'write down the wrong part',
+        commands: ["grep -i 'ration case' /home/bowen/pod-manifest.txt > logs/bowen.txt"],
+        because: 'a real line from the right file, and not the heading',
+      },
+    ],
     onComplete: (world) => [
       '',
       'ORACLE: So that is where he aimed. One-one-four mark nine.',
@@ -1262,6 +1554,27 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     // it before the story opens it; being silent about that was the bug.
     optional: true,
     done: v43Mapped,
+    teaches: ['ls', 'readlink', 'grep'],
+    routes: [
+      { name: 'the long listing', commands: [`ls -l ${LUNA_DIR} > logs/luna.txt`] },
+      { name: 'ask the link directly', commands: [`readlink ${LUNA_DIR}/v43 > logs/where.txt`] },
+      {
+        name: 'just the line that matters',
+        commands: [`ls -l ${LUNA_DIR} | grep v43 > logs/v43.txt`],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'look without writing anything down',
+        commands: [`ls -l ${LUNA_DIR}`],
+        because: 'the arrow was on screen and is now gone',
+      },
+      {
+        name: 'record the directory instead of the link',
+        commands: [`ls ${LUNA_DIR} > logs/luna.txt`],
+        because: 'names without targets; a plain ls never shows where a link points',
+      },
+    ],
     onComplete: (world) => [
       '',
       ...(lunaAwake(world)

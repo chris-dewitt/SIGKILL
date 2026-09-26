@@ -9,9 +9,38 @@ import { TIER_ORDER, type Objective } from './types.js';
  * renamed, a cycle that locks everything forever. Tests run this over every
  * shipped adventure, so a broken ladder fails CI rather than a playthrough.
  */
-export function validateObjectives(objectives: readonly Objective[]): string[] {
+/**
+ * How many of each an objective must declare.
+ *
+ * From `docs/PLAN.md`'s locked decisions: "every puzzle declares what it
+ * teaches, ships >=3 solution routes and >=2 rejected near-misses, and fails
+ * the build otherwise". Three is the number that makes "solution-agnostic"
+ * checkable rather than aspirational -- two can both be the author's habit,
+ * and one is not a claim at all.
+ */
+export const MIN_ROUTES = 3;
+export const MIN_NEAR_MISSES = 2;
+
+export interface ValidateOptions {
+  /**
+   * Command names that exist aboard, if the caller can supply them.
+   *
+   * When given, every `teaches` entry that looks like a command must name a
+   * real one. A curriculum promising something the machine cannot do is worse
+   * than one promising less.
+   */
+  readonly commands?: ReadonlySet<string> | ReadonlyMap<string, unknown>;
+}
+
+export function validateObjectives(
+  objectives: readonly Objective[],
+  opts: ValidateOptions = {},
+): string[] {
   const problems: string[] = [];
   const ids = new Set<string>();
+  const known = opts.commands;
+  const hasCommand = (name: string): boolean =>
+    known === undefined || (known instanceof Map ? known.has(name) : (known as ReadonlySet<string>).has(name));
 
   for (const objective of objectives) {
     const at = `objective "${objective.id}"`;
@@ -20,6 +49,46 @@ export function validateObjectives(objectives: readonly Objective[]): string[] {
     ids.add(objective.id);
     if (!objective.title.trim()) problems.push(`${at}: empty title`);
     if (objective.steps.length === 0) problems.push(`${at}: no steps, so it can never be hinted`);
+
+    // --------------------------------------------------- the puzzle schema
+    if (objective.teaches.length === 0) {
+      problems.push(`${at}: teaches nothing, so nothing can be said about what it is for`);
+    }
+    for (const skill of objective.teaches) {
+      // A single bare word is taken to be a command name; anything with a
+      // space or punctuation is a concept, and concepts are not checkable.
+      if (/^[a-z0-9][a-z0-9.+-]*$/.test(skill) && !hasCommand(skill)) {
+        problems.push(`${at}: claims to teach \`${skill}\`, which is not a command on this machine`);
+      }
+    }
+
+    if (objective.routes.length < MIN_ROUTES) {
+      problems.push(
+        `${at}: ${objective.routes.length} route(s), needs ${MIN_ROUTES}. ` +
+          'A goal with one declared solution is a goal nobody has checked is solution-agnostic.',
+      );
+    }
+    if (objective.nearMisses.length < MIN_NEAR_MISSES) {
+      problems.push(
+        `${at}: ${objective.nearMisses.length} near-miss(es), needs ${MIN_NEAR_MISSES}. ` +
+          'Without them nothing catches a goal loose enough to accept a wrong answer.',
+      );
+    }
+
+    const routeNames = new Set<string>();
+    for (const route of [...objective.routes, ...objective.nearMisses]) {
+      if (!route.name.trim()) problems.push(`${at}: a route has no name`);
+      if (routeNames.has(route.name)) problems.push(`${at}: duplicate route name "${route.name}"`);
+      routeNames.add(route.name);
+      if (route.commands.length === 0) {
+        problems.push(`${at}: route "${route.name}" has no commands`);
+      }
+    }
+    for (const miss of objective.nearMisses) {
+      if (!miss.because.trim()) {
+        problems.push(`${at}: near-miss "${miss.name}" does not say why it does not count`);
+      }
+    }
 
     const stepIds = new Set<string>();
     for (const step of objective.steps) {
@@ -75,8 +144,11 @@ export function validateObjectives(objectives: readonly Objective[]): string[] {
 }
 
 /** Throws on any problem. The form content tests and boot code should use. */
-export function assertObjectives(objectives: readonly Objective[]): readonly Objective[] {
-  const problems = validateObjectives(objectives);
+export function assertObjectives(
+  objectives: readonly Objective[],
+  opts: ValidateOptions = {},
+): readonly Objective[] {
+  const problems = validateObjectives(objectives, opts);
   if (problems.length > 0) {
     throw new Error(`invalid objectives:\n  ${problems.join('\n  ')}`);
   }

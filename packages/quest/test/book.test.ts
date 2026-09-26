@@ -4,9 +4,30 @@ import { Questbook } from '../src/book.js';
 import { questCommands } from '../src/commands.js';
 import type { Objective, World } from '../src/types.js';
 
+/**
+ * The schema fields every objective must declare, stubbed.
+ *
+ * These fixtures exist to exercise the questbook -- hint ladders, blocking,
+ * completion -- not the route harness, which has its own tests. Spread this
+ * in so the type is satisfied without burying what each fixture is about.
+ */
+const SCHEMA = {
+  teaches: ['touch'],
+  routes: [
+    { name: 'one', commands: ['touch /unused-one'] },
+    { name: 'two', commands: ['touch /unused-two'] },
+    { name: 'three', commands: ['touch /unused-three'] },
+  ],
+  nearMisses: [
+    { name: 'nothing', commands: ['true'], because: 'does not touch anything' },
+    { name: 'wrong place', commands: ['touch /elsewhere'], because: 'wrong path' },
+  ],
+} as const;
+
 /** A two-step objective over a filesystem, which is all a World needs to be. */
 const OBJECTIVES: readonly Objective[] = [
   {
+    ...SCHEMA,
     id: 'door',
     title: 'Open the door',
     done: (w) => w.vfs.exists('/open', ROOT_USER),
@@ -33,6 +54,7 @@ const OBJECTIVES: readonly Objective[] = [
     ],
   },
   {
+    ...SCHEMA,
     id: 'leave',
     title: 'Walk out',
     requires: ['door'],
@@ -145,6 +167,7 @@ describe('the board', () => {
 
   it('hides a secret objective until it is unlocked', async () => {
     const secret: Objective = {
+      ...SCHEMA,
       id: 'secret',
       title: 'The thing you were not told about',
       requires: ['door'],
@@ -292,6 +315,7 @@ describe('the commands', () => {
   // nothing at all, which reads to a player as a broken command.
   it('names a content bug instead of going quiet', async () => {
     const broken: Objective = {
+      ...SCHEMA,
       id: 'broken',
       title: 'Impossible',
       done: () => false,
@@ -373,6 +397,7 @@ describe('asking about a particular objective', () => {
 describe('beats play in the order the story needs them', () => {
   /** A one-step objective satisfied by a file existing. */
   const objective = (id: string, path: string, requires?: string[]): Objective => ({
+    ...SCHEMA,
     id,
     title: id,
     ...(requires ? { requires } : {}),
@@ -411,6 +436,7 @@ describe('beats play in the order the story needs them', () => {
  */
 describe('optional objectives', () => {
   const side = (id: string, path: string, optional: boolean): Objective => ({
+    ...SCHEMA,
     id,
     title: id,
     optional,

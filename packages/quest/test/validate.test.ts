@@ -5,10 +5,21 @@ import type { Objective, Rung } from '../src/types.js';
 const nudge: Rung = { tier: 'nudge', lines: ['look around'] };
 const answer: Rung = { tier: 'command', lines: ['    ls'], command: 'ls' };
 
+/** A structurally valid objective, which each test then breaks one way. */
 const objective = (over: Partial<Objective> = {}): Objective => ({
   id: 'look',
   title: 'Look at the ship',
   done: () => false,
+  teaches: ['ls'],
+  routes: [
+    { name: 'plain', commands: ['ls'] },
+    { name: 'absolute', commands: ['ls /'] },
+    { name: 'long', commands: ['ls -l'] },
+  ],
+  nearMisses: [
+    { name: 'nothing', commands: ['true'], because: 'looks at nothing' },
+    { name: 'elsewhere', commands: ['pwd'], because: 'answers a different question' },
+  ],
   steps: [{ id: 'only', pending: () => true, rungs: [nudge, answer] }],
   ...over,
 });
