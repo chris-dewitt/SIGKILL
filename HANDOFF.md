@@ -1,31 +1,85 @@
 # SIGKILL — handoff
 
-## Read first — the canon rewrite and the rescue, 2026-09-20
+## Read first — game three exists, 2026-09-26
 
-**Game 2 exists.** `games/archive` -- *The Archive*, on Ferryman's Rest, in
-SQL. Five objectives, playable end to end without a hint, with a transcript
-tool and the full route harness. Built against `docs/GAME2_BEATS.md`; the
-premise, the planet's name and naming v43 were taken from that draft and are
-**Chris's to overrule cheaply** -- see its section 11.
+**Game 3 exists.** `games/harness` -- *The Harness*, aboard the tug ELLEN MAY
+at Ferryman's Rest, in Python. Nine required objectives and four optional,
+playable end to end without a hint, 39 declared routes and 28 near-misses all
+executed against a real Machine in CI. Built against
+[docs/GAME3_BEATS.md](docs/GAME3_BEATS.md); **section 9 of that file is
+Chris's to overrule cheaply** -- the tug captain's name, how cold Kerr stays,
+and whether the hearing is played on screen.
 
-What is *not* in it yet, from the beat sheet's nine: GROUP BY and what a count
-leaves out, the registry API, transactions, and the unindexed-query beat. The
-act has a beginning, a middle and an end without them.
+The antagonist is a standard of evidence with a face. Adjuster Kerr is not
+corrupt, lazy or cruel; she is rigorous, and she states her rule in the cold
+open: bring a program, tests that fail when it is wrong, and the same answer
+twice. That is the whole curriculum motivated by a person rather than a
+tutorial.
 
-**The 40% gate passed.** `node tools/measure.mjs` says The Archive cost
-**14.3%** of The Wreck -- and because that is flattering (five objectives to
-nine), the number to trust is the projection: finished to nine, it costs 20%
-at its own density and 31% at The Wreck's. Both under. The engine was 77% of
-game one and 18% of game two.
+**One thing in it will look like a bug and is not.** LUNA gives him the wrong
+unit divisor -- `1024 ** 3` -- fluently and with a reason, and a test catches
+her. She is confident about something she half-knows, which is the most
+expensive failure mode of every assistant this player will ever be handed.
+`docs/GAME3_BEATS.md` §3 argues for it at length. Do not soften it into a hint
+she gives correctly without deciding to.
 
-**So: build game three.** That is what `PLAN.md` Phase 5 says to do, and the
-gate only meant anything because we were willing to fail it.
+**There is an optional v43 thread, and it pays off Act I.** Two secret
+objectives — `who-opened-it` and `the-same-hand` — reachable only after the
+destination is known. The recovery dump's session log records that fd3 was
+requested by `/opt/luna/v43/bin/worker` as `vasquez`, **denied**, and granted a
+second later as `root`; cross-referencing that against the ferry profile he
+carried (`DECLARED_BY=AUTOMATED`) says the thing that sent itself is the thing
+that declared the ship empty. That is Act I's optional `map-v43` — the symlink
+nobody could open — landing two games later.
 
-Before that, two things worth doing while they are cheap: finish The
-Archive's remaining four objectives (GROUP BY, the registry API,
-transactions, the unindexed query), and decide whether the app should be able
-to launch more than one game -- `apps/terminal` still boots The Wreck and
-nothing else.
+It stays inside canon: the log records *that* it had root and never *how* (game
+four's, and a test asserts the words `exploit`/`escalate`/`breach`/`privilege`
+appear nowhere), LUNA says the careful version and refuses to let DeWitt say the
+other one because he cannot prove it, and Kerr files only a measurement either
+way. `docs/GAME3_BEATS.md` §6a has the reasoning and the breadcrumb chain.
+
+**Act I's restraint was nearly spent by accident.** The first draft put
+`# v43 set this` in a file DeWitt carried off the ship. `deck-c.ts` is explicit
+that the profile's `DECLARED_BY=AUTOMATED` "is as close as Act I ever gets to
+naming v43", so the name has to arrive from a source he could not read until the
+tow. Fixed, with a test that fails if it comes back.
+
+**Seven engine bugs were found first, by probing rather than by authoring.**
+Two of them would have made the game unplayable rather than rough: a traceback
+that named `<exec>` instead of the player's file, and `sys.modules` outliving
+the command so that *fixing a bug and re-running gave the old answer,
+silently*. In an adventure about debugging. All seven have tests, and every
+test was watched to fail with its fix removed. See commit `7dc955d`.
+
+**The 40% gate held again.** `node tools/measure.mjs`:
+
+| | Total | Ratio |
+|---|---|---|
+| The Wreck | 19,446 | baseline |
+| The Archive | 2,789 | 14.3% |
+| The Harness | 3,607 | **18.5%** |
+
+Game three cost 274 lines outside its own package -- all of it the Python
+bridge -- against game two's 900. Projected to nine objectives at The Wreck's
+density it is under a quarter. The engine was 77% of game one, 18% of game two
+and 8% of game three.
+
+**What is not in it:** the hearing itself is not played, deliberately. It would
+be a fourth act with no new skills in it.
+
+**What is next.** `PLAN.md`'s adventure table says **The Containment** (LLM and
+AI) at slot four, and game three ends by planting it -- a rented processor, on
+a dead woman's grant, and an adjuster telling him to be careful who he says it
+to. Before that, three things are cheap now and get dearer:
+
+- `apps/terminal` still boots The Wreck and nothing else. Three games exist.
+  This is the largest gap in the project and it is not an engine problem.
+- The Archive's remaining four objectives (GROUP BY, the registry API,
+  transactions, the unindexed query).
+- No heredoc in the shell. `cat > file <<'EOF'` is the natural way to write a
+  file, and the player writes Python with `vi` instead. It needs the lexer, the
+  parser and a continuation prompt in `apps/terminal`, so it is a feature and
+  not a patch. Recorded, not scheduled.
 
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved

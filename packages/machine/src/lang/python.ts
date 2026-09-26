@@ -14,6 +14,34 @@ export interface FileEntry {
 export interface PythonRequest {
   /** Source to execute. */
   code: string;
+  /**
+   * What to call the code in a traceback.
+   *
+   * Without it every frame of the player's own script reads `<exec>`, which
+   * is the interpreter describing its own plumbing rather than the file the
+   * player is editing. In an adventure that teaches debugging, the traceback
+   * is the whole lesson -- a wrong filename there is a wrong lesson.
+   */
+  filename?: string;
+  /**
+   * The virtual clock in milliseconds -- the session's, not the calendar's.
+   *
+   * Pyodide reads the host's `Date.now`, which is the same leak SQLite had:
+   * a script that stamps a result with the wall clock cannot be replayed,
+   * and replay is invariant #1.
+   *
+   * It is deliberately `clock()` and not `epoch + clock()`. Python cannot
+   * hold the adventure's calendar at all -- `PyTime_t` is int64 nanoseconds,
+   * so anything past about 2262 raises `OverflowError: timestamp too large`,
+   * and the ship wakes in 2398. Handing it an impossible number would trade
+   * a determinism bug for a crash.
+   *
+   * So `time.time()` aboard measures *this session*, starting at zero and
+   * moving only when the machine ticks. It is deterministic, a `sleep` moves
+   * it by the right amount, and the adventure's calendar stays where it has
+   * always been: in `date`, and in the files.
+   */
+  now?: number;
   /** sys.argv, including argv[0]. */
   argv: string[];
   stdin: string;
@@ -162,15 +190,51 @@ export function pythonCommands(getRuntime: () => PythonRuntime | undefined): Com
       return 127;
     }
 
-    const { flags, values, operands } = parseArgs(argv, { valued: ['-c'] });
+    const { flags, values, operands } = parseArgs(argv, { valued: ['-c', '-m'] });
+
+    /*
+     * Where the interpreter's options stop and the program's begin.
+     *
+     * Real python stops reading its own flags at `-c CODE`, at `-m MODULE`,
+     * and at the script name, and it has to: in `python3 -m unittest -v` the
+     * `-v` is unittest's, and in `python3 report.py --strict` the `--strict`
+     * is the player's. Reading the tail straight out of `argv` is the only
+     * way to know that -- by the time a flag parser has run, it has already
+     * eaten them, and the program is handed a truncated `sys.argv` with no
+     * sign anything went missing.
+     */
+    const tailFrom = (token: string, skip: number): string[] => {
+      const at = argv.indexOf(token);
+      return at < 0 ? [] : argv.slice(at + skip);
+    };
 
     let code: string;
     let scriptArgv: string[];
+    /** What the traceback should call this. `-c` has no file, like real python. */
+    let scriptFile = '<stdin>';
 
     const inline = values.get('-c');
+    const module = values.get('-m');
     if (inline !== undefined) {
       code = inline;
-      scriptArgv = ['-c', ...operands];
+      scriptArgv = ['-c', ...tailFrom('-c', 2)];
+      scriptFile = '<string>';
+    } else if (module !== undefined) {
+      /*
+       * `-m`, which is how the standard library is meant to be run.
+       *
+       * `python3 -m unittest` is the command a real engineer types, and an
+       * adventure about testing that cannot run it is teaching a dialect
+       * nobody speaks. `runpy` is the stdlib's own answer to this and does
+       * the whole job: it finds the module, runs it under `__main__`, and
+       * fixes up `sys.argv` the way the interpreter would.
+       */
+      code =
+        'import runpy\n' +
+        `runpy.run_module(${JSON.stringify(module)}, run_name='__main__', alter_sys=True)\n`;
+      scriptArgv = [module, ...tailFrom('-m', 2)];
+      // Our own two lines of plumbing, named so the bridge can drop the frame.
+      scriptFile = '<runpy>';
     } else if (operands.length > 0) {
       const script = ctx.resolve(operands[0]!);
       try {
@@ -179,7 +243,9 @@ export function pythonCommands(getRuntime: () => PythonRuntime | undefined): Com
         io.err(`${argv[0]}: can't open file '${operands[0]}': [Errno 2] No such file or directory\n`);
         return 2;
       }
-      scriptArgv = operands;
+      // From the script name onward, so a flag meant for the script survives.
+      scriptArgv = tailFrom(operands[0]!, 0);
+      scriptFile = operands[0]!;
     } else if (io.stdin.length > 0) {
       // Piped source, which is how `cat script.py | python3` works.
       code = io.stdin;
@@ -218,6 +284,8 @@ export function pythonCommands(getRuntime: () => PythonRuntime | undefined): Com
     const tree = collectTree(ctx.vfs, roots);
     const result = await runtime.run({
       code,
+      filename: scriptFile,
+      now: ctx.clock(),
       argv: scriptArgv,
       stdin: io.stdin,
       cwd: ctx.cwd,

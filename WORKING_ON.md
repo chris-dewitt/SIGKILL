@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| games/wreck; packages/quest; apps/terminal; root/docs | Claude | 2026-09-20 | `feat/act1-canon-and-rescue` — the two-day canon rewrite, comms and the tow, optional objectives. Builds on Codex's uncommitted `dewitt` rename, crew projects and `luna` command, which are carried in on the same branch. |
+| _nothing claimed_ | — | — | `feat/game3-harness` is open for review; nothing is held. |
 
 ## Conventions
 
@@ -37,8 +37,11 @@ agents editing it at once will conflict. Claim it explicitly.
 |---------|-----------|
 | `packages/machine` | The engine. Zero dependencies. Read `docs/ARCHITECTURE.md` first. |
 | `packages/python` | Pyodide behind the `PythonRuntime` interface. |
+| `packages/sql` | wa-sqlite behind the `SqlRuntime` interface. |
 | `packages/crt` | Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass. |
 | `packages/quest` | Objectives and hint ladders. Read `docs/HINTS.md` before authoring one. |
 | `packages/editor` | vi and nano. Pure state machines; read `docs/FULLSCREEN.md`. |
 | `apps/terminal` | The playable terminal; becomes the Capacitor app. |
 | `games/wreck` | Adventure 1: the NAV-7 world seed and the Act I objectives. |
+| `games/archive` | Adventure 2: Ferryman's Rest, the claims database, SQL. |
+| `games/harness` | Adventure 3: the tug ELLEN MAY, the recovery dump, Python. |

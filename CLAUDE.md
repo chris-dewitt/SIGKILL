@@ -121,11 +121,14 @@ push landed.
 ```
 packages/machine/    The Machine — vfs, shell, coreutils, proc, net, lang. The crown jewel.
 packages/python/     Pyodide behind the PythonRuntime interface, in a Worker.
+packages/sql/        wa-sqlite behind the SqlRuntime interface, in a Worker.
 packages/crt/        Phosphor renderer: glyph atlas, WebGL2 CRT, terminal buffer.
 packages/quest/      Objectives, state-aware hint ladders, `hint` and `objectives`.
 packages/editor/     vi and nano over one text buffer. `vi`, `vim`, `nano`.
 apps/terminal/       Playable web terminal; becomes the Capacitor app.
 games/wreck/         Adventure 1: the NAV-7 world seed and the Act I ladders.
+games/archive/       Adventure 2: Ferryman's Rest, the claims database, SQL.
+games/harness/       Adventure 3: the tug ELLEN MAY, the recovery dump, Python.
 ```
 
 Dependencies point one way: `apps` → `packages` → nothing. Import across
@@ -173,11 +176,32 @@ Add a determinism test for it. Run the same script twice, compare snapshots.
 processes and services, jobs and cron, the simulated network, and real Python
 sharing the VFS.
 
-**Phase 2 in progress** — the phosphor renderer and the Android wrap are in.
-So is the hint system: `packages/quest` plus the Act I ladders in
-`games/wreck`. 240 tests.
+**Phase 2 complete** — the phosphor renderer, the Android wrap, and the hint
+system (`packages/quest` plus the Act I ladders). Chris has playtested Act I on
+a phone and wants to keep going.
 
-**Phase 2 gates everything downstream:** the mobile input model. Do not start
-Phase 3 content until Chris has played twenty minutes on a real phone and
-wants to keep going. Content built on unpleasant input is content thrown
-away.
+**Phases 3–6 complete — three games exist.** *The Wreck* (bash), *The Archive*
+(SQL), *The Harness* (Python, debugging, testing). 1,046 tests.
+
+The 40% gate has now been applied twice and held twice: game two cost 14.3% of
+game one, game three 18.5%. The engine share by game is 77%, 18%, 8%.
+
+**Every puzzle declares its own routes.** `Objective` carries `teaches`,
+`routes` and `nearMisses`, and `packages/quest/src/harness.ts` runs them against
+a real Machine in CI — so "this puzzle has three solutions" is something the
+build knows rather than something an author believed. Do not add an objective
+without them; `validate.ts` fails the build.
+
+**Probe the engine before authoring a game.** Game three found seven bugs in
+`packages/python` by writing the kind of script the game asks the player to
+write, *before* writing any content. Two would have made the act unplayable —
+including `sys.modules` outliving a command, so that fixing a bug and re-running
+gave the old answer silently. None was visible from the engine's own tests.
+Half a day of probing; it would have cost the whole act.
+
+**The largest open gap is not an engine problem:** `apps/terminal` still boots
+The Wreck and nothing else.
+
+**Phase 2 gated everything downstream** on the mobile input model, and it
+passed. Content built on unpleasant input is content thrown away, so if the
+input model changes, re-test it on a real phone before building more.
