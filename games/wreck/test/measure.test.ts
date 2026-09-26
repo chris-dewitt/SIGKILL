@@ -31,7 +31,7 @@ describe('measure', () => {
 
     // Everything the ship will say, unprompted.
     let beatWords = words(text(coldOpen(w.machine))) + words(text(epilogue(w.machine)));
-    for (const o of WRECK_OBJECTIVES) beatWords += words(text(o.onComplete ?? []));
+    for (const o of WRECK_OBJECTIVES) beatWords += words(text(typeof o.onComplete === 'function' ? o.onComplete(w.machine) : (o.onComplete ?? [])));
 
     // Every hint rung, both tracks. Read only if asked for.
     let hintWords = 0;

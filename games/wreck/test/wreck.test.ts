@@ -4,6 +4,23 @@ import { validateObjectives } from '@sigkill/quest';
 import { bootWreck, restoreWreck, coldOpen, epilogue } from '../src/world.js';
 import type { BeatLine } from '@sigkill/quest';
 
+/**
+ * A completion beat, resolved against a world.
+ *
+ * `onComplete` may be a function now: an optional objective's beat asks
+ * whether LUNA is awake rather than being gated behind an objective that
+ * guarantees she is. Tests go through here so they read the beat the player
+ * would actually get.
+ */
+function beatOf(
+  objective: { readonly onComplete?: readonly BeatLine[] | ((w: never) => readonly BeatLine[]) },
+  world: unknown = bootWreck().machine,
+): readonly BeatLine[] {
+  const lines = objective.onComplete;
+  if (lines === undefined) return [];
+  return typeof lines === 'function' ? lines(world as never) : lines;
+}
+
 /** A beat as plain text, art rows included, for asserting on what it says. */
 function spoken(lines: readonly BeatLine[]): string {
   return lines.map((line) => (typeof line === 'string' ? line : line.art)).join('\n');
@@ -566,7 +583,7 @@ describe('the ship reacts when you fix it', () => {
     await machine.exec('sudo systemctl start scrubber');
     const closed = questbook.drainCompleted(machine);
     expect(closed.map((o) => o.id)).toEqual(['atmosphere']);
-    expect(spoken(closed[0]?.onComplete ?? [])).toContain('It started');
+    expect(spoken(beatOf(closed[0]!, machine))).toContain('It started');
   });
 
   it('plays each beat exactly once, however the player got there', async () => {
@@ -585,7 +602,7 @@ describe('the ship reacts when you fix it', () => {
   });
 
   it('does not repeat itself between the last beat and the ending', () => {
-    const last = spoken(WRECK_OBJECTIVES.at(-1)?.onComplete ?? []);
+    const last = spoken(beatOf(WRECK_OBJECTIVES.at(-1)!));
     const ending = spoken(epilogue(bootWreck().machine));
     // The last beat is about the thing the player just did; the ending is
     // about the act. Sharing a sentence between them is how an ending stops
@@ -607,7 +624,7 @@ describe('the ship reacts when you fix it', () => {
   it('spends each reveal once, across the whole act', () => {
     const ending = spoken(epilogue(bootWreck().machine)).split('\n');
     for (const objective of WRECK_OBJECTIVES) {
-      const beat = spoken(objective.onComplete ?? []).split('\n');
+      const beat = spoken(beatOf(objective)).split('\n');
       for (const line of beat) {
         const prose = line.replace(/^ORACLE: /, '').trim();
         if (prose.length < 25) continue;
@@ -628,7 +645,7 @@ describe('the ship reacts when you fix it', () => {
    * belongs next to the instrument. The ending must not say it again.
    */
   it('spends the clipboard confession on the hull, and never twice', () => {
-    const saying = WRECK_OBJECTIVES.filter((o) => spoken(o.onComplete ?? []).includes('clipboard'));
+    const saying = WRECK_OBJECTIVES.filter((o) => spoken(beatOf(o)).includes('clipboard'));
     expect(saying.map((o) => o.id)).toEqual(['seal-the-breach']);
     expect(spoken(epilogue(bootWreck().machine))).not.toContain('clipboard');
   });
@@ -646,7 +663,7 @@ describe('the numbers in the writing are the numbers in the world', () => {
   const said = (text: string): boolean =>
     WRECK_OBJECTIVES.some((o) =>
       o.steps.some((st) => st.rungs.some((r) => r.lines.join(' ').includes(text))) ||
-      (o.onComplete ?? []).join(' ').includes(text),
+      spoken(beatOf(o)).includes(text),
     );
 
   it('has as many telemetry lines as it claims', async () => {
@@ -839,5 +856,78 @@ describe('the board and the hint command agree on names', () => {
     const { machine } = bootWreck();
     const r = await machine.exec('hint whatever');
     expect(r.stderr).toContain('Get the atmosphere scrubber running');
+  });
+});
+
+/**
+ * Curiosity has to pay when it happens, and by whatever route it happens.
+ *
+ * From a playtest: Chris read Bowen's pod manifest early, grepped the heading
+ * into his logs directory, and the game said nothing. Two separate bugs, both
+ * of them the same mistake in different clothes -- the objective was asserting
+ * on things that were not world state.
+ *
+ * 1. The goal named an exact path, `logs/bowen-heading.txt`, so a player who
+ *    chose any other filename had done the whole job and failed the check.
+ *    That is `CLAUDE.md`'s rule broken in the least obvious way: not by
+ *    reading what was typed, but by requiring one spelling of a right answer.
+ * 2. The objective was gated behind `seal-the-breach`, purely so LUNA would be
+ *    awake for one line of the beat, so even the exact filename was held in
+ *    silence until much later.
+ */
+describe('the optional threads pay when they are found', () => {
+  const beats = async (w: ReturnType<typeof bootWreck>, command: string): Promise<string> => {
+    await w.machine.exec(command);
+    w.machine.tick(1000);
+    w.afterCommand();
+    return w.questbook.drainCompleted(w.machine).map((o) => o.id).join(',');
+  };
+
+  it('accepts any filename the player chose', async () => {
+    for (const command of [
+      "grep -i heading /home/bowen/pod-manifest.txt > logs/bowen.txt",
+      "grep -i heading /home/bowen/pod-manifest.txt > notes.txt",
+      "grep -i heading /home/bowen/pod-manifest.txt >> logs/everything-i-know",
+      "cp /home/bowen/pod-manifest.txt /home/dewitt/logs/",
+      "echo 'bowen went to 114 mark 9' > logs/x",
+    ]) {
+      const w = bootWreck();
+      expect(await beats(w, command), command).toContain('trace-bowen');
+    }
+  });
+
+  it('fires on the very first turn, with nothing else done', async () => {
+    const w = bootWreck();
+    const closed = await beats(w, "grep -i heading /home/bowen/pod-manifest.txt > logs/bowen.txt");
+    expect(closed).toBe('trace-bowen');
+    // And the beat reads, with ORACLE covering for a LUNA who is not up yet.
+    const said = spoken(beatOf(WRECK_OBJECTIVES.find((o) => o.id === 'trace-bowen')!, w.machine));
+    expect(said).toContain('One-one-four mark nine');
+    expect(said).not.toContain('LUNA:');
+  });
+
+  it('gives LUNA her line once she is awake', async () => {
+    const w = bootWreck();
+    await beats(w, 'sudo chmod +x /usr/local/bin/hull-check');
+    await beats(w, 'sudo systemctl start hull-monitor');
+    const said = spoken(beatOf(WRECK_OBJECTIVES.find((o) => o.id === 'trace-bowen')!, w.machine));
+    expect(said).toContain('LUNA:');
+  });
+
+  it('does the same for the v43 link, including readlink', async () => {
+    for (const command of [
+      'ls -l /opt/luna > logs/luna.txt',
+      'readlink /opt/luna/v43 > logs/where.txt',
+      'ls -l /opt/luna | grep v43 > logs/x',
+    ]) {
+      const w = bootWreck();
+      expect(await beats(w, command), command).toContain('map-v43');
+    }
+  });
+
+  it('is not satisfied by reading without recording', async () => {
+    const w = bootWreck();
+    expect(await beats(w, 'cat /home/bowen/pod-manifest.txt')).toBe('');
+    expect(await beats(w, 'ls -l /opt/luna')).toBe('');
   });
 });

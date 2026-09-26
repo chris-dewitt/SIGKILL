@@ -128,7 +128,7 @@ it('prints a transcript', async () => {
     if (said.length > 0) say(spoken(said) + '\n');
 
     for (const objective of questbook.drainCompleted(machine)) {
-      say(spoken(objective.onComplete ?? []) + '\n');
+      say(spoken(questbook.beat(objective, machine)) + '\n');
     }
   }
 

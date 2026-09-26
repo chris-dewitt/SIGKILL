@@ -241,3 +241,36 @@ describe('sed addresses', () => {
     expect(m.vfs.readText('/work/f', ROOT_USER)).toBe('O2_TARGET=21\n');
   });
 });
+
+describe('readlink', () => {
+  it('prints the target, including one that does not exist', async () => {
+    const m = ship();
+    m.vfs.writeText('/work/real.txt', 'x\n', ROOT_USER);
+    m.vfs.symlink('/work/real.txt', '/work/good', ROOT_USER);
+    m.vfs.symlink('/mnt/never/mounted', '/work/dead', ROOT_USER);
+
+    expect((await m.exec('readlink /work/good')).stdout.trim()).toBe('/work/real.txt');
+    // The whole reason it exists alongside realpath: a dangling link still
+    // says where it meant to go, and that is the only thing left to learn.
+    const dead = await m.exec('readlink /work/dead');
+    expect(dead.code).toBe(0);
+    expect(dead.stdout.trim()).toBe('/mnt/never/mounted');
+  });
+
+  it('exits 1 quietly on something that is not a link', async () => {
+    const m = ship();
+    m.vfs.writeText('/work/plain.txt', 'x\n', ROOT_USER);
+    const r = await m.exec('readlink /work/plain.txt');
+    expect(r.code).toBe(1);
+    expect(r.stderr, 'real readlink is silent here').toBe('');
+  });
+
+  it('-f chases the whole chain', async () => {
+    const m = ship();
+    m.vfs.writeText('/work/real.txt', 'x\n', ROOT_USER);
+    m.vfs.symlink('/work/real.txt', '/work/one', ROOT_USER);
+    m.vfs.symlink('/work/one', '/work/two', ROOT_USER);
+    expect((await m.exec('readlink /work/two')).stdout.trim()).toBe('/work/one');
+    expect((await m.exec('readlink -f /work/two')).stdout.trim()).toBe('/work/real.txt');
+  });
+});
