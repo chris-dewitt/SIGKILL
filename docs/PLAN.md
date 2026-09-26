@@ -135,6 +135,13 @@ full arc rather than one game.
 | 12 | The Contract | Distributed systems — APIs, idempotency, retries, consistency |
 | 13 | The Bootstrap | Compilers — build a language, then use it to escape |
 
+**Slots 4 and 5 have a pending swap.** `docs/STORY_AND_GAME_PLAN.md` §3 stage 4
+is *Git and collaborative development* and stage 5 is *ML fundamentals ... AI
+fluency, prompting* — which is what The Containment is. On the same reasoning
+that settled slot 3, game four should be **The Fork** and game five **The
+Containment**. Argued in `docs/GAME4_BEATS.md`, whose §8 item 1 leaves it for
+Chris to reject cheaply. The table is left alone until he has.
+
 Slot 3 read **The Cluster — HPC & cloud** until game three was built.
 `docs/STORY_AND_GAME_PLAN.md` §3 is the curriculum authority and puts Python,
 debugging and testing third; cloud and deployment keep slot 6 (The Handshake

@@ -191,6 +191,22 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
 
+  packages/git:
+    dependencies:
+      '@sigkill/machine':
+        specifier: workspace:*
+        version: link:../machine
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+
   packages/machine:
     devDependencies:
       typescript:
