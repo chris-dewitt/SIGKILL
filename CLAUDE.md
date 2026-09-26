@@ -181,7 +181,7 @@ system (`packages/quest` plus the Act I ladders). Chris has playtested Act I on
 a phone and wants to keep going.
 
 **Phases 3–6 complete — three games exist.** *The Wreck* (bash), *The Archive*
-(SQL), *The Harness* (Python, debugging, testing). 1,034 tests.
+(SQL), *The Harness* (Python, debugging, testing). 1,033 tests.
 
 The 40% gate has now been applied twice and held twice: game two cost 14.3% of
 game one, game three 16.1%. The engine share by game is 77%, 18%, 9%.
