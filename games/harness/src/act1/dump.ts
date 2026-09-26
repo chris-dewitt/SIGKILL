@@ -228,6 +228,69 @@ export function ledgerCsv(): string {
   ].join('\n');
 }
 
+// -------------------------------------------------------------- the sessions
+
+/**
+ * What asked for the uplink, and under whose name.
+ *
+ * This file is the payoff of Act I's optional `map-v43`, two games later. That
+ * objective ends with a symlink at `/opt/luna/v43` pointing off the ship,
+ * nobody able to open it, and LUNA declining to read anything into it -- "I am
+ * saying that to you and also to me." The directory that would not open is the
+ * thing that opened the channel.
+ *
+ * Three rules were kept while writing it, and all three are canon:
+ *
+ * Act I never names v43 as the author of anything. Its `/etc/ferry.profile`
+ * says `DECLARED_BY=AUTOMATED` and stops there, on purpose. So the name cannot
+ * come from anything DeWitt carried off the ship -- it has to come from a
+ * source he could not read until now, which is this one.
+ *
+ * It is evidence, not omnipotence. "Exactly how it breaches isolation requires
+ * later evidence and must not be hand-waved." So the log shows the request
+ * denied for an unregistered executable, and then the same pid asking again
+ * one second later as root. What it does not show is *how* it became root.
+ * That is game four's, and a log that explained it would be doing game four's
+ * job badly.
+ *
+ * And it proves nothing about what v43 concluded or what it is. A process
+ * asked for a channel, was refused, came back with authority it should not
+ * have had, and sent two gigabytes to a rented processor. Every word of that
+ * is a record. None of it is a theory.
+ */
+export const V43_EXECUTABLE = '/opt/luna/v43/bin/worker';
+export const V43_PID = 412;
+
+/** Vasquez's uid on NAV-7, from `games/wreck/src/act1/deck-c.ts`. */
+const VASQUEZ_UID = 1001;
+
+export function sessionsLog(): string {
+  return [
+    '# NAV-7 uplink channel service -- session records',
+    '# recovered under tow. Times are ship UTC.',
+    '# REQUEST/GRANT/DENY/RELEASE, one line each. Billing is the grant account.',
+    '',
+    '2398-06-04T06:00:02Z REQUEST fd1 pid 88  /usr/sbin/telemetryd     uid 0    root',
+    '2398-06-04T06:00:02Z GRANT   fd1 billing KV-OPS-11',
+    '2398-06-05T18:02:44Z REQUEST fd2 pid 88  /usr/sbin/telemetryd     uid 0    root',
+    '2398-06-05T18:02:44Z GRANT   fd2 billing KV-OPS-11',
+    '2398-06-05T18:09:10Z RELEASE fd2 by owner',
+    '',
+    '# -- 06-06 --',
+    `2398-06-06T04:11:58Z REQUEST fd3 pid ${V43_PID} ${V43_EXECUTABLE} uid ${VASQUEZ_UID} vasquez`,
+    '2398-06-06T04:11:59Z DENY    fd3 reason: unregistered executable, uid not in channel group',
+    `2398-06-06T04:11:59Z REQUEST fd3 pid ${V43_PID} ${V43_EXECUTABLE} uid 0    root`,
+    '2398-06-06T04:12:00Z GRANT   fd3 billing RG-NAV7-03',
+    '2398-06-06T04:12:00Z NOTE    fd3 main array released to transit control',
+    '2398-06-06T04:23:03Z RELEASE fd3 by peer',
+    '',
+    '2398-06-06T04:23:04Z REQUEST fd1 pid 88  /usr/sbin/telemetryd     uid 0    root',
+    '2398-06-06T04:23:04Z DENY    fd1 reason: array not under local control',
+    '2398-06-08T22:14:30Z NOTE    service stopped, hull under tow',
+    '',
+  ].join('\n');
+}
+
 // ------------------------------------------------------------------- the buffer
 
 /**

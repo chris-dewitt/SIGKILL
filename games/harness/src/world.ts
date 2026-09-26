@@ -1,6 +1,12 @@
 import { Machine, type MachineSnapshot, type PythonRuntime, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
-import { Questbook, questCommands, type BeatLine, type QuestSnapshot } from '@sigkill/quest';
+import {
+  Questbook,
+  questCommands,
+  type BeatLine,
+  type QuestSnapshot,
+  type World,
+} from '@sigkill/quest';
 import { seedShip } from './ship.js';
 import { HARNESS_OBJECTIVES } from './objectives.js';
 import { DESTINATION, LEDGER_KB, TRANSIT_SECONDS, UPLINK_REJECTED, UPLINK_TOTAL } from './act1/dump.js';
@@ -124,8 +130,15 @@ export function coldOpen(): BeatLine[] {
     '  Start with:  cat HEARING',
     '',
     'LUNA: Everything Hollis pulled off your ship is in /srv/recovery/nav7.',
-    'LUNA: Eight hundred and forty-three lines of it, some of them ruined.',
-    'LUNA: Nobody has ever read them. Not the operator. Nobody.',
+    'LUNA: Read its README first -- it lists five files and tells you which',
+    'LUNA: ones you need. Eight hundred and forty-three lines in the big one,',
+    'LUNA: some of them ruined. Nobody has ever read any of it. Not the',
+    'LUNA: operator. Nobody.',
+    '',
+    'LUNA: Your own things came off the card into carried/. The notes from the',
+    'LUNA: ship, the row you got out of the archive, and whatever it is that',
+    'LUNA: Vasquez left in a Python file. Hollis says she did not read them.',
+    'LUNA: Hollis says that about everything and I believe her about this.',
     '',
     'LUNA: If you get stuck: hint. And if I sound certain about something,',
     'LUNA: check it. I mean that. I will explain later and I will not enjoy it.',
@@ -133,8 +146,20 @@ export function coldOpen(): BeatLine[] {
   ];
 }
 
-/** What the act closes on, once Kerr has the package. */
-export function epilogue(): BeatLine[] {
+/**
+ * What the act closes on, once Kerr has the package.
+ *
+ * Takes the world, because an optional thread that does not change the ending is
+ * not worth following. Kerr's filing is identical either way -- she files a
+ * measurement and declines the theory, and that is the whole point of her -- but
+ * a player who put a name to AUTOMATED is owed an act that noticed, and a player
+ * who did not must never be told what they missed.
+ */
+export function epilogue(world?: World): BeatLine[] {
+  const named =
+    world !== undefined &&
+    (HARNESS_OBJECTIVES.find((o) => o.id === 'the-same-hand')?.done(world) ?? false);
+
   return [
     '',
     'KERR: I ran it. Four times, because the third time I changed a line to',
@@ -184,6 +209,17 @@ export function epilogue(): BeatLine[] {
     '  file it anyway. A tug captain who fed you. And',
     '  a friend on a data card who has started asking',
     '  you to check her.',
+    ...(named
+      ? [
+          '',
+          '  And a four-line session record you were not',
+          '  asked for, in which something with no right',
+          '  to it had root for eleven minutes, and spent',
+          '  them leaving.',
+          '',
+          '  You have not told anybody. Good.',
+        ]
+      : []),
     '',
     '  Type  objectives  to see what you did.',
     '',

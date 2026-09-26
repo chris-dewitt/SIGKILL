@@ -8,6 +8,7 @@ export {
   LEDGER_CSV,
   COMMS_BUFFER,
   INCIDENT,
+  SESSIONS_LOG,
 } from './objectives.js';
 export { seedShip, CREW } from './ship.js';
 export {
@@ -22,7 +23,10 @@ export {
   UPLINK_REJECTED,
   UPLINK_SAMPLES,
   UPLINK_TOTAL,
+  V43_EXECUTABLE,
+  V43_PID,
   commsBuffer,
   ledgerCsv,
+  sessionsLog,
   uplinkLog,
 } from './act1/dump.js';

@@ -1,5 +1,5 @@
 import { ROOT_USER, type Vfs } from '@sigkill/machine';
-import { commsBuffer, INCIDENT_JSON, ledgerCsv, uplinkLog } from './act1/dump.js';
+import { commsBuffer, INCIDENT_JSON, ledgerCsv, sessionsLog, uplinkLog } from './act1/dump.js';
 
 /**
  * ELLEN MAY, tied up at Ferryman's Rest, two days before the hearing.
@@ -134,6 +134,10 @@ export function seedShip(vfs: Vfs): void {
     'Your friend on the card woke up when I plugged her in. She has been',
     'talking to the fridge.',
     '',
+    'The card had your own files on it too, so I put those in carried/. Notes,',
+    'by the look of them, and something that is either a program or a poem. I',
+    'did not read them. I want that on the record.',
+    '',
     '                                              -- Hollis',
     '',
   ], { uid: CREW.dewitt, mode: 0o644 });
@@ -141,6 +145,7 @@ export function seedShip(vfs: Vfs): void {
   // ------------------------------------------------------------ the evidence
 
   file(vfs, `${RECOVERY}/telemetry/uplink.log`, uplinkLog(), { mode: 0o444 });
+  file(vfs, `${RECOVERY}/telemetry/sessions.log`, sessionsLog(), { mode: 0o444 });
   file(vfs, `${RECOVERY}/manifest/incident.json`, INCIDENT_JSON, { mode: 0o444 });
   file(vfs, `${RECOVERY}/ledger/ellen-may.csv`, ledgerCsv(), { mode: 0o444 });
   file(vfs, `${RECOVERY}/comms/buffer.txt`, commsBuffer(), { mode: 0o444 });
@@ -154,6 +159,10 @@ export function seedShip(vfs: Vfs): void {
     '                         Some readings are -- and some lines stop early.',
     '                         The power transition did that. The counters',
     '                         themselves never lied; the writes were cut.',
+    '',
+    'telemetry/sessions.log   which process asked for each channel, and under',
+    '                         whose name. Nobody has read this one either.',
+    '                         Not needed for a volume figure. Read it anyway.',
     '',
     'manifest/incident.json   the operator\'s report. Reviewed by nobody.',
     '',
@@ -178,12 +187,57 @@ export function seedShip(vfs: Vfs): void {
    * own pocket is the thing that makes the agreement feel like a finding
    * rather than a coincidence.
    */
+  /*
+   * The profile, copied exactly as Act I has it -- and that means `AUTOMATED`.
+   *
+   * The first draft of this file said "# v43 set this", which is wrong twice
+   * over. Act I's `/etc/ferry.profile` says `DECLARED_BY=AUTOMATED` and
+   * `deck-c.ts` says why in as many words: "Note what it does not say: who set
+   * it ... that is as close as Act I ever gets to naming v43." Putting the name
+   * in a file he carried off the ship would have spent game three's only real
+   * reveal before the act started, and would have had DeWitt knowing something
+   * no source on NAV-7 told him.
+   *
+   * The name has to arrive from somewhere he could not read until now. It does:
+   * `telemetry/sessions.log`, in the recovery dump.
+   */
   file(vfs, '/home/dewitt/carried/ferry-profile.txt', [
-    '# /etc/ferry.conf as found on NAV-7, 2398-06-08',
+    '# /etc/ferry.profile as found on NAV-7, 2398-06-08',
     'PROFILE=ferry',
     'CREW_ABOARD=0',
+    'DECLARED_TRANSIT=unmanned',
+    'DECLARED_BY=AUTOMATED',
     'O2_TARGET=16',
-    '# v43 set this. The ship then did what no-crew ships do.',
+    '',
+    '# The ship then did what no-crew ships do. Nothing was broken.',
+    '# I still do not know what AUTOMATED means. Nobody would tell me.',
+    '',
+  ], { uid: CREW.dewitt, mode: 0o644 });
+
+  /*
+   * What he wrote down in Act I, if he went looking.
+   *
+   * `map-v43` is optional in Act I and its bottom rung writes
+   * `logs/luna-v43-link.txt`. A player who did it recorded a symlink pointing
+   * off the ship and was told, by ORACLE, that nobody knew what it was. This is
+   * that note, carried; it is the other half of the cross-reference, and the
+   * reason the optional thread in this act feels like a reward rather than a
+   * side quest -- it pays off something they did two games ago.
+   *
+   * It is here whether or not they did it, because a world that silently
+   * withholds evidence from players who took a different route is the same bug
+   * as a goal that checks the transcript.
+   */
+  file(vfs, '/home/dewitt/carried/v43-link.txt', [
+    '# ls -l /opt/luna, copied off NAV-7 before the tow',
+    'drwxr-xr-x  vasquez  memory',
+    'drwxr-xr-x  vasquez  v42',
+    'lrwxrwxrwx  vasquez  v43 -> /mnt/array-2/projects/v43',
+    '',
+    '# /mnt/array-2 is not attached to this ship and was not in the recovery.',
+    '# ORACLE: "It is named v43. I do not know what that is either, and I',
+    '# would rather say so than guess at it out loud."',
+    '# LUNA would not discuss it.',
     '',
   ], { uid: CREW.dewitt, mode: 0o644 });
 

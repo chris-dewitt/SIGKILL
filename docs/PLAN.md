@@ -289,15 +289,15 @@ measured against the commit its own work started from:
 |---|---|---|---|---|---|
 | The Wreck | 14,882 | 4,564 | — | **19,446** | baseline |
 | The Archive | 507 | 1,382 | 900 | **2,789** | 14.3% |
-| The Harness | 0 | 2,849 | 274 | **3,123** | **16.1%** |
+| The Harness | 0 | 3,333 | 274 | **3,607** | **18.5%** |
 
 Game three needed **no new engine package at all** — the first game that has
 been true of. Its entire cost outside its own directory was 274 lines of the
 Python bridge, against game two's 900. Per objective it is the cheapest content
-yet written: 259 lines against The Archive's 276 and The Wreck's 542. Projected
-to nine objectives at The Wreck's density it is 24.9%.
+yet written: 256 lines across thirteen objectives, against The Archive's 276 and
+The Wreck's 542.
 
-**The engine share by game: 77%, 18%, 9%.** That is the curve the whole plan was
+**The engine share by game: 77%, 18%, 8%.** That is the curve the whole plan was
 a bet on.
 
 **The honest caveat this time is not the size, it is the finding.** Game three

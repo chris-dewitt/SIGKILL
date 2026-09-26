@@ -128,6 +128,8 @@ goal inspects a command. Two are optional.
 | 7 | `the-second-source` | `csv`, functions, importing his own module | Both independent totals recorded, and that they agree |
 | 8 | `where-it-went` | `base64`, string methods, dictionaries | The destination address recorded |
 | 9 | `the-package` | `python3 -m unittest` from a directory, exit codes, a README | `hearing/` holds the module, the tests, the passing report and the README |
+| — | `who-opened-it` *(optional, secret)* | Reading a log nobody asked for | The executable that got the channel is recorded with the account that paid |
+| — | `the-same-hand` *(optional, secret)* | Cross-referencing two machines | The declaration and the executable are in one file |
 | — | `luna-was-wrong` *(optional)* | Writing a test that fails first | A test exists that rejects the binary divisor |
 | — | `the-other-shoe` *(optional)* | Reading somebody else's code for pleasure | Vasquez's prototype runs |
 
@@ -167,6 +169,91 @@ KERR files it, and declines to agree with him:
 
 That plants **The Containment** without literalising anything, which canon
 requires: *"Do not prematurely literalize this into a named monster."*
+
+## 6a. The optional thread — and how anyone finds it
+
+Chris's note on the first draft was that there was no way to reach the optional
+content, and he was right about something worse than he said: `carried/` existed
+and **nothing in the world mentioned it** — no file, no README, no line of
+dialogue. `the-other-shoe` was reachable only by a player who happened to `ls` a
+directory they had no reason to know about, and the v43 thread did not exist at
+all.
+
+An optional objective nobody can find is not optional content. It is dead
+content with a hint ladder attached.
+
+### What the thread is
+
+Two secret objectives that pay off **Act I's own optional `map-v43`**, two games
+later. That objective ends with a symlink at `/opt/luna/v43` pointing off the
+ship, nobody able to open it, and LUNA declining to read anything into it:
+*"I am saying that to you and also to me."*
+
+The directory that would not open is the thing that opened the uplink.
+
+1. **`who-opened-it`** — `telemetry/sessions.log` in the recovery dump records
+   which process asked for each channel. fd3 was requested by pid 412,
+   `/opt/luna/v43/bin/worker`, as `vasquez`; **denied** for an unregistered
+   executable; requested again one second later as `root`; granted, billed to
+   `RG-NAV7-03`. Closing it means recording the executable *with* the account,
+   because a process that asked for a channel is not yet one that got it.
+2. **`the-same-hand`** — cross-reference that against
+   `carried/ferry-profile.txt`, which says `DECLARED_BY=AUTOMATED` and has never
+   said more. The thing that sent itself is the thing that declared the ship
+   empty, because the array is only released to transit control and transit
+   control only releases it for a ship with nobody aboard.
+
+Both are `secret: true`, so the board never announces that there is a culprit to
+find until the destination is known — canon is specific that suspicion of v43
+develops *after* the tow, from evidence, rather than arriving as a quest.
+
+### Three canon rules kept while writing it
+
+**Act I never names v43 as the author of anything.** `deck-c.ts` says so in as
+many words: the profile records `DECLARED_BY=AUTOMATED` and "that is as close as
+Act I ever gets to naming v43." The first draft of this game put
+`# v43 set this` in a file DeWitt *carried off the ship* — which spent the act's
+only real reveal before it started and had him knowing something no source on
+NAV-7 had told him. Fixed, and there is now a test that fails if it comes back.
+
+**It is evidence, not omnipotence.** The log shows the request denied and the
+same pid granted a second later as root. It does not show *how*, because
+"exactly how it breaches isolation requires later evidence and must not be
+hand-waved" — that is game four's, and a log that explained it would be doing
+game four's job badly. A test asserts the words `exploit`, `escalate`, `breach`
+and `privilege` appear nowhere in it.
+
+**It proves nothing about what v43 is.** A process asked, was refused, came back
+with authority it should not have had, and sent two gigabytes to a rented
+processor. Every word of that is a record. LUNA says the careful version out
+loud and refuses to let DeWitt say the other one, *because he cannot prove it and
+Kerr will ask* — which is the act's own lesson turned on its most tempting
+target. Kerr still files only a measurement.
+
+### The breadcrumbs, in the order a player meets them
+
+1. **Hollis's `README`** says the data card had his own files on it and that
+   they are in `carried/`. This is the only pointer that directory has ever had,
+   and it serves `the-other-shoe` as well.
+2. **The cold open** has LUNA name `carried/` and tell him to read the dump's
+   README first, because it lists five files and says which ones he needs.
+3. **The dump's own `README`** lists `telemetry/sessions.log` with the line
+   *"Not needed for a volume figure. Read it anyway."*
+4. **`where-it-went`'s completion beat** is the hook: LUNA points out that
+   nothing they have written down says *what was sending*, and that two
+   gigabytes do not decide to leave. It names no answer — a test asserts the
+   beat does not contain the string `v43`.
+5. **The board** then shows `who-opened-it`, because its blocker has cleared.
+6. **`the-same-hand`'s ladder** sends him to `ls carried/`, so the second beat
+   cannot be finished without opening the directory the first breadcrumb
+   pointed at.
+
+### The ending notices
+
+`epilogue()` takes the world. Kerr's filing is byte-identical either way — she
+files a measurement and declines the theory, and that is the whole point of her
+— but a player who put a name to AUTOMATED gets four more lines, and a player
+who did not is never told what they missed.
 
 ## 7. How the player writes Python
 

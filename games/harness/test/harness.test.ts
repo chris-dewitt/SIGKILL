@@ -9,7 +9,14 @@ import {
   type RouteWorld,
 } from '@sigkill/quest';
 import { bootHarness, restoreHarness, coldOpen, epilogue } from '../src/world.js';
-import { HARNESS_OBJECTIVES, UPLINK_LOG, LEDGER_CSV, COMMS_BUFFER } from '../src/objectives.js';
+import {
+  HARNESS_OBJECTIVES,
+  UPLINK_LOG,
+  LEDGER_CSV,
+  COMMS_BUFFER,
+  RECOVERY,
+  SESSIONS_LOG,
+} from '../src/objectives.js';
 import {
   DESTINATION,
   LEDGER_KB,
@@ -20,6 +27,7 @@ import {
   UPLINK_REJECTED,
   UPLINK_SAMPLES,
   UPLINK_TOTAL,
+  V43_EXECUTABLE,
   uplinkLog,
 } from '../src/act1/dump.js';
 
@@ -190,7 +198,12 @@ describe('the puzzle schema', () => {
     const required = HARNESS_OBJECTIVES.filter((o) => !o.optional);
     const optional = HARNESS_OBJECTIVES.filter((o) => o.optional);
     expect(required).toHaveLength(9);
-    expect(optional.map((o) => o.id)).toEqual(['luna-was-wrong', 'the-other-shoe']);
+    expect(optional.map((o) => o.id)).toEqual([
+      'who-opened-it',
+      'the-same-hand',
+      'luna-was-wrong',
+      'the-other-shoe',
+    ]);
   });
 });
 
@@ -410,4 +423,125 @@ describe('saves', () => {
     // And Python still works on the other side of a restore.
     expect((await restored.machine.exec(`python3 -c 'print(2 + 2)'`)).stdout).toBe('4\n');
   }, 120_000);
+});
+
+describe('the optional v43 thread', () => {
+  /*
+   * Act I never names v43 as the author of anything, on purpose --
+   * `/etc/ferry.profile` says `DECLARED_BY=AUTOMATED` and `deck-c.ts` says in as
+   * many words that this "is as close as Act I ever gets to naming v43".
+   *
+   * The first draft of this game put "# v43 set this" in a file DeWitt carried
+   * off the ship, which spent the only real reveal in the act before it started
+   * and had him knowing something no source on NAV-7 had told him. This test is
+   * here so it cannot come back.
+   */
+  it('does not let him carry the answer off the ship', () => {
+    const { machine } = boot();
+    const profile = machine.vfs.readText('/home/dewitt/carried/ferry-profile.txt', ROOT_USER);
+    expect(profile).toContain('DECLARED_BY=AUTOMATED');
+    expect(profile).not.toMatch(/v43/i);
+  });
+
+  it('puts the name somewhere only the recovery dump could have', () => {
+    const { machine } = boot();
+    expect(machine.vfs.readText(SESSIONS_LOG, ROOT_USER)).toContain(V43_EXECUTABLE);
+  });
+
+  it('records the escalation as two lines and explains neither', async () => {
+    const { machine } = boot();
+    const fd3 = (await machine.exec(`grep fd3 ${SESSIONS_LOG}`)).stdout;
+
+    // Asked as Vasquez, refused, and granted one second later as root. What is
+    // deliberately absent is *how* -- canon: "must not be hand-waved as
+    // omnipotence", and a log that explained it would be doing game four's job.
+    expect(fd3).toMatch(/REQUEST fd3 .*uid 1001 vasquez/);
+    expect(fd3).toMatch(/DENY {4}fd3 reason: unregistered executable/);
+    expect(fd3).toMatch(/REQUEST fd3 .*uid 0/);
+    expect(fd3).toMatch(/GRANT {3}fd3 billing RG-NAV7-03/);
+    expect(fd3).not.toMatch(/exploit|escalat|breach|privilege/i);
+  });
+
+  it('is hidden until the destination is known, and offered after', () => {
+    const { machine, questbook } = boot();
+    const visible = () => questbook.status(machine).map((o) => o.id);
+
+    // Secret, so the board does not announce that there is a culprit to find
+    // before the player has any reason to think so.
+    expect(visible()).not.toContain('who-opened-it');
+    expect(visible()).not.toContain('the-same-hand');
+
+    machine.vfs.writeText(
+      '/home/dewitt/route.txt',
+      `destination: ${DESTINATION}\n`,
+      ROOT_USER,
+    );
+    expect(visible()).toContain('who-opened-it');
+    // The second beat stays hidden until the first is done -- one step at a time.
+    expect(visible()).not.toContain('the-same-hand');
+  });
+
+  it('never holds the act open, however far he takes it', async () => {
+    const { machine, questbook } = boot();
+    const required = HARNESS_OBJECTIVES.filter((o) => !o.optional).map((o) => o.id);
+    expect(required).not.toContain('who-opened-it');
+    expect(required).not.toContain('the-same-hand');
+    void (await Promise.resolve());
+  });
+
+  it('changes the ending only for the player who followed it', () => {
+    const { machine } = boot();
+
+    const without = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(without).not.toContain('had root for eleven minutes');
+
+    // Satisfy the last beat's goal the way any route would: both facts, one file.
+    machine.vfs.writeText(
+      '/home/dewitt/same-hand.txt',
+      `DECLARED_BY=AUTOMATED\n${V43_EXECUTABLE} as root\n`,
+      ROOT_USER,
+    );
+    const with_ = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(with_).toContain('had root for eleven minutes');
+
+    // Kerr files the same thing either way. That is the point of her.
+    expect(with_).toContain('I am not filing a theory, I am filing a measurement');
+    expect(with_).not.toMatch(/KERR:[^\n]*v43/);
+  });
+});
+
+describe('the optional content is findable at all', () => {
+  /*
+   * Chris's note, and he was right: nothing pointed at any of it. `carried/`
+   * existed and no file, line of dialogue or README mentioned it, so
+   * `the-other-shoe` was reachable only by a player who happened to `ls` a
+   * directory they had no reason to know about -- and the v43 thread did not
+   * exist. An optional objective nobody can find is not optional content, it is
+   * dead content with a hint ladder attached.
+   */
+  it('tells him his own files are in carried/', async () => {
+    const { machine } = boot();
+    const readme = (await machine.exec('cat README')).stdout;
+    expect(readme).toContain('carried/');
+
+    const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(open).toContain('carried/');
+  });
+
+  it('lists every file in the dump, including the one nobody needs', async () => {
+    const { machine } = boot();
+    const readme = (await machine.exec(`cat ${RECOVERY}/README`)).stdout;
+    for (const name of ['uplink.log', 'sessions.log', 'incident.json', 'ellen-may.csv', 'buffer.txt']) {
+      expect(readme, name).toContain(name);
+    }
+  });
+
+  it('asks the question that opens the thread, without answering it', () => {
+    const where = HARNESS_OBJECTIVES.find((o) => o.id === 'where-it-went')!;
+    const beat = (where.onComplete as readonly string[]).join('\n');
+    expect(beat).toContain('what was');
+    expect(beat).toContain('README');
+    // The beat must not hand over the finding it is pointing at.
+    expect(beat).not.toMatch(/v43/i);
+  });
 });

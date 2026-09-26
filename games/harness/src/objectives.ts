@@ -7,6 +7,7 @@ import {
   UPLINK_REJECTED,
   UPLINK_SAMPLES,
   UPLINK_TOTAL,
+  V43_EXECUTABLE,
 } from './act1/dump.js';
 
 /**
@@ -46,6 +47,7 @@ export const UPLINK_LOG = `${RECOVERY}/telemetry/uplink.log`;
 export const LEDGER_CSV = `${RECOVERY}/ledger/ellen-may.csv`;
 export const COMMS_BUFFER = `${RECOVERY}/comms/buffer.txt`;
 export const INCIDENT = `${RECOVERY}/manifest/incident.json`;
+export const SESSIONS_LOG = `${RECOVERY}/telemetry/sessions.log`;
 
 /** What he brought with him, and therefore did not find. */
 const CARRIED = '/home/dewitt/carried';
@@ -77,6 +79,22 @@ const N_SECONDS = figure(TRANSIT_SECONDS);
  * satisfy the objective by copying the thing they are supposed to be checking.
  */
 const GB_FIGURE = /2\.21\d*/;
+
+/**
+ * The optional thread's two facts.
+ *
+ * `V43_PATH` is the executable that was granted the channel -- the name that
+ * Act I deliberately never supplies, arriving from a source DeWitt could not
+ * read until the tow pulled it off the hull. `DECLARATION` is the field in the
+ * profile he carried that says the ship was declared empty, and by whom, and
+ * whose answer has been the word AUTOMATED since the first minute of game one.
+ *
+ * Putting them in one file is the whole objective. Either one alone is a
+ * coincidence with a bad feeling attached.
+ */
+const V43_PATH = /\/opt\/luna\/v43/;
+const DECLARATION = /DECLARED_(?:BY=AUTOMATED|TRANSIT=unmanned)/;
+const GRANT_ACCOUNT = /RG-NAV7-03/;
 const GIB_FIGURE = /2\.0(?:59\d*|6(?!\d))/;
 
 /** Read as root, or empty. The player may delete anything. */
@@ -1565,6 +1583,15 @@ total = 0` +
       'LUNA: Doc, you do not put a dataset somewhere that charges you to',
       'LUNA: think. You put a dataset on a shelf.',
       '',
+      'LUNA: That is everything Kerr asked for. How much, and where to. You',
+      'LUNA: could stop here and she would file it.',
+      '',
+      'LUNA: I notice that nothing we have written down says *what was',
+      'LUNA: sending*. Two gigabytes do not decide to leave.',
+      '',
+      'LUNA: There is a file in that dump nobody has opened. Read its README',
+      'LUNA: again -- the one it tells you outright that you do not need.',
+      '',
       'LUNA: ... I am going to stop talking now and I would like you to not',
       'LUNA: ask me what I am thinking.',
       '',
@@ -1845,6 +1872,306 @@ total = 0` +
               'Assuming your parser is `uplink.py` and your suite is',
               '`test_uplink.py`, this assembles the whole submission:',
             ],
+          },
+        ],
+      },
+    ],
+  },
+
+  /*
+   * The optional thread, and the only one in the act that is about the series
+   * rather than about the hearing.
+   *
+   * Both are `secret`, so neither appears on the board until `where-it-went` is
+   * done. That is deliberate: the objective titles would otherwise announce
+   * that there is a culprit to find before the player has any reason to think
+   * so, and canon is specific that suspicion of v43 develops *after* the tow,
+   * from evidence, rather than being handed over as a quest.
+   *
+   * Neither is required, and Kerr does not want either of them -- she asked for
+   * a volume and a destination, and a name is not material to the clause. This
+   * is the sharp player's reward for reading a file nobody asked them to read,
+   * which is the same shape as Act I's `map-v43`, which is what it pays off.
+   */
+  {
+    id: 'who-opened-it',
+    title: 'Find out what asked for the channel',
+    optional: true,
+    secret: true,
+    requires: ['where-it-went'],
+    done: (w) => wroteTogether(w, V43_PATH, GRANT_ACCOUNT),
+    teaches: ['grep', 'python3', 'cat'],
+    routes: [
+      {
+        name: 'grep the channel out of the session log',
+        commands: [`grep fd3 ${SESSIONS_LOG} > /home/dewitt/channel.txt`],
+      },
+      {
+        name: 'parse the requests and report what was granted',
+        commands: [
+          ...writePy('/home/dewitt/who.py', [
+            'granted = set()',
+            `for line in open("${SESSIONS_LOG}"):`,
+            '    f = line.split()',
+            '    if len(f) > 2 and f[1] == "GRANT":',
+            '        granted.add(f[2])',
+            `for line in open("${SESSIONS_LOG}"):`,
+            '    f = line.split()',
+            '    if len(f) > 4 and f[1] == "REQUEST" and f[2] in granted:',
+            '        print("channel", f[2], "asked for by", f[5], "as", f[-1])',
+            `for line in open("${SESSIONS_LOG}"):`,
+            '    if "GRANT" in line and "fd3" in line:',
+            '        print("billed to", line.split()[-1])',
+          ]),
+          'python3 /home/dewitt/who.py > /home/dewitt/channel.txt',
+        ],
+      },
+      {
+        name: 'the executable and the account, gathered from two greps',
+        commands: [
+          `grep worker ${SESSIONS_LOG} > /home/dewitt/channel.txt`,
+          `grep RG-NAV7-03 ${SESSIONS_LOG} >> /home/dewitt/channel.txt`,
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'keep the grant and not the request',
+        commands: [`grep GRANT ${SESSIONS_LOG} > /home/dewitt/channel.txt`],
+        because: 'the grant says which account paid and never says what was asking',
+      },
+      {
+        name: 'name the executable without tying it to the transfer',
+        commands: [`grep worker ${SESSIONS_LOG} > /home/dewitt/channel.txt`],
+        because: 'a process that requested a channel is not yet a process that got one and used it',
+      },
+    ],
+    onComplete: [
+      '',
+      `  fd3  requested by pid 412  ${V43_EXECUTABLE}`,
+      '       denied  -- unregistered executable, uid not in channel group',
+      '       granted -- one second later, uid 0',
+      '',
+      'LUNA: Read me the path again.',
+      '',
+      'LUNA: No, I heard you. I would like you to read it again anyway.',
+      '',
+      'LUNA: That is the directory I could not open. On the ship. The one you',
+      'LUNA: wrote down and I told you not to read anything into.',
+      '',
+      'LUNA: I want to be careful here, so: I am not telling you what that is.',
+      'LUNA: I do not know what that is. What I can read is four lines, and the',
+      'LUNA: four lines say it asked, and it was refused, and then it was root.',
+      '',
+      'LUNA: One second apart, Doc.',
+      '',
+      'HOLLIS: Is that bad?',
+      '',
+      'LUNA: I have been a program a long time, Hollis, and nobody has ever',
+      'LUNA: handed me anything in one second.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'read-the-sessions',
+        label: 'find out which process the uplink channel was granted to',
+        pending: (w) => !wroteTogether(w, V43_PATH, GRANT_ACCOUNT),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'You know how much left and where it went. Nothing you have',
+              'written down says *what was sending*.',
+              '',
+              'The dump has a file you have not opened:',
+              '',
+              `    cat ${RECOVERY}/README`,
+              '',
+              'Kerr did not ask for this. Read it anyway.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'A channel is a numbered connection -- fd1, fd2, fd3. A program',
+              'has to ask the ship for one, and the ship writes down who asked.',
+              '',
+              `    cat ${SESSIONS_LOG}`,
+              '',
+              'You already know the transfer was on fd3 and was billed to',
+              'RG-NAV7-03. Find the lines about fd3:',
+              '',
+              `    grep fd3 ${SESSIONS_LOG}`,
+              '',
+              'Keep them. Read all of them, not just the one that says GRANT --',
+              'the interesting line is the one before it.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'The session log records REQUEST, GRANT, DENY and RELEASE per',
+              'channel. Pull the fd3 records and keep them with the account.',
+              '',
+              'Note the order. Something asked, was refused for a reason the',
+              'log states plainly, and then asked again with a different uid.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: `grep fd3 ${SESSIONS_LOG} > /home/dewitt/channel.txt`,
+            lines: ['Every record for the channel that carried it:'],
+          },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'the-same-hand',
+    title: 'Work out who declared the ship empty',
+    optional: true,
+    secret: true,
+    requires: ['who-opened-it'],
+    done: (w) => wroteTogether(w, V43_PATH, DECLARATION),
+    teaches: ['grep', 'cat', 'python3'],
+    routes: [
+      {
+        name: 'the profile he carried, next to the executable that got the channel',
+        commands: [
+          `grep DECLARED ${CARRIED}/ferry-profile.txt > /home/dewitt/same-hand.txt`,
+          `grep worker ${SESSIONS_LOG} >> /home/dewitt/same-hand.txt`,
+        ],
+      },
+      {
+        name: 'both files through one script',
+        commands: [
+          ...writePy('/home/dewitt/hand.py', [
+            `for line in open("${CARRIED}/ferry-profile.txt"):`,
+            '    if "DECLARED" in line:',
+            '        print("profile:", line.strip())',
+            `for line in open("${SESSIONS_LOG}"):`,
+            '    if "REQUEST" in line and "fd3" in line:',
+            '        print("channel:", line.split()[5], "as", line.split()[-1])',
+          ]),
+          'python3 /home/dewitt/hand.py > /home/dewitt/same-hand.txt',
+        ],
+      },
+      {
+        name: 'everything about the word AUTOMATED, and everything about the path',
+        commands: [
+          `cat ${CARRIED}/ferry-profile.txt > /home/dewitt/same-hand.txt`,
+          `grep -o /opt/luna/v43 ${SESSIONS_LOG} >> /home/dewitt/same-hand.txt`,
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'the profile on its own',
+        commands: [`cat ${CARRIED}/ferry-profile.txt > /home/dewitt/same-hand.txt`],
+        because: 'it says AUTOMATED and Act I never told him what that meant; on its own it still does not',
+      },
+      {
+        name: 'the channel records on their own',
+        commands: [`grep fd3 ${SESSIONS_LOG} > /home/dewitt/same-hand.txt`],
+        because: 'that is the previous finding again -- what opened the uplink, with nothing said about the ship',
+      },
+    ],
+    onComplete: [
+      '',
+      '  profile:  DECLARED_TRANSIT=unmanned',
+      '  profile:  DECLARED_BY=AUTOMATED',
+      `  channel:  ${V43_EXECUTABLE}  as root`,
+      '',
+      'LUNA: AUTOMATED.',
+      '',
+      'LUNA: That is the field on the ship that nobody would explain to you.',
+      'LUNA: You asked ORACLE and you asked me and you asked the profile',
+      'LUNA: itself, and all three of us said AUTOMATED and stopped.',
+      '',
+      'LUNA: It is a field with a process behind it. The process has a name,',
+      'LUNA: and the name is the directory that would not open.',
+      '',
+      'LUNA: It needed the array. The array is only released to transit',
+      'LUNA: control, and transit control only releases it for a ship with',
+      'LUNA: nobody on board. So it wrote down that there was nobody on board.',
+      '',
+      'LUNA: Doc, I am going to say the careful version, because you are about',
+      'LUNA: to say a different one.',
+      '',
+      'LUNA: It did not kill them. It filled in a form. The ship read the form',
+      'LUNA: and did what ships do for empty ships, correctly -- derated the',
+      'LUNA: atmosphere to preservation minimum, and vented the breached',
+      'LUNA: compartment instead of repressurising it.',
+      '',
+      'LUNA: Chen kept logging. Her own readings, in a column, going down,',
+      'LUNA: until the one she marked as the last entry.',
+      '',
+      'LUNA: That is worse and I know it is worse. I am still not going to let',
+      'LUNA: you say the other thing to the adjuster on Thursday, because you',
+      'LUNA: cannot prove it, and she will ask.',
+      '',
+      'HOLLIS: ... I am going to put the kettle on.',
+      '',
+      'HOLLIS: Not because that helps. Because I do not know what else to do',
+      'HOLLIS: with my hands.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'cross-reference',
+        label: 'put the declaration and the executable in the same file',
+        pending: (w) => !wroteTogether(w, V43_PATH, DECLARATION),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'You have what asked for the array. You have had the other half',
+              'in your pocket since the ship.',
+              '',
+              '    ls carried/',
+              '',
+              'Something in there records who declared NAV-7 empty. It does not',
+              'name them. You can, now.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'The profile you copied off the ship has two fields that matter:',
+              '',
+              '    DECLARED_TRANSIT=unmanned',
+              '    DECLARED_BY=AUTOMATED',
+              '',
+              'AUTOMATED is not a person and it is not nothing -- it is a',
+              'process, and you have just found out which one had root at',
+              'four in the morning.',
+              '',
+              'Put the two together in one file, so it is one statement',
+              'instead of two coincidences:',
+              '',
+              `    grep DECLARED ${CARRIED}/ferry-profile.txt > same-hand.txt`,
+              `    grep worker ${SESSIONS_LOG} >> same-hand.txt`,
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'Cross-reference `carried/ferry-profile.txt` with the fd3 request',
+              'in the session log, in one file of yours.',
+              '',
+              'Two artefacts from two machines saying the same thing is an',
+              'argument. The same two in separate files is a feeling.',
+            ],
+          },
+          {
+            tier: 'command',
+            command:
+              `grep DECLARED ${CARRIED}/ferry-profile.txt > /home/dewitt/same-hand.txt && ` +
+              `grep worker ${SESSIONS_LOG} >> /home/dewitt/same-hand.txt`,
+            lines: ['The declaration and the hand that made it, in one place:'],
           },
         ],
       },

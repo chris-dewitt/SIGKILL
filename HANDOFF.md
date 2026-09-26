@@ -3,8 +3,8 @@
 ## Read first — game three exists, 2026-09-26
 
 **Game 3 exists.** `games/harness` -- *The Harness*, aboard the tug ELLEN MAY
-at Ferryman's Rest, in Python. Nine required objectives and two optional,
-playable end to end without a hint, 33 declared routes and 24 near-misses all
+at Ferryman's Rest, in Python. Nine required objectives and four optional,
+playable end to end without a hint, 39 declared routes and 28 near-misses all
 executed against a real Machine in CI. Built against
 [docs/GAME3_BEATS.md](docs/GAME3_BEATS.md); **section 9 of that file is
 Chris's to overrule cheaply** -- the tug captain's name, how cold Kerr stays,
@@ -23,6 +23,27 @@ expensive failure mode of every assistant this player will ever be handed.
 `docs/GAME3_BEATS.md` §3 argues for it at length. Do not soften it into a hint
 she gives correctly without deciding to.
 
+**There is an optional v43 thread, and it pays off Act I.** Two secret
+objectives — `who-opened-it` and `the-same-hand` — reachable only after the
+destination is known. The recovery dump's session log records that fd3 was
+requested by `/opt/luna/v43/bin/worker` as `vasquez`, **denied**, and granted a
+second later as `root`; cross-referencing that against the ferry profile he
+carried (`DECLARED_BY=AUTOMATED`) says the thing that sent itself is the thing
+that declared the ship empty. That is Act I's optional `map-v43` — the symlink
+nobody could open — landing two games later.
+
+It stays inside canon: the log records *that* it had root and never *how* (game
+four's, and a test asserts the words `exploit`/`escalate`/`breach`/`privilege`
+appear nowhere), LUNA says the careful version and refuses to let DeWitt say the
+other one because he cannot prove it, and Kerr files only a measurement either
+way. `docs/GAME3_BEATS.md` §6a has the reasoning and the breadcrumb chain.
+
+**Act I's restraint was nearly spent by accident.** The first draft put
+`# v43 set this` in a file DeWitt carried off the ship. `deck-c.ts` is explicit
+that the profile's `DECLARED_BY=AUTOMATED` "is as close as Act I ever gets to
+naming v43", so the name has to arrive from a source he could not read until the
+tow. Fixed, with a test that fails if it comes back.
+
 **Seven engine bugs were found first, by probing rather than by authoring.**
 Two of them would have made the game unplayable rather than rough: a traceback
 that named `<exec>` instead of the player's file, and `sys.modules` outliving
@@ -36,12 +57,12 @@ test was watched to fail with its fix removed. See commit `7dc955d`.
 |---|---|---|
 | The Wreck | 19,446 | baseline |
 | The Archive | 2,789 | 14.3% |
-| The Harness | 3,123 | **16.1%** |
+| The Harness | 3,607 | **18.5%** |
 
 Game three cost 274 lines outside its own package -- all of it the Python
 bridge -- against game two's 900. Projected to nine objectives at The Wreck's
-density it is 24.9%. The engine was 77% of game one, 18% of game two and 9% of
-game three.
+density it is under a quarter. The engine was 77% of game one, 18% of game two
+and 8% of game three.
 
 **What is not in it:** the hearing itself is not played, deliberately. It would
 be a fourth act with no new skills in it.
