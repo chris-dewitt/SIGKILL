@@ -346,13 +346,29 @@ With `random()` left unshadowed, the same script diverged. So the rule for
 both times, or the package is not allowed to exist.** A determinism test that
 runs a script twice and compares belongs in the first commit, not the last.
 
-**What the spike did not settle:** `sqlite3.serialize()` is not available in
-this build, so getting the database bytes out for a save needs the other
-route — a wa-sqlite VFS backed by the Machine's own VFS. That is the right
-design regardless: it makes `archive.db` a real file that `ls`, `cp` and `file`
-can all see, which is the "all engines bind to the same VFS" rule from
-`PLAN.md` and the thing that makes the machine feel real. It is also the
-largest single piece of work in the package.
+**Persistence, settled on a second pass.** `sqlite3.serialize()` is not in
+this build, which first looked like it meant writing a custom VFS. It does
+not. wa-sqlite ships `MemoryVFS`, which keeps each file as a plain
+`ArrayBuffer` on a `Map` — so the bytes can be pushed in before a query and
+read back after:
+
+```
+file keys   : [ 'name', 'flags', 'size', 'data' ]
+size        : 8192
+header      : SQLite format 3
+round trip  : vasquez,chen,dewitt
+```
+
+That is exactly the copy-in / diff-out pattern `packages/python` already uses
+for Pyodide, which means **there is no new architecture in this package at
+all** — it is the Python bridge with a different engine behind it. It also
+keeps the `PLAN.md` rule intact: `archive.db` is a real file in the Machine's
+VFS that `ls`, `cp`, `file` and `wc -c` can all see.
+
+The one thing to watch is size. Copying the whole database in and out per
+query is fine at this act's scale and would not be at a million rows. If it
+ever bites, the answer is a real wa-sqlite VFS backed by the Machine's VFS,
+and the `SqlRuntime` interface should not have to change for that.
 
 **The timing risk worth stating now:** an unindexed-query beat (objective 8)
 requires the query to be *observably* slow, and a deterministic engine has no

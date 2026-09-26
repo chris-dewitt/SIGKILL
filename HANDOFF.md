@@ -2,6 +2,9 @@
 
 ## Read first — the canon rewrite and the rescue, 2026-09-20
 
+**What to do next: [docs/SPRINT.md](docs/SPRINT.md).** `sqlite3` on the ship,
+story-free, blocked on nothing.
+
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved
 and **built** — then [docs/STORY_AND_GAME_PLAN.md](docs/STORY_AND_GAME_PLAN.md)
