@@ -594,11 +594,12 @@ that. Depth over breadth. Epics, not days:
 | | Epic | State |
 |---|---|---|
 | E1 | The Machine — engine, shell, VFS, services, Python, renderer | done |
-| E2 | The frame — save/load, last-turn dock, progression | not started |
-| E3 | Act I — Breathe. Deck C | **7 objectives: 5 core + 2 discovery** |
-| E4–E6 | Acts II–IV | not started; do not start |
+| E2 | The frame — save/load, progression | **done.** Autosave after every command, `newgame` wipes, restore re-attaches behaviour. The last-turn dock was built and then removed; see §2. |
+| E3 | Act I — Breathe. Then Call Somebody | **done.** 7 required + 2 optional, waking to rescue. |
+| E4–E6 | ~~Acts II–IV~~ | **cancelled 2026-09-21.** There is no Act II. Act I is the whole of game 1. |
 | E7 | Procedural audio — Web Audio, state-driven, zero assets | **core shipped** (PR #17) |
 | E8 | Ship — Play Store | wrap exists; listing is later. Paid-or-free is open. |
+| E9 | Game 2 — The Archive, on a planet, in SQL | **proposed.** `docs/GAME2_BEATS.md`. Needs wa-sqlite and Chris's answers to §11. |
 
 ### 5c. Story and feel — settled 2026-09-13
 

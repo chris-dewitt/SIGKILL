@@ -5,7 +5,7 @@ import type { Objective, World } from '@sigkill/quest';
 // away from being quietly unsatisfiable.
 import { BREACHED, HULL_CHECK } from './act1/deck-c.js';
 import { PURGE_LOG, purgeProcess } from './act1/purge.js';
-import { LUNA_DIR } from './act1/luna.js';
+import { LUNA_DIR, lunaAwake } from './act1/luna.js';
 import {
   COMMS_LOCK, LAST_FIX, PACKET, REPLY, SHIP_ID, SPOOL, SPOOL_OUT,
   commsUp, packetReady, replyArrived,
@@ -105,22 +105,57 @@ const sealed = (world: World, id: string): boolean => {
   return conf !== null && /^\s*SEALED\s*=\s*yes\s*$/im.test(conf);
 };
 
-const BOWEN_HEADING = /114\s+mark\s+9/i;
-const V43_LINK = /v43\s*->\s*\/mnt\/vault\/v43/i;
+const BOWEN_HEADING = /114\s*mark\s*9/i;
+const V43_LINK = /\/mnt\/vault\/v43/i;
 
-function textAt(world: World, path: string): string {
-  try {
-    return world.vfs.readText(path, ROOT_USER);
-  } catch {
-    return '';
-  }
+/** Where the player keeps things. Anything they wrote, they wrote in here. */
+const HOME = '/home/dewitt';
+
+/**
+ * Has the player written this down anywhere of their own?
+ *
+ * Walks their home directory and asks whether any file they own says it. The
+ * first version of these two goals named an exact path --
+ * `/home/dewitt/logs/bowen-heading.txt` -- which meant the objective was
+ * really asserting on the filename the player chose, and a player who grepped
+ * the heading into `logs/bowen.txt` did the whole job and was told nothing.
+ *
+ * That is the rule in `CLAUDE.md` being broken in the least obvious way: not
+ * by reading `lastCommand`, but by requiring one particular spelling of a
+ * correct answer. Any route that leaves the fact in the player's own files
+ * counts -- a redirect, an append, an editor, `cp` of the whole manifest,
+ * Python, or a script they wrote themselves.
+ */
+function recordedAtHome(world: World, pattern: RegExp): boolean {
+  const walk = (dir: string): boolean => {
+    let names: string[];
+    try {
+      names = world.vfs.readdir(dir, ROOT_USER);
+    } catch {
+      return false;
+    }
+    for (const name of names) {
+      const path = `${dir}/${name}`;
+      try {
+        const stat = world.vfs.lstat(path, ROOT_USER);
+        if (stat.kind === 'dir') {
+          if (walk(path)) return true;
+          continue;
+        }
+        if (stat.kind !== 'file') continue;
+        if (pattern.test(world.vfs.readText(path, ROOT_USER))) return true;
+      } catch {
+        // Unreadable or vanished mid-walk. Not a crash, just not a match.
+      }
+    }
+    return false;
+  };
+  return walk(HOME);
 }
 
-const headingRecorded = (world: World): boolean =>
-  BOWEN_HEADING.test(textAt(world, '/home/dewitt/logs/bowen-heading.txt'));
+const headingRecorded = (world: World): boolean => recordedAtHome(world, BOWEN_HEADING);
 
-const v43Mapped = (world: World): boolean =>
-  V43_LINK.test(textAt(world, '/home/dewitt/logs/luna-v43-link.txt'));
+const v43Mapped = (world: World): boolean => recordedAtHome(world, V43_LINK);
 
 export const WRECK_OBJECTIVES: readonly Objective[] = [
   {
@@ -1124,20 +1159,37 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
      * design: curiosity changes what happens, and incuriosity costs nothing
      * but a line of dialogue nobody knows they missed.
      */
+    /*
+     * No `requires`. This used to wait for `seal-the-breach`, purely so LUNA
+     * would be awake for her line -- which meant a player who read Bowen's
+     * manifest early, understood it, and wrote the heading down was told
+     * nothing at all. An optional thread has to be acknowledged when it is
+     * found or it teaches the player that looking around does not pay.
+     *
+     * The beat asks whether she is there instead.
+     */
     optional: true,
-    requires: ['seal-the-breach'],
     done: headingRecorded,
-    onComplete: [
+    onComplete: (world) => [
       '',
       'ORACLE: So that is where he aimed. One-one-four mark nine.',
       '',
       'ORACLE: Not a promise. Not a station. Just a heading in his own hand,',
       'ORACLE: and now it is in yours too.',
       '',
-      'LUNA: I ran it against every chart aboard before you woke up. There is',
-      'LUNA: nothing there in any file we still have. Which is not the same',
-      'LUNA: thing as saying there is nothing there.',
-      '',
+      ...(lunaAwake(world)
+        ? [
+            'LUNA: I ran it against every chart aboard before you woke up.',
+            'LUNA: There is nothing there in any file we still have. Which is',
+            'LUNA: not the same thing as saying there is nothing there.',
+            '',
+          ]
+        : [
+            'ORACLE: I have no chart that puts anything on that bearing. I am',
+            'ORACLE: aware that my charts are one deck I can see and three I',
+            'ORACLE: cannot, so that is worth exactly what it cost you.',
+            '',
+          ]),
     ],
     steps: [
       {
@@ -1205,22 +1257,37 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
      * player can establish here is topology -- a link pointing at an array
      * that is not attached -- and topology is not a motive.
      */
+    // No `requires`, for the same reason as `trace-bowen`. `/opt/luna` is on
+    // the disk from the first command precisely so a curious player can find
+    // it before the story opens it; being silent about that was the bug.
     optional: true,
-    requires: ['hull-watch'],
     done: v43Mapped,
-    onComplete: [
+    onComplete: (world) => [
       '',
-      'LUNA: Yes. That is exactly the path I cannot reach either.',
-      '',
+      ...(lunaAwake(world)
+        ? [
+            'LUNA: Yes. That is exactly the path I cannot reach either.',
+            '',
+          ]
+        : []),
       'ORACLE: A link to a place that is no longer attached. It is not a',
       'ORACLE: permission problem and it is not a puzzle with a sudo answer.',
       'ORACLE: The array is simply not on this ship.',
       '',
-      'LUNA: Vasquez had a lot of directories. She had a lot of everything.',
-      'LUNA: I would not read a great deal into one that does not open.',
-      '',
-      'LUNA: I am saying that to you and also to me.',
-      '',
+      ...(lunaAwake(world)
+        ? [
+            'LUNA: Vasquez had a lot of directories. She had a lot of',
+            'LUNA: everything. I would not read a great deal into one that',
+            'LUNA: does not open.',
+            '',
+            'LUNA: I am saying that to you and also to me.',
+            '',
+          ]
+        : [
+            'ORACLE: It is named v43. I do not know what that is either, and',
+            'ORACLE: I would rather say so than guess at it out loud.',
+            '',
+          ]),
       'ORACLE: You have written down where it points. That is the correct',
       'ORACLE: amount to do about a thing you cannot open yet.',
       '',

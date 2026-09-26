@@ -1,6 +1,6 @@
 import type { Track } from '@sigkill/machine';
 import { assertObjectives } from './validate.js';
-import type { HintStep, HintTier, Objective, Rung, World } from './types.js';
+import type { BeatLine, HintStep, HintTier, Objective, Rung, World } from './types.js';
 
 export interface ObjectiveStatus {
   id: string;
@@ -113,6 +113,18 @@ export class Questbook {
       closed.push(objective);
     }
     return closed;
+  }
+
+  /**
+   * An objective's completion beat, resolved against the world.
+   *
+   * One place, so no caller has to remember that it might be a function --
+   * the host, the transcript tool and any future reader all go through here.
+   */
+  beat(objective: Objective, world: World): readonly BeatLine[] {
+    const lines = objective.onComplete;
+    if (lines === undefined) return [];
+    return typeof lines === 'function' ? lines(world) : lines;
   }
 
   /** Objectives that hold the act open. Optional ones never do. */
