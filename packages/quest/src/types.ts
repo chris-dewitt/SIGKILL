@@ -99,12 +99,60 @@ export interface HintStep {
   readonly rungs: readonly Rung[];
 }
 
+/**
+ * A way to satisfy an objective, as the commands somebody would type.
+ *
+ * Not a hint and not a walkthrough -- a *claim*, which CI checks. The
+ * harness runs these against a real Machine and asserts the goal closes, so
+ * "this puzzle has three solutions" stops being something the author
+ * believed and becomes something the build knows.
+ */
+export interface Route {
+  /** What makes this route different from the others. Shown when it fails. */
+  readonly name: string;
+  /** Run in order from a fresh world. Must leave `done` true. */
+  readonly commands: readonly string[];
+}
+
+/**
+ * Something that looks like a solution and is not one.
+ *
+ * The other half of the same guarantee. Routes catch a goal that is too
+ * tight -- the Act I bug where recording Bowen's heading in a file of your
+ * own choosing did not count. Near-misses catch a goal that is too loose,
+ * which is the failure nobody notices because the player is never stopped.
+ */
+export interface NearMiss extends Route {
+  /** Why it does not count. Documentation CI keeps honest. */
+  readonly because: string;
+}
+
 export interface Objective {
   readonly id: string;
   /** One line, shown by `objectives`. */
   readonly title: string;
   /** Solution-agnostic: true whenever the world is in the wanted state. */
   readonly done: (w: World) => boolean;
+  /**
+   * Commands and concepts this objective exists to teach.
+   *
+   * Every entry naming a command must name one that exists aboard, which the
+   * validator checks. A puzzle claiming to teach `awk` fails the build,
+   * because there is no `awk` -- and a curriculum that promises something the
+   * machine cannot do is worse than one that promises less.
+   */
+  readonly teaches: readonly string[];
+  /**
+   * At least three genuinely different ways to satisfy `done`.
+   *
+   * This is the locked decision from `docs/PLAN.md` made real. It is also the
+   * guard that would have caught the Act I bug where the goal checked one
+   * hard-coded filename: a second route using a different name goes red
+   * immediately, in CI, before anybody plays it.
+   */
+  readonly routes: readonly Route[];
+  /** At least two things that look right and must not count. */
+  readonly nearMisses: readonly NearMiss[];
   readonly steps: readonly HintStep[];
   /** Objective ids that must be `done` before this one is offered. */
   readonly requires?: readonly string[];

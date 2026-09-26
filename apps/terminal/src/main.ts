@@ -5,6 +5,7 @@ import {
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
+import { WorkerSqlRuntime } from '@sigkill/sql';
 import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
 import { whatNow, type BeatLine } from '@sigkill/quest';
 import {
@@ -308,6 +309,18 @@ machine.python = new WorkerPythonRuntime({
   indexURL: new URL('pyodide/', document.baseURI).href,
   createWorker: () =>
     new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module' }),
+});
+
+/*
+ * SQLite, on the same terms as Python: its own Worker, loaded lazily, served
+ * from our own origin. The wasm is a few hundred kilobytes rather than
+ * Pyodide's twelve megabytes, but the reason for the Worker is the same --
+ * player-authored statements get no DOM, and the engine's clock is ours to
+ * replace inside a scope we own.
+ */
+machine.sql = new WorkerSqlRuntime({
+  wasmURL: new URL('sqlite/wa-sqlite.wasm', document.baseURI).href,
+  createWorker: () => new Worker(new URL('./sql.worker.ts', import.meta.url), { type: 'module' }),
 });
 
 const screen = document.querySelector<HTMLDivElement>('#screen')!;

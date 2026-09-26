@@ -2,8 +2,30 @@
 
 ## Read first — the canon rewrite and the rescue, 2026-09-20
 
-**What to do next: [docs/SPRINT.md](docs/SPRINT.md).** `sqlite3` on the ship,
-story-free, blocked on nothing.
+**Game 2 exists.** `games/archive` -- *The Archive*, on Ferryman's Rest, in
+SQL. Five objectives, playable end to end without a hint, with a transcript
+tool and the full route harness. Built against `docs/GAME2_BEATS.md`; the
+premise, the planet's name and naming v43 were taken from that draft and are
+**Chris's to overrule cheaply** -- see its section 11.
+
+What is *not* in it yet, from the beat sheet's nine: GROUP BY and what a count
+leaves out, the registry API, transactions, and the unindexed-query beat. The
+act has a beginning, a middle and an end without them.
+
+**The 40% gate passed.** `node tools/measure.mjs` says The Archive cost
+**14.3%** of The Wreck -- and because that is flattering (five objectives to
+nine), the number to trust is the projection: finished to nine, it costs 20%
+at its own density and 31% at The Wreck's. Both under. The engine was 77% of
+game one and 18% of game two.
+
+**So: build game three.** That is what `PLAN.md` Phase 5 says to do, and the
+gate only meant anything because we were willing to fail it.
+
+Before that, two things worth doing while they are cheap: finish The
+Archive's remaining four objectives (GROUP BY, the registry API,
+transactions, the unindexed query), and decide whether the app should be able
+to launch more than one game -- `apps/terminal` still boots The Wreck and
+nothing else.
 
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved
@@ -135,6 +157,30 @@ and cannot live in a snapshot.
 VFS by bulk copy-in / diff-out. `NodePythonRuntime` is **tests only** — never
 wire it into the app; the Worker is what keeps player code away from the DOM.
 
+**`packages/sql`** — real SQLite via wa-sqlite in a Web Worker, bound to the
+Machine by passing the database file's bytes in and out. `NodeSqlRuntime` is
+**tests only** and is deliberately *not* exported from the package index — it
+is reachable as `@sigkill/sql/node` and nowhere else, the same arrangement
+`packages/python` uses. Exporting it once dragged `node:fs` into the browser
+typecheck, which is how the rule got a comment.
+
+Two lines in it are load-bearing and both have a test that was **watched to
+fail** without them:
+
+1. `Date.now` is replaced *before the wasm factory runs*, because emscripten
+   resolves SQLite's time calls during instantiation. Without it
+   `CURRENT_TIMESTAMP` is the player's wall clock.
+2. `random()` is shadowed by a seeded LCG — the same generator the hull
+   telemetry uses. Without it nothing replays.
+
+One artifact is deliberately **not** corrected: SQLite converts times through
+a double and at a few instants lands a millisecond short, so `04:12:00` reads
+back as `04:11:59.999`. Real `sqlite3` does the same. Nudging the clock to
+hide it would make this engine disagree with the one outside the game.
+
+The database is an ordinary file: `ls`, `cp`, `wc -c` and `file` all see it,
+permissions are the VFS's, and it goes in the save for free.
+
 **`packages/crt`** — the phosphor renderer. Colour is semantic: `LineKind` is
 the source of truth (`command`, `path`, `value`, `good`, `warn`, `heading`…)
 and `Palette` is typed off it, so a kind without a colour will not compile.
@@ -157,6 +203,23 @@ drawn through the same shader because it is part of the same screen; the view
 counts them out of every scroll measurement, a full-screen program gets the
 whole grid back, and the rows also land in a `role=status` region because the
 canvas is invisible to assistive technology.
+
+**The puzzle schema.** Every objective declares `teaches`, at least three
+`routes` and at least two `nearMisses`, and CI runs all of them against a real
+Machine. `PLAN.md` locked this in on day one and it did not get built until
+after a bug shipped that it would have caught: `trace-bowen` checked one
+hard-coded filename, so recording Bowen's heading in a log of your own
+choosing did the whole job and was ignored.
+
+Routes catch a goal that is **too tight** — a second route with a different
+filename goes red immediately. Near-misses catch a goal that is **too loose**,
+which is the failure nobody reports because the player is never stopped. Both
+directions were verified by breaking a real goal and watching the suite go
+red, not merely by writing the test.
+
+`teaches` is checked against `commandRegistry()`, so a puzzle claiming to
+teach `awk` fails the build. `taught()` derives the skill map rather than
+keeping a second list to forget to update.
 
 **`packages/quest`** — objectives and hint ladders. See §4. A ladder can carry
 a second voice: `questCommands({ aside })` is called after each rung with the

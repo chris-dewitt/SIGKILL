@@ -1,5 +1,6 @@
 import { commandRegistry } from './coreutils/index.js';
 import { pythonCommands, type PythonRuntime } from './lang/python.js';
+import { sqlCommands, type SqlRuntime } from './lang/sql.js';
 import type { Network, Session } from './net/network.js';
 import { dueBetween } from './proc/cron.js';
 import { JobTable } from './proc/jobs.js';
@@ -30,6 +31,12 @@ export interface MachineOptions {
    * is a legitimate state for a machine to be in.
    */
   python?: PythonRuntime;
+  /**
+   * A real SQLite, supplied from outside for the same reasons as Python.
+   * Absent means `sqlite3` reports it is not installed, which is a legitimate
+   * state for a machine to be in.
+   */
+  sql?: SqlRuntime;
   /**
    * Shared session state. Pass the same object to every machine on a network
    * so that `ssh` from any of them pushes onto one stack.
@@ -81,6 +88,8 @@ export class Machine {
   readonly session: Session;
   /** Swappable at runtime so the app can lazy-load the interpreter. */
   python: PythonRuntime | undefined;
+  /** Swappable at runtime so the app can lazy-load the engine. */
+  sql: SqlRuntime | undefined;
   /** Virtual clock in milliseconds. Advanced explicitly, never by wall time. */
   private clock = 0;
 
@@ -93,6 +102,7 @@ export class Machine {
     this.epoch = opts.epoch ?? Date.UTC(2387, 2, 14);
     this.session = opts.session ?? { stack: [] };
     this.python = opts.python;
+    this.sql = opts.sql;
 
     this.vfs = opts.snapshot ? Vfs.restore(opts.snapshot, { now }) : new Vfs({ now });
     this.procs = new ProcessTable(now);
@@ -113,7 +123,11 @@ export class Machine {
       session: this.session,
       user,
       hostname: opts.hostname ?? 'localhost',
-      commands: commandRegistry([...pythonCommands(() => this.python), ...(opts.commands ?? [])]),
+      commands: commandRegistry([
+        ...pythonCommands(() => this.python),
+        ...sqlCommands(() => this.sql),
+        ...(opts.commands ?? []),
+      ]),
       cwd: opts.cwd,
       env: opts.env,
       track: opts.track,
