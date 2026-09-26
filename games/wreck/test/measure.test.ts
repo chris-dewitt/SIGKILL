@@ -5,14 +5,15 @@
  *
  *     pnpm --filter @sigkill/wreck exec vitest run measure  *       --disable-console-intercept
  *
- * The plan asks for "at least 2.5 hours for a curious first-time run" and
- * says plainly that this is a playtest target rather than a measured
- * duration. This is the half of it a machine can answer: how many words there
- * are to read and how many objectives there are to finish. It cannot tell you
- * how long somebody spends thinking, typing, being wrong, or reading the same
- * error twice -- which in a puzzle game is most of the time.
+ * The plan asks for "at least 2.5 hours for a curious first-time run". This
+ * counts the half of that a machine can count: how many words there are to
+ * read and how many objectives there are to finish. It is here to answer
+ * "did that edit make the act shorter" and nothing else.
  *
- * Treat reading time as a floor, not an estimate.
+ * It is **not** a playtest and it is not a substitute for one. It cannot see
+ * thinking, typing, being wrong, or reading the same error twice -- which in
+ * a puzzle game is most of the time -- and it cannot see whether any of it is
+ * enjoyable. Reading time is a floor, and a low one.
  */
 import { describe, expect, it } from 'vitest';
 import { ROOT_USER } from '@sigkill/machine';

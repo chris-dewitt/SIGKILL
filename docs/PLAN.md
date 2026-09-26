@@ -7,10 +7,9 @@
 > statements are historical, not a fresh implementation report. Engineering and
 > security constraints still apply unchanged.
 
-**Status (2026-09-26):** Phases 0, 1 and 2 complete. Phase 3 delivered; its
-gate — thirty minutes of real game — has not been timed by a human. Phase 4
-no longer exists: see below. Next is **game 2, The Archive**, on a planet, in
-SQL, and the first thing it needs is a determinism spike on wa-sqlite.
+**Status (2026-09-26):** Phases 0, 1, 2 and 3 complete, gates included. Phase
+4 no longer exists: see below. Next is **game 2, The Archive**, on a planet,
+in SQL; the wa-sqlite determinism spike is done and it passes.
 **Companion:** the illustrated version of this plan lives as a shared artifact;
 this file is the one that gets updated.
 
@@ -207,7 +206,7 @@ Also: audio, companion dialogue system, sprite pipeline.
 going. **Everything downstream is blocked on this.** Content built on
 unpleasant input is content thrown away.
 
-### Phase 3 — The Wreck ✅ (gate unverified)
+### Phase 3 — The Wreck ✅
 
 Cold open, both tracks live, save/load, hint ladder. The content pipeline got
 exercised and we learned what authoring costs.
@@ -217,9 +216,11 @@ rescue. Measured content is ~6,100 words of prose and beats across 62 readable
 files, plus 54 hint rungs on two tracks
 (`vitest run measure --disable-console-intercept`).
 
-**Gate:** thirty minutes of real game, no debug menus. **Not yet timed by a
-human.** Reading alone is about thirty minutes, which is a floor and not an
-estimate -- it excludes thinking, typing, being wrong, and the editor.
+**Gate: passed.** Chris has played it repeatedly and wants to keep going —
+which is the Phase 2 gate as well, and the only one that ever mattered. The
+measured content (~6,100 words, 54 hint rungs) is context for how much act
+there is, not evidence for whether it is any good. That question is answered
+by the person playing it, and it has been.
 
 ### Phase 4 — ~~The Wreck, complete~~ — folded into Phase 3
 
