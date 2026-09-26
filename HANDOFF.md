@@ -12,8 +12,20 @@ What is *not* in it yet, from the beat sheet's nine: GROUP BY and what a count
 leaves out, the registry API, transactions, and the unindexed-query beat. The
 act has a beginning, a middle and an end without them.
 
-**Next: [docs/SPRINT.md](docs/SPRINT.md) leg 4** -- measure The Archive against
-the 40% gate, honestly, including that it is a shorter game than The Wreck.
+**The 40% gate passed.** `node tools/measure.mjs` says The Archive cost
+**14.3%** of The Wreck -- and because that is flattering (five objectives to
+nine), the number to trust is the projection: finished to nine, it costs 20%
+at its own density and 31% at The Wreck's. Both under. The engine was 77% of
+game one and 18% of game two.
+
+**So: build game three.** That is what `PLAN.md` Phase 5 says to do, and the
+gate only meant anything because we were willing to fail it.
+
+Before that, two things worth doing while they are cheap: finish The
+Archive's remaining four objectives (GROUP BY, the registry API,
+transactions, the unindexed query), and decide whether the app should be able
+to launch more than one game -- `apps/terminal` still boots The Wreck and
+nothing else.
 
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved

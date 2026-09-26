@@ -232,13 +232,42 @@ the llama.cpp spike, neither of which blocks anything.
 The 2.5-hour target in `STORY_AND_GAME_PLAN.md` is about a *curious* run --
 projects, crew threads, conversations -- not about adding acts.
 
-### Phase 5 — The Archive, and the honest measurement
+### Phase 5 — The Archive, and the honest measurement ✅ **passed**
 
 Adventure two exists to answer one question: does the engine generalize?
 
-**Gate:** if The Archive costs **≤40%** of what The Wreck cost, the architecture
+**Gate:** if The Archive costs ≤40% of what The Wreck cost, the architecture
 is validated and thirteen is real. If it costs more, stop and fix the engine
 before building a third. **This number is the whole thesis.**
+
+**Measured 2026-09-26 — `node tools/measure.mjs`:**
+
+| | Lines of source |
+|---|---|
+| The Wreck — engine (8 packages + app) | 14,893 |
+| The Wreck — content | 4,564 |
+| **The Wreck total** | **19,457** |
+| The Archive — `packages/sql` | 507 |
+| The Archive — `games/archive` | 1,382 |
+| The Archive — caused elsewhere (route harness, SQL interface, Act I retrofit) | 900 |
+| **The Archive total** | **2,789 — 14.3%** |
+
+**The honest caveat, because 14.3% is flattering.** The Archive is a shorter
+game: five objectives to The Wreck's nine, and 276 lines of content per
+objective against 507. Some of that gap is real reuse and some of it is
+content not written yet.
+
+So the number to trust is the projection. Finished to nine objectives, The
+Archive costs **20%** at its own density and **31%** at The Wreck's. Both are
+under the gate, and the second is the pessimistic case.
+
+**Verdict: the architecture generalizes.** The engine was 77% of game one and
+18% of game two. Build game three.
+
+The one thing that did *not* come free was the puzzle schema — 900 lines of
+harness, interface and retrofit, all of it caused by game two needing game
+one's objectives to carry declarations. That cost is paid once. Game three
+inherits it.
 
 ---
 
