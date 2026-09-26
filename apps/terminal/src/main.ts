@@ -676,7 +676,7 @@ function playBeats(): void {
     // The hull turning out to be open is the one piece of good news that is
     // also bad news, so it gets the alarm rather than the chime.
     sound.play(objective.id === 'hull-watch' ? 'alarm' : 'resolve');
-    spoken.push(...(objective.onComplete ?? []));
+    spoken.push(...questbook.beat(objective, machine));
     closed = true;
   }
   /*

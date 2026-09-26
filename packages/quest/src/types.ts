@@ -140,5 +140,13 @@ export interface Objective {
    * Lines may be prose or preformatted art -- see `BeatLine`. Wrap art rows
    * with `asArt` so a narrow screen clips the picture rather than shredding it.
    */
-  readonly onComplete?: readonly BeatLine[];
+  /**
+   * May be a function of the world, like a cold open or an ending is.
+   *
+   * The reason: an optional objective the player found on their own must be
+   * acknowledged *when they find it*, which means it cannot be held behind a
+   * `requires` that only exists so a character is guaranteed to be awake for
+   * the dialogue. Let the beat ask instead, and the gate can go.
+   */
+  readonly onComplete?: readonly BeatLine[] | ((w: World) => readonly BeatLine[]);
 }
