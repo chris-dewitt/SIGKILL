@@ -123,7 +123,7 @@ full arc rather than one game.
 |---|-------|---------|
 | 01 | **The Wreck** | Linux & bash |
 | 02 | **The Archive** | SQL & data |
-| 03 | **The Cluster** | HPC & cloud |
+| 03 | **The Harness** | Python, debugging & testing |
 | 04 | **The Containment** | LLM & AI |
 | 05 | The Fork | Git — a colony ship whose crew diverged into branches |
 | 06 | The Handshake | Networking — DNS, TCP, TLS, routing, firewalls |
@@ -134,6 +134,12 @@ full arc rather than one game.
 | 11 | The Index | Algorithms — search, sort, hashing, trees, complexity |
 | 12 | The Contract | Distributed systems — APIs, idempotency, retries, consistency |
 | 13 | The Bootstrap | Compilers — build a language, then use it to escape |
+
+Slot 3 read **The Cluster — HPC & cloud** until game three was built.
+`docs/STORY_AND_GAME_PLAN.md` §3 is the curriculum authority and puts Python,
+debugging and testing third; cloud and deployment keep slot 6 (The Handshake
+and, later, deployment work) rather than arriving before the player can write a
+program. The story plan wins these, and this table was the one that was wrong.
 
 ---
 
@@ -268,6 +274,53 @@ The one thing that did *not* come free was the puzzle schema — 900 lines of
 harness, interface and retrofit, all of it caused by game two needing game
 one's objectives to carry declarations. That cost is paid once. Game three
 inherits it.
+
+### Phase 6 — The Harness, and the gate a second time ✅ **passed**
+
+Adventure three: Python, debugging and testing. `games/harness`, aboard the tug
+ELLEN MAY, nine required objectives and two optional.
+
+The gate is not a one-off. It was applied again, the same way, with each game
+measured against the commit its own work started from:
+
+**Measured 2026-09-26 — `node tools/measure.mjs`:**
+
+| | Own engine | Content | Caused elsewhere | Total | Ratio |
+|---|---|---|---|---|---|
+| The Wreck | 14,882 | 4,564 | — | **19,446** | baseline |
+| The Archive | 507 | 1,382 | 900 | **2,789** | 14.3% |
+| The Harness | 0 | 2,849 | 274 | **3,123** | **16.1%** |
+
+Game three needed **no new engine package at all** — the first game that has
+been true of. Its entire cost outside its own directory was 274 lines of the
+Python bridge, against game two's 900. Per objective it is the cheapest content
+yet written: 259 lines against The Archive's 276 and The Wreck's 542. Projected
+to nine objectives at The Wreck's density it is 24.9%.
+
+**The engine share by game: 77%, 18%, 9%.** That is the curve the whole plan was
+a bet on.
+
+**The honest caveat this time is not the size, it is the finding.** Game three
+was not cheap because Python was already finished. Seven things were broken in
+`packages/python`, and they were found by *probing before authoring* — writing
+the kind of script the game asks the player to write, and reading what came
+back. Two would have made the adventure unplayable:
+
+- Tracebacks named `<exec>`, a file nobody can open, under three frames of
+  Pyodide's own plumbing.
+- `sys.modules` outlived the command, so a player who found a bug, fixed it and
+  re-ran got **the old answer, silently**. In an adventure about debugging.
+
+Neither was visible from the engine's own 285 tests, because nothing had yet
+asked Python to behave like a tool somebody works in rather than a feature that
+exists. The lesson generalizes and is worth stating as policy: **probe the
+engine with the new game's idiom before authoring the new game.** It cost half a
+day and would have cost the whole act.
+
+**Verdict: build game four.** `The Containment` — LLM and AI. Game three ends by
+planting it without literalising anything: a rented processor, billed to a dead
+woman's grant, and an adjuster who declines to speculate and advises him to do
+the same.
 
 ---
 

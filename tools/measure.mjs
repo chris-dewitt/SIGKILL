@@ -8,27 +8,34 @@
  *   engine before building a third. This number is the whole thesis.
  *
  * A gate nobody can compute is a gate nobody will honour, so this computes
- * it. Lines of source, counted the same way both times, and an explicit list
+ * it. Lines of source, counted the same way every time, and an explicit list
  * of what is attributed to whom -- because the arguable part is not the
  * counting, it is the attribution.
  *
  *     node tools/measure.mjs
- *     node tools/measure.mjs --since <sha>
  *
  * Deliberately crude. Lines of code is a bad measure of value and a
  * serviceable measure of *effort spent typing*, which is what the gate is
  * actually asking about.
+ *
+ * Each game after the first is measured against the commit its work started
+ * from: its own package, plus every line it caused to be written elsewhere.
+ * "Caused elsewhere" is the number that matters and the one it is tempting to
+ * leave out -- game two's real cost was mostly the route harness, and game
+ * three's was mostly seven fixes to the Python bridge.
  */
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** The commit game two's work started from. Everything after it is game two. */
-const DEFAULT_BASELINE = 'f3d7d48';
-
-const args = process.argv.slice(2);
-const baseline = args.includes('--since') ? args[args.indexOf('--since') + 1] : DEFAULT_BASELINE;
-
+/*
+ * The engine as it stood when The Wreck shipped -- game one's cost.
+ *
+ * `packages/sql` is deliberately absent. It is game two's own engine and is
+ * counted in game two's row; listing it here as well charged its 507 lines to
+ * both games at once and quietly moved the baseline every ratio is measured
+ * against.
+ */
 const ENGINE = [
   'packages/machine',
   'packages/quest',
@@ -38,6 +45,30 @@ const ENGINE = [
   'packages/audio',
   'packages/python',
   'apps/terminal',
+];
+
+/**
+ * The games, in order, each with the commit its work started from.
+ *
+ * `own` is what belongs to that game and must not be counted as engine growth
+ * caused by a later one.
+ */
+const GAMES = [
+  { name: 'The Wreck', content: 'games/wreck', own: [], since: null },
+  {
+    name: 'The Archive',
+    content: 'games/archive',
+    own: ['games/archive', 'packages/sql'],
+    since: 'f3d7d48',
+    engine: ['packages/sql'],
+  },
+  {
+    name: 'The Harness',
+    content: 'games/harness',
+    own: ['games/harness'],
+    since: 'ddeb76b',
+    engine: [],
+  },
 ];
 
 function countLines(dir, { tests = false } = {}) {
@@ -60,18 +91,23 @@ function countLines(dir, { tests = false } = {}) {
   return total;
 }
 
-/** Lines added to a path since the baseline, from git rather than from now. */
-function addedSince(paths) {
-  const out = execFileSync(
-    'git',
-    ['diff', '--numstat', `${baseline}..HEAD`, '--', ...paths],
-    { encoding: 'utf8' },
-  );
+/**
+ * Lines added to a path inside one game's window, from git rather than from now.
+ *
+ * The window ends where the next game's work began, and getting that wrong was
+ * the first thing this script did: with every window running to HEAD, game
+ * three's 2,849 lines of content were charged to game two as overhead and
+ * subtracted from game one, which moved all three numbers at once.
+ */
+function addedBetween(from, to, paths, exclude = []) {
+  const out = execFileSync('git', ['diff', '--numstat', `${from}..${to}`, '--', ...paths], {
+    encoding: 'utf8',
+  });
   let added = 0;
   for (const line of out.split('\n')) {
     const [plus, , file] = line.split('\t');
     if (!file || !file.endsWith('.ts')) continue;
-    if (file.startsWith('games/archive') || file.startsWith('packages/sql')) continue;
+    if (exclude.some((prefix) => file.startsWith(prefix))) continue;
     added += Number(plus) || 0;
   }
   return added;
@@ -80,72 +116,103 @@ function addedSince(paths) {
 const sum = (dirs, opts) => dirs.reduce((n, d) => n + countLines(d, opts), 0);
 
 /** Counted from the source rather than imported, so this stays a script. */
-const objectivesIn = (file) =>
-  (readFileSync(file, 'utf8').match(/^    id: '/gm) ?? []).length;
-
-const WRECK_OBJ = objectivesIn('games/wreck/src/objectives.ts');
-const ARCHIVE_OBJ = objectivesIn('games/archive/src/objectives.ts');
+const objectivesIn = (file) => (readFileSync(file, 'utf8').match(/^    id: '/gm) ?? []).length;
 
 // ------------------------------------------------------------------ the sums
 
-// The Wreck's cost is the whole machine plus its own content: none of the
-// engine existed before it, and all of it was built to carry it.
-const engineNow = sum(ENGINE);
-const engineGrowth = addedSince(ENGINE.map((d) => `${d}/src`));
-const wreckGrowth = addedSince(['games/wreck/src']);
+const srcOf = (dirs) => dirs.map((d) => `${d}/src`);
 
-const wreckEngine = engineNow - engineGrowth;
-const wreckContent = countLines('games/wreck') - wreckGrowth;
-const wreckTotal = wreckEngine + wreckContent;
+/*
+ * Later games' growth, subtracted from game one.
+ *
+ * Everything in the engine today that a later game caused was not part of
+ * building The Wreck, so counting it against The Wreck would flatter every
+ * ratio below it.
+ */
+const windows = GAMES.filter((g) => g.since);
+const laterGrowth = windows.map((game, i) => {
+  const until = windows[i + 1]?.since ?? 'HEAD';
+  return {
+    game,
+    engine: addedBetween(game.since, until, srcOf(ENGINE), game.own),
+    content: addedBetween(game.since, until, srcOf(GAMES.map((g) => g.content)), game.own),
+  };
+});
 
-// The Archive's cost is its own package, its engine, and every line game two
-// caused to be written elsewhere -- the route harness, the SQL interface, and
-// the retrofit of Act I's objectives to the schema it needed.
-const archiveEngine = countLines('packages/sql');
-const archiveContent = countLines('games/archive');
-const archiveShared = engineGrowth + wreckGrowth;
-const archiveTotal = archiveEngine + archiveContent + archiveShared;
+const wreck = {
+  name: 'The Wreck',
+  engine: sum(ENGINE) - laterGrowth.reduce((n, g) => n + g.engine, 0),
+  content: countLines('games/wreck') - laterGrowth.reduce((n, g) => n + g.content, 0),
+  elsewhere: 0,
+};
+wreck.total = wreck.engine + wreck.content;
 
-const budget = Math.round(wreckTotal * 0.4);
-const ratio = archiveTotal / wreckTotal;
+const rows = [wreck];
+for (const { game, engine, content } of laterGrowth) {
+  const row = {
+    name: game.name,
+    engine: sum(game.engine ?? []),
+    content: countLines(game.content),
+    elsewhere: engine + content,
+  };
+  row.total = row.engine + row.content + row.elsewhere;
+  row.ratio = row.total / wreck.total;
+  rows.push(row);
+}
 
 const pad = (n) => String(n).padStart(6);
+const budget = Math.round(wreck.total * 0.4);
+
 console.log(`
-  Baseline for game two: ${baseline}
-
-  THE WRECK
-    engine (8 packages + app)        ${pad(wreckEngine)}
-    content (games/wreck)            ${pad(wreckContent)}
-                                     ${pad(wreckTotal)}
-
-  THE ARCHIVE
-    engine (packages/sql)            ${pad(archiveEngine)}
-    content (games/archive)          ${pad(archiveContent)}
-    caused elsewhere                 ${pad(archiveShared)}
-      (route harness, SQL interface,
-       Act I retrofitted to the schema)
-                                     ${pad(archiveTotal)}
-
-  GATE
-    budget at 40%                    ${pad(budget)}
-    spent                            ${pad(archiveTotal)}
-    ratio                            ${(ratio * 100).toFixed(1)}%  ${ratio <= 0.4 ? 'UNDER' : 'OVER'}
-
-  PER OBJECTIVE -- the comparator that is not flattering
-    The Wreck    ${WRECK_OBJ} objectives     ${pad(Math.round(wreckContent / WRECK_OBJ))} lines each
-    The Archive  ${ARCHIVE_OBJ} objectives     ${pad(Math.round(archiveContent / ARCHIVE_OBJ))} lines each
-
-    The Archive is a shorter game. Projected to the same objective count,
-    at its own density it would cost ${pad(Math.round(archiveContent / ARCHIVE_OBJ) * WRECK_OBJ + archiveEngine + archiveShared)}
-    (${(((Math.round(archiveContent / ARCHIVE_OBJ) * WRECK_OBJ) + archiveEngine + archiveShared) / wreckTotal * 100).toFixed(1)}%), and at The Wreck's density ${pad(Math.round(wreckContent / WRECK_OBJ) * WRECK_OBJ + archiveEngine + archiveShared)} (${(((Math.round(wreckContent / WRECK_OBJ) * WRECK_OBJ) + archiveEngine + archiveShared) / wreckTotal * 100).toFixed(1)}%).
-    Both are under the gate, which is the finding that matters.
-
-  Tests, for reference, not in the gate:
-    games/wreck                      ${pad(countLines('games/wreck', { tests: true }))}
-    games/archive                    ${pad(countLines('games/archive', { tests: true }))}
+  THE WRECK -- the baseline everything is measured against
+    engine (${ENGINE.length} packages + app)        ${pad(wreck.engine)}
+    content (games/wreck)            ${pad(wreck.content)}
+                                     ${pad(wreck.total)}
 `);
 
-if (ratio > 0.4) {
-  console.log('  Over. Per PLAN.md Phase 5: stop, and fix whatever made it expensive');
-  console.log('  before building a third.\n');
+for (const row of rows.slice(1)) {
+  console.log(`  ${row.name.toUpperCase()}
+    own engine package               ${pad(row.engine)}
+    content                          ${pad(row.content)}
+    caused elsewhere                 ${pad(row.elsewhere)}
+                                     ${pad(row.total)}
+    ratio                            ${(row.ratio * 100).toFixed(1)}%  ${
+      row.ratio <= 0.4 ? 'UNDER' : 'OVER'
+    } the 40% gate (${budget})
+`);
+}
+
+console.log('  PER OBJECTIVE -- the comparator that is not flattering');
+for (const game of GAMES) {
+  const file = `${game.content}/src/objectives.ts`;
+  const count = objectivesIn(file);
+  const content = countLines(game.content);
+  console.log(
+    `    ${game.name.padEnd(12)} ${String(count).padStart(2)} objectives  ` +
+      `${pad(Math.round(content / count))} lines each`,
+  );
+}
+
+const wreckPer = Math.round(wreck.content / objectivesIn('games/wreck/src/objectives.ts'));
+console.log(`
+  Projected to The Wreck's nine objectives, at The Wreck's own density:`);
+for (const row of rows.slice(1)) {
+  const projected = wreckPer * 9 + row.engine + row.elsewhere;
+  console.log(
+    `    ${row.name.padEnd(12)} ${pad(projected)}  (${((projected / wreck.total) * 100).toFixed(1)}%)`,
+  );
+}
+
+console.log(`
+  Tests, for reference, not in the gate:`);
+for (const game of GAMES) {
+  console.log(`    ${game.name.padEnd(12)} ${pad(countLines(game.content, { tests: true }))}`);
+}
+console.log();
+
+const over = rows.slice(1).filter((r) => r.ratio > 0.4);
+if (over.length > 0) {
+  console.log(`  Over: ${over.map((r) => r.name).join(', ')}.`);
+  console.log('  Per PLAN.md Phase 5: stop, and fix whatever made it expensive');
+  console.log('  before building the next one.\n');
 }
