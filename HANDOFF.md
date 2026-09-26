@@ -2,8 +2,18 @@
 
 ## Read first — the canon rewrite and the rescue, 2026-09-20
 
-**What to do next: [docs/SPRINT.md](docs/SPRINT.md).** `sqlite3` on the ship,
-story-free, blocked on nothing.
+**Game 2 exists.** `games/archive` -- *The Archive*, on Ferryman's Rest, in
+SQL. Five objectives, playable end to end without a hint, with a transcript
+tool and the full route harness. Built against `docs/GAME2_BEATS.md`; the
+premise, the planet's name and naming v43 were taken from that draft and are
+**Chris's to overrule cheaply** -- see its section 11.
+
+What is *not* in it yet, from the beat sheet's nine: GROUP BY and what a count
+leaves out, the registry API, transactions, and the unindexed-query beat. The
+act has a beginning, a middle and an end without them.
+
+**Next: [docs/SPRINT.md](docs/SPRINT.md) leg 4** -- measure The Archive against
+the 40% gate, honestly, including that it is a shorter game than The Wreck.
 
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved
