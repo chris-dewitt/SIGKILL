@@ -288,10 +288,87 @@ The only significant new dependency in the series after the Machine itself.
 | `packages/sql` | wa-sqlite behind a `SqlRuntime` interface, in a Worker, bound to the same VFS by the copy-in/diff-out pattern `packages/python` already uses. `packages/machine` still depends on nothing. |
 | `sqlite3` command | Both the REPL-ish `-cmd` form and `sqlite3 db.sqlite "SELECT …"`. Dot-commands: `.tables`, `.schema`, `.import`, `.headers`, `.mode`. |
 | A `NodeSqlRuntime` | Tests only, exactly like `NodePythonRuntime`. **Never wire it into the app.** |
-| Determinism | wa-sqlite must not see a real clock. `CURRENT_TIMESTAMP` has to come from `ctx.clock()` or be refused. This is invariant #1 and it is the single biggest risk in the package. |
+| Determinism | **Spiked 2026-09-26. Solved — see §8a.** |
 | Snapshotting | The database is a VFS file, so saves work for free *if* the runtime always flushes to the VFS before the snapshot is taken. Needs a determinism test that runs a script twice and compares bytes. |
 | `jq`, or not | JSON handling for the API beats. `python3` can already do it and is more honest teaching; `jq` is a whole language. Recommend skipping `jq` and letting Python earn its keep. |
 | Goal predicates over SQL | A goal must read the database without going through the player's shell. Cheapest correct answer: the predicate queries via the same runtime, and `World` gains an optional `sql` handle. |
+
+### 8a. The determinism spike — done, and it passes
+
+Run outside the repo on 2026-09-26, against `wa-sqlite@1.0.0` (SQLite 3.44.0),
+before adding the dependency to anything. Three questions, three answers.
+
+**1. Does SQLite see the real clock? Yes, and it is as bad as feared.**
+
+```
+CURRENT_TIMESTAMP  -> 2026-09-26 04:30:51     <- today's actual date
+datetime('now')    -> 2026-09-26 04:30:51
+random()           -> different every call
+```
+
+**2. Can the clock be controlled? Yes, cleanly.** Patching `Date.now` *before
+the wasm factory runs* is enough — emscripten compiles SQLite's time calls down
+to it, so every date function follows:
+
+```
+Date.now patched   -> 2398-06-08T04:12:00.000Z
+CURRENT_TIMESTAMP  -> 2398-06-08 04:12:00
+datetime('now')    -> 2398-06-08 04:12:00
+julianday('now')   -> 2597069.675
+```
+
+This is safe precisely because the runtime lives in a Worker, where we own the
+global scope and nothing else is running. It would be an unacceptable hack in
+the host context and is the ordinary thing to do in a sandbox we created.
+
+**3. Can `random()` be made to replay? Yes — a host function shadows the
+built-in of the same name.** Registering a seeded LCG (the same one the hull
+telemetry uses) gives identical sequences across runs:
+
+```
+run 1: -1772445012,-559563237,624647358
+run 2: -1772445012,-559563237,624647358
+```
+
+**The proof.** The same authored script run twice — `CREATE TABLE`, inserts
+stamped `CURRENT_TIMESTAMP`, a `SELECT` and an aggregate — produced identical
+rows. And the result set is already the act's thesis, which is a good sign
+about the premise:
+
+```
+1|vasquez|2398-06-08 04:12:00
+2|chen|2398-06-08 04:12:00
+3|dewitt|
+```
+
+With `random()` left unshadowed, the same script diverged. So the rule for
+`packages/sql` is: **patch the clock and shadow `random()` at construction,
+both times, or the package is not allowed to exist.** A determinism test that
+runs a script twice and compares belongs in the first commit, not the last.
+
+**Persistence, settled on a second pass.** `sqlite3.serialize()` is not in
+this build, which first looked like it meant writing a custom VFS. It does
+not. wa-sqlite ships `MemoryVFS`, which keeps each file as a plain
+`ArrayBuffer` on a `Map` — so the bytes can be pushed in before a query and
+read back after:
+
+```
+file keys   : [ 'name', 'flags', 'size', 'data' ]
+size        : 8192
+header      : SQLite format 3
+round trip  : vasquez,chen,dewitt
+```
+
+That is exactly the copy-in / diff-out pattern `packages/python` already uses
+for Pyodide, which means **there is no new architecture in this package at
+all** — it is the Python bridge with a different engine behind it. It also
+keeps the `PLAN.md` rule intact: `archive.db` is a real file in the Machine's
+VFS that `ls`, `cp`, `file` and `wc -c` can all see.
+
+The one thing to watch is size. Copying the whole database in and out per
+query is fine at this act's scale and would not be at a million rows. If it
+ever bites, the answer is a real wa-sqlite VFS backed by the Machine's VFS,
+and the `SqlRuntime` interface should not have to change for that.
 
 **The timing risk worth stating now:** an unindexed-query beat (objective 8)
 requires the query to be *observably* slow, and a deterministic engine has no

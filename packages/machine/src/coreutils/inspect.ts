@@ -59,6 +59,47 @@ export const inspectCommands: CommandSpec[] = [
   },
 
   {
+    name: 'readlink',
+    summary: 'print what a symlink points at',
+    manual:
+      'readlink [-f] PATH...\n' +
+      '\n' +
+      'Print the target of a symbolic link. Unlike realpath this works on a\n' +
+      'link whose target does not exist -- the link still says where it meant\n' +
+      'to go, and that is often the only thing left to learn from it.\n' +
+      '\n' +
+      '  -f  resolve the whole chain, which does require the target to exist\n' +
+      '\n' +
+      'Exits 1 on anything that is not a link.',
+    plain:
+      'Tells you where a shortcut points.\n' +
+      '\n' +
+      '    readlink /opt/luna/v43\n' +
+      '\n' +
+      'It works even when the thing on the other end is missing, which is\n' +
+      'exactly when you most want to know where it was supposed to be.',
+    run: (ctx, argv, io) => {
+      const { flags, operands } = parseArgs(argv);
+      if (operands.length === 0) return usage(io, 'usage: readlink [-f] PATH...');
+      const chase = flags.has('-f');
+
+      let code = 0;
+      for (const operand of operands) {
+        const abs = ctx.resolve(operand);
+        try {
+          emit(io, [chase ? ctx.vfs.realpath(abs, ctx.user) : ctx.vfs.readlink(abs, ctx.user)]);
+        } catch {
+          // Real readlink is silent here and exits 1. Not every path is a
+          // link, and saying so on stderr would make `readlink` unusable in
+          // the loops people write around it.
+          code = 1;
+        }
+      }
+      return code;
+    },
+  },
+
+  {
     name: 'file',
     summary: 'say what kind of thing a file is',
     manual:
