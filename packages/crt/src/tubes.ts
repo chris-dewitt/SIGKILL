@@ -61,7 +61,7 @@ const CLASSIC: CrtOptions = {
   persistenceHalfLife: 55,
 };
 
-/** Eleven years unattended. The picture is still readable and is not well. */
+/** A tube that has had a hard life. Still readable, and not well. */
 const WORN: CrtOptions = {
   curvature: 4.5,
   scanline: 0.32,

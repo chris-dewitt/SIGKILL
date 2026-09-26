@@ -13,7 +13,7 @@ import { Vfs } from './vfs/vfs.js';
 export interface MachineOptions {
   /** Hostname shown in the prompt. */
   hostname?: string;
-  /** The logged-in user. Defaults to an unprivileged survivor. */
+  /** The logged-in user. Defaults to an unprivileged dewitt. */
   user?: User;
   /** Seed an existing filesystem instead of an empty one. */
   snapshot?: VfsSnapshot;
@@ -63,7 +63,7 @@ export interface MachineSnapshot {
   epoch: number;
 }
 
-const DEFAULT_USER: User = { uid: 1000, gid: 1000, name: 'survivor' };
+const DEFAULT_USER: User = { uid: 1000, gid: 1000, name: 'dewitt' };
 
 /**
  * A virtual computer.
@@ -208,7 +208,11 @@ export class Machine {
     return {
       version: 1,
       vfs: this.vfs.snapshot(),
-      proc: { ...this.procs.snapshot(), services: this.services.snapshot() },
+      proc: {
+        ...this.procs.snapshot(),
+        services: this.services.snapshot(),
+        journal: this.services.snapshotJournal(),
+      },
       jobs: this.jobs.snapshot(),
       cwd: this.shell.cwd,
       env: { ...this.shell.env },
@@ -232,6 +236,7 @@ export class Machine {
     });
     machine.procs.restore(snap.proc);
     machine.services.restore(snap.proc.services);
+    machine.services.restoreJournal(snap.proc.journal);
     machine.jobs.restore(snap.jobs);
     machine.shell.cwd = snap.cwd;
     machine.shell.env = { ...snap.env };

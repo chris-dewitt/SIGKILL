@@ -115,6 +115,20 @@ export interface Objective {
    */
   readonly secret?: boolean;
   /**
+   * Worth doing, never required.
+   *
+   * An optional objective is offered, hinted and celebrated exactly like a
+   * required one -- it simply does not hold the act open. `complete` ignores
+   * it, the progress counter ignores it, and `current` will not steer a bare
+   * `hint` onto it while required work is outstanding.
+   *
+   * This exists because curiosity has to pay without becoming homework. An
+   * investigation the player can only finish by doing it is not an
+   * investigation, it is a step with a story attached; and an act that will
+   * not end until you have read every file teaches people to stop reading.
+   */
+  readonly optional?: boolean;
+  /**
    * What the adventure says the moment this objective closes.
    *
    * Unix is silent on success and should stay that way -- `systemctl start`

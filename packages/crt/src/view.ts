@@ -264,6 +264,18 @@ export class TerminalView {
     this.draw();
   }
 
+  /**
+   * Change the type size, then re-measure the grid for it.
+   *
+   * Two calls rather than one because the renderer knows about glyphs and the
+   * view knows about the viewport, and neither should learn the other's job.
+   */
+  setFont(font: string): void {
+    this.renderer.setFont(font);
+    this.measure();
+    this.draw();
+  }
+
   write(text: string, kind: LineKind = 'out'): void {
     const wasAtBottom = this.isAtBottom();
     this.writeLines(text, kind);

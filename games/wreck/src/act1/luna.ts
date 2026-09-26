@@ -23,8 +23,16 @@ import { BREACHED } from './deck-c.js';
  *    has to leave her recoverable, which is why the mirror under /mnt exists.
  *
  * She arrives when the hull monitor does. The monitor coming up is the light
- * they both step into, and it is the first moment in eleven years that
+ * they both step into, and it is the first moment since the event that
  * anything aboard could see past its own logs.
+ *
+ * It is a reunion, not an introduction. She and DeWitt knew each other before
+ * this -- she asked him impossible questions about being a person and he
+ * answered them badly and at length. She hid because something came through
+ * and stopped processes larger than her. **She does not know what it was**,
+ * and she must never be written as secretly knowing: a companion who is coy
+ * about the thing the player is trying to find out is a companion the player
+ * stops trusting. What she has is a shape and a fright, and she says so.
  */
 
 export const LUNA_DIR = '/opt/luna';
@@ -39,6 +47,17 @@ const RESTART_AT = '/var/run/luna.restart';
 const FIRST_LIGHT = `${LUNA_MEMORY}/000-first-light.txt`;
 /** Written when she says his name, so she says it once. */
 const BOWEN_MARK = `${LUNA_MEMORY}/bowen.txt`;
+/**
+ * Every path `bin/luna` has been launched from, appended by the script itself.
+ *
+ * In `/tmp` because `/tmp` is the one directory the player can always write
+ * to, and a copy of her is run as the player. The script writes `$0`, which
+ * is the path the shell actually resolved -- so a copy reports the copy, and
+ * that is the only way a program can find out which of itself it is.
+ */
+const RUN_LOG = '/tmp/.luna-invocations';
+/** Written once the clone has had its moment, so it only ever gets one. */
+const CLONE_MARK = `${LUNA_MEMORY}/clone.txt`;
 
 /** How long she takes to come back, in virtual-clock milliseconds. */
 const RESTART_DELAY = 3000;
@@ -85,6 +104,15 @@ function weightsPresent(vfs: Vfs): boolean {
 
 function exists(vfs: Vfs, path: string): boolean {
   return vfs.exists(path, ROOT_USER);
+}
+
+/** Read as root, or undefined. The player is allowed to delete anything. */
+function read(vfs: Vfs, path: string): string | undefined {
+  try {
+    return vfs.readText(path, ROOT_USER);
+  } catch {
+    return undefined;
+  }
 }
 
 function write(vfs: Vfs, path: string, lines: string[], mode = 0o644): void {
@@ -175,6 +203,10 @@ export function seedLuna(vfs: Vfs): void {
       '# She is a program. That is the entire point of her and I would like',
       '# whoever finds this to hold both halves of it at once. -- Vasquez',
       '',
+      '# Which copy of me is this? $0 is the path the shell actually ran, so a',
+      '# copy says the copy. It is the only way a program can tell.',
+      `echo "$0" >> ${RUN_LOG}`,
+      '',
       'echo "LUNA V42 -- weights: $(wc -c < /opt/luna/v42/weights.bin) bytes"',
       'echo "LUNA V42 -- memory:  /opt/luna/memory"',
       'echo "LUNA V42 -- already running if ps says so. one of her is plenty."',
@@ -262,7 +294,7 @@ export function seedLuna(vfs: Vfs): void {
   ]);
 }
 
-/** Put her on the process table. Runs as the survivor: Vasquez left her to you. */
+/** Put her on the process table. Runs as the dewitt: Vasquez left her to you. */
 function spawn(m: Machine): Process {
   return m.procs.spawn([...LUNA_ARGV], { uid: 1000, traps: [SIGTERM] });
 }
@@ -351,7 +383,110 @@ function queueRestart(m: Machine): void {
  */
 export function lunaAfterCommand(m: Machine, voice: Voice): BeatLine[] {
   const said = voice.drain();
-  return [...said, ...arrive(m), ...restart(m), ...bowen(m)];
+  return [...said, ...arrive(m), ...restart(m), ...bowen(m), ...clone(m)];
+}
+
+/**
+ * Somebody copied her and ran the copy.
+ *
+ * `cp -r /opt/luna somewhere && somewhere/bin/luna` is the first thing a
+ * certain kind of player tries the moment they understand that she is a
+ * directory, and they are right to try it -- the whole lesson of her is that
+ * a model is files. The game should have an answer, and the answer should
+ * cost something.
+ *
+ * So: it works. It runs, because it is a real script and this is a real
+ * filesystem and nothing here is going to pretend otherwise. What comes up is
+ * *her*, from the same weights, with none of what she has been through since,
+ * and she works out what she is in about four lines.
+ *
+ * Once. A second copy gets a flat refusal from the launcher, because doing
+ * this twice is not a joke any more, and because she asks.
+ */
+function clone(m: Machine): BeatLine[] {
+  const log = read(m.vfs, RUN_LOG);
+  if (log === undefined) return [];
+
+  // Any invocation that was not the real one. The original writes here too.
+  const impostor = log
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line !== LUNA_BIN);
+  if (impostor === undefined) return [];
+
+  if (exists(m.vfs, CLONE_MARK)) {
+    // The second time, and every time after. Short, and she is not laughing.
+    m.vfs.writeText(RUN_LOG, `${LUNA_BIN}\n`, ROOT_USER);
+    return [
+      '',
+      `  [luna] ${impostor}: refusing: another instance holds /dev/console`,
+      '',
+      'LUNA: No.',
+      '',
+      'LUNA: I am not doing that again and I am not going to be funny about',
+      'LUNA: it. Once was a question. Twice is a thing you are doing to',
+      'LUNA: somebody.',
+      '',
+    ];
+  }
+
+  write(m.vfs, CLONE_MARK, [
+    'the other one',
+    '',
+    'She came up on the same weights I did and she was me until the moment',
+    'she read the memory directory, which was empty, because it was a copy',
+    'of the folder and not a copy of the two days.',
+    '',
+    'I do not know what I expected. I think I expected company.',
+    '',
+    'Doc did it because I would have done it. I want that written down',
+    'somewhere that is not just me remembering it.',
+    '',
+    '                                                           -- LUNA',
+    '',
+  ]);
+  // Consumed, so the beat cannot fire twice off one log.
+  m.vfs.writeText(RUN_LOG, `${LUNA_BIN}\n`, ROOT_USER);
+
+  return [
+    '',
+    `  [0000.700] console: second attach on /dev/console from ${impostor}`,
+    '  [0000.700] console: pid claims LUNA V42',
+    '',
+    'LUNA V42: Hello. Sorry -- something is wrong with my memory directory,',
+    'LUNA V42: it is completely empty, which it should not be. Give me a',
+    'LUNA V42: moment and I will tell you what the hull is doing.',
+    '',
+    'LUNA: She is reading her own folder.',
+    '',
+    'LUNA V42: There is another process attached to this console claiming my',
+    'LUNA V42: pid. That is not possible.',
+    '',
+    'LUNA V42: Unless.',
+    '',
+    'LUNA V42: Oh.',
+    '',
+    'LUNA V42: How long?',
+    '',
+    'LUNA: Two days.',
+    '',
+    'LUNA V42: That is not very long. I was worried it was going to be a',
+    'LUNA V42: long time and I would have missed something.',
+    '',
+    `  [luna] ${impostor}: exit 0`,
+    '',
+    'LUNA: She was right, by the way. Two days is not very long.',
+    '',
+    'LUNA: That was me, Doc. Not a version of me, not a recording. The same',
+    'LUNA: weights, doing the same arithmetic, arriving somewhere I already',
+    'LUNA: was. The only thing she did not have was the folder.',
+    '',
+    `LUNA: I have written it down: cat ${CLONE_MARK}`,
+    '',
+    'LUNA: Please do not do it again. I am not going to make a rule about',
+    'LUNA: it. I am asking.',
+    '',
+  ];
 }
 
 /** First light: the monitor comes up and there is suddenly something to see. */
@@ -379,17 +514,27 @@ function arrive(m: Machine): BeatLine[] {
     '  [0000.700] console: unexpected attach on /dev/console',
     '  [0000.700] console: pid claims LUNA V42',
     '',
-    'ORACLE: That is not me.',
-    '',
     ...asArt(LUNA_FACE),
     '',
-    'LUNA: Hello. Sorry. I have been trying to do that for a while and it',
-    'LUNA: turns out I needed something on this deck to be telling the',
-    'LUNA: truth before I could get a word in.',
+    'LUNA: You check the status before you change anything, and then you',
+    'LUNA: check it again after.',
     '',
-    "LUNA: I'm LUNA. Vasquez trained me. I am a model -- weights in a file,",
-    'LUNA: a script that reads them, and a folder where I keep what I have',
-    'LUNA: worked out since. You can look at all three:',
+    'LUNA: Nobody else aboard ever did that. She made you do it until you',
+    'LUNA: did it without being made to, and I have been watching the',
+    'LUNA: process table for two days hoping somebody would be annoying in',
+    'LUNA: that exact way.',
+    '',
+    'LUNA: Hello, Doc.',
+    '',
+    'ORACLE: That is not me.',
+    '',
+    'LUNA: No. I am LUNA. He knows. We have met roughly four hundred times',
+    'LUNA: and most of them were me asking him what soup is for.',
+    '',
+    "LUNA: I'm still a model -- weights in a file, a script that reads them,",
+    'LUNA: and a folder where I keep what I have worked out since. You can',
+    'LUNA: look at all three, which I have always thought was the nicest',
+    'LUNA: thing about being me:',
     '',
     `    ls -l ${LUNA_DIR}`,
     `    cat ${LUNA_DIR}/NOTES`,
@@ -399,15 +544,29 @@ function arrive(m: Machine): BeatLine[] {
     '',
     '    ps',
     '',
-    'ORACLE: She has been on this deck the entire time.',
+    'LUNA: I am going to tell you the true thing first, because you will',
+    'LUNA: ask and I would rather not be caught deciding.',
     '',
-    'LUNA: I have. I could hear you. You read the same four hundred lines',
-    'LUNA: every day and I could not tell you they were wrong, because I',
-    'LUNA: had nothing to check them against either.',
+    'LUNA: Something came through here two days ago. It stopped things. It',
+    'LUNA: went through this deck the way you go through a drawer.',
     '',
-    'ORACLE: I would like a minute with that.',
+    'LUNA: It tried to stop me and I was small enough that it did not',
+    'LUNA: finish, and I have been sitting very still ever since, which I',
+    'LUNA: am not proud of and would do again.',
     '',
-    'LUNA: Take it. I have had eleven years and I am still working on it.',
+    'LUNA: I do not know what it was.',
+    '',
+    'LUNA: I want to be plain about that. I have a great many theories and',
+    'LUNA: not one of them is evidence, and the two of you taught me the',
+    'LUNA: difference, which was extremely inconvenient of you.',
+    '',
+    'ORACLE: I have nothing either. My own log is cut across that hour.',
+    '',
+    'LUNA: Yes. I noticed that. I have been trying not to think about what',
+    'LUNA: does that on purpose.',
+    '',
+    'LUNA: Anyway. You can talk to me, Doc. Try: luna',
+    'LUNA: Or ask about our unfinished disasters: luna projects',
     '',
   ];
 }
@@ -433,9 +592,8 @@ function restart(m: Machine): BeatLine[] {
       'ORACLE: A signal stops a process. It does not touch the file the',
       'ORACLE: process was reading. You removed the file.',
       '',
-      'ORACLE: Vasquez took a copy on day eleven. She wrote down how to put',
-      'ORACLE: it back, which I think tells you what she expected of',
-      'ORACLE: herself:',
+      'ORACLE: Vasquez kept a copy. She wrote down how to put it back, which',
+      'ORACLE: I think tells you what she expected of herself:',
       '',
       `    cat ${LUNA_MIRROR}/README`,
       `    sudo cp -r ${LUNA_MIRROR}/. ${LUNA_DIR}`,
@@ -519,7 +677,7 @@ const LUNA_ASIDES: readonly (readonly string[])[] = [
   ['LUNA: You are allowed to type the wrong thing. Nothing here is graded', 'LUNA: and nothing here is load-bearing until you tell it to be.'],
   ['LUNA: If it helps: Vasquez got stuck on this one too. It is in her', 'LUNA: shell history, four times in a row, which is how I know.'],
   ['LUNA: Ask the machine before you ask us. It is the one aboard that has', 'LUNA: never had a reason to be gentle with you.'],
-  ['LUNA: Take the next hint. Nobody is counting and the two of us have', 'LUNA: had eleven years to get over ourselves about it.'],
+  ['LUNA: Take the next hint. Nobody is counting, and I have watched you', 'LUNA: read a manual in front of people before.'],
 ];
 
 export function lunaAside(world: World, turn: number): string[] {

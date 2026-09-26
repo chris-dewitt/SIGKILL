@@ -21,16 +21,16 @@ function cluster(): Cluster {
   const common = { network: net, session };
 
   const local = new Machine({ hostname: 'nav7', ...common });
-  local.vfs.mkdirp('/home/survivor', ROOT_USER);
-  local.vfs.chown('/home/survivor', 1000, 1000, ROOT_USER);
-  local.shell.cwd = '/home/survivor';
+  local.vfs.mkdirp('/home/dewitt', ROOT_USER);
+  local.vfs.chown('/home/dewitt', 1000, 1000, ROOT_USER);
+  local.shell.cwd = '/home/dewitt';
 
   const node01 = new Machine({ hostname: 'node01', ...common });
-  node01.vfs.mkdirp('/home/survivor', ROOT_USER);
-  node01.vfs.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  node01.vfs.mkdirp('/home/dewitt', ROOT_USER);
+  node01.vfs.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   node01.vfs.mkdirp('/data', ROOT_USER);
   node01.vfs.writeText('/data/manifest.txt', 'reactor\nscrubber\nbeacon\n', ROOT_USER);
-  node01.shell.cwd = '/home/survivor';
+  node01.shell.cwd = '/home/dewitt';
 
   const gateway = new Machine({ hostname: 'gateway', ...common });
   gateway.vfs.mkdirp('/srv/http', ROOT_USER);
@@ -40,12 +40,12 @@ function cluster(): Cluster {
   net.add({
     hostname: 'nav7', ip: '10.0.0.1', machine: local,
     ports: { 22: 'SSH-2.0-OpenSSH_9.6' },
-    accounts: { survivor: { uid: 1000, gid: 1000 } },
+    accounts: { dewitt: { uid: 1000, gid: 1000 } },
   });
   net.add({
     hostname: 'node01', ip: '10.0.0.11', machine: node01,
     ports: { 22: 'SSH-2.0-OpenSSH_9.6' },
-    accounts: { survivor: { uid: 1000, gid: 1000 }, root: { uid: 0, gid: 0 } },
+    accounts: { dewitt: { uid: 1000, gid: 1000 }, root: { uid: 0, gid: 0 } },
   });
   net.add({
     hostname: 'gateway', ip: '10.0.0.254', machine: gateway,
@@ -55,7 +55,7 @@ function cluster(): Cluster {
   net.add({
     hostname: 'node02', ip: '10.0.0.12', machine: new Machine({ hostname: 'node02', ...common }),
     ports: { 22: 'SSH-2.0-OpenSSH_9.6' },
-    accounts: { survivor: { uid: 1000, gid: 1000 } },
+    accounts: { dewitt: { uid: 1000, gid: 1000 } },
     up: false,
   });
 

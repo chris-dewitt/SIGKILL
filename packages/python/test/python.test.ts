@@ -13,15 +13,15 @@ beforeAll(async () => {
 function boot(): Machine {
   const m = new Machine({ hostname: 'nav7', python: runtime });
   const v = m.vfs;
-  v.mkdirp('/home/survivor', ROOT_USER);
-  v.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  v.mkdirp('/home/dewitt', ROOT_USER);
+  v.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   v.mkdirp('/etc', ROOT_USER);
   v.mkdirp('/var/log', ROOT_USER);
   v.chmod('/var/log', 0o777, ROOT_USER);
   v.writeText('/etc/life_support.conf', 'O2_TARGET=16\nSCRUBBER_DUTY=0.4\n', ROOT_USER);
   v.chmod('/etc/life_support.conf', 0o666, ROOT_USER);
   v.writeText('/var/log/boot.log', 'ok\nFAIL scrubber\nok\nFAIL comms\n', ROOT_USER);
-  m.shell.cwd = '/home/survivor';
+  m.shell.cwd = '/home/dewitt';
   return m;
 }
 
@@ -62,7 +62,7 @@ describe('the interpreter', () => {
 
   it('reads argv', async () => {
     const m = boot();
-    m.vfs.writeText('/home/survivor/args.py', 'import sys\nprint(sys.argv[1:])\n', ROOT_USER);
+    m.vfs.writeText('/home/dewitt/args.py', 'import sys\nprint(sys.argv[1:])\n', ROOT_USER);
     expect((await m.exec('python3 args.py alpha beta')).stdout.trim()).toBe("['alpha', 'beta']");
   });
 
@@ -111,14 +111,14 @@ describe('one filesystem, two languages', () => {
   it('creates directories the shell can cd into', async () => {
     const m = boot();
     await m.exec(`python3 -c 'import os; os.makedirs("deep/nested/path")'`);
-    expect((await m.exec('cd deep/nested/path && pwd')).stdout).toBe('/home/survivor/deep/nested/path\n');
+    expect((await m.exec('cd deep/nested/path && pwd')).stdout).toBe('/home/dewitt/deep/nested/path\n');
   });
 
   it('deletes a file, and the shell agrees it is gone', async () => {
     const m = boot();
     await m.exec('echo doomed > doomed.txt');
     await m.exec(`python3 -c 'import os; os.remove("doomed.txt")'`);
-    expect(m.vfs.exists('/home/survivor/doomed.txt', ROOT_USER)).toBe(false);
+    expect(m.vfs.exists('/home/dewitt/doomed.txt', ROOT_USER)).toBe(false);
     expect((await m.exec('cat doomed.txt')).code).toBe(1);
   });
 
@@ -174,19 +174,19 @@ describe('one filesystem, two languages', () => {
     expect(seen.stdout.trim()).toBe("['inner']");
 
     await m.exec(`python3 -c 'import os; os.makedirs("empty/made/deeper")'`);
-    expect(m.vfs.stat('/home/survivor/empty/made/deeper', ROOT_USER).kind).toBe('dir');
+    expect(m.vfs.stat('/home/dewitt/empty/made/deeper', ROOT_USER).kind).toBe('dir');
   });
 
   it('survives binary content round-tripping through the bridge', async () => {
     const m = boot();
     const bytes = new Uint8Array([0, 1, 127, 128, 200, 255]);
-    m.vfs.write('/home/survivor/blob.bin', bytes, ROOT_USER);
+    m.vfs.write('/home/dewitt/blob.bin', bytes, ROOT_USER);
 
     const r = await m.exec(`python3 -c 'print(list(open("blob.bin","rb").read()))'`);
     expect(r.stdout.trim()).toBe('[0, 1, 127, 128, 200, 255]');
 
     await m.exec(`python3 -c 'open("copy.bin","wb").write(open("blob.bin","rb").read())'`);
-    expect([...m.vfs.read('/home/survivor/copy.bin', ROOT_USER)]).toEqual([...bytes]);
+    expect([...m.vfs.read('/home/dewitt/copy.bin', ROOT_USER)]).toEqual([...bytes]);
   });
 });
 

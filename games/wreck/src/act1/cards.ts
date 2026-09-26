@@ -44,11 +44,11 @@ function face(eyes: string, mouth: string): string[] {
   return centre(monitor, SAFE_COLS);
 }
 
-/** Eleven years of reading the same four hundred lines. Eyes nearly shut. */
+/** Two days of reading the same four hundred lines. Eyes nearly shut. */
 export const ORACLE_DORMANT = face('▁▁    ▁▁', '▁▁▁▁▁▁');
 /** Awake, and being careful about how much it expects. */
 export const ORACLE_AWAKE = face('██    ██', '▄▄▄▄▄▄');
-/** It has just found out it has been wrong about the hull since day nine. */
+/** It has just found out it has been wrong about the hull all along. */
 export const ORACLE_ALARMED = face('▓▓    ▓▓', '▀▀▀▀▀▀');
 /**
  * Owning up, at the end, with the crisis already over.
@@ -75,10 +75,11 @@ export interface ShipState {
   /**
    * The hull figure ORACLE recites.
    *
-   * Deliberately a literal and deliberately not measured. This is the number
-   * Vasquez wrote on a clipboard on day nine, and the epilogue is *about*
-   * ORACLE having repeated it for eleven years because the thing that would
-   * have corrected it would not start. Computing it would ruin the reveal.
+   * Deliberately a literal and deliberately not measured. This is a figure
+   * off a pre-incident survey clipboard, and the confession beat is *about*
+   * ORACLE having repeated it -- including to Vasquez, on the morning, when
+   * it mattered -- because the thing that would have corrected it would not
+   * start. Computing it would ruin the reveal.
    */
   hullClaim: string;
   reserve: string;

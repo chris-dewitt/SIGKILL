@@ -4,6 +4,22 @@ import type { ShellContext } from '../shell/exec.js';
 import { emit, parseArgs, usage } from './helpers.js';
 
 /**
+ * Pull `-u scrubber` or `-u=scrubber` out of an argument list.
+ *
+ * Local to this file because `parseArgs` deliberately does not know which
+ * flags take a value -- it cannot, since that is per command -- and
+ * `journalctl` is the first thing here that needs one.
+ */
+function takeValue(args: string[], flag: string): string | undefined {
+  const joined = args.find((a) => a.startsWith(`${flag}=`));
+  if (joined) return joined.slice(flag.length + 1);
+  const at = args.indexOf(flag);
+  if (at < 0) return undefined;
+  const value = args[at + 1];
+  return value !== undefined && !value.startsWith('-') ? value : undefined;
+}
+
+/**
  * The signals `kill` will name.
  *
  * Deliberately the short list. A player needs to know that signals have names
@@ -392,6 +408,69 @@ export const procCommands: CommandSpec[] = [
         io.err(`See 'systemctl status ${target}' for details.\n`);
         return 1;
       }
+      return 0;
+    },
+  },
+  {
+    name: 'journalctl',
+    summary: 'read the service journal',
+    manual:
+      'journalctl [-u UNIT] [-n LINES] [-r] [-f]\n\n' +
+      'Print what the service manager has recorded: starts, stops, and the\n' +
+      'reason a unit refused to run.\n\n' +
+      '  -u UNIT   only this unit\n' +
+      '  -n N      the last N entries (default 50; use  -n all  for every one)\n' +
+      '  -r        newest first\n' +
+      '  -f        follow. Nothing on this ship writes while you watch, so it\n' +
+      '            prints what there is and returns.\n\n' +
+      'The journal is not a file and grep cannot reach it, which is the whole\n' +
+      'reason the command exists. `systemctl status` shows the latest state;\n' +
+      'this shows how it got there.',
+    plain:
+      'Shows the history of the ship services: when they started, when they\n' +
+      'stopped, and why one of them would not run.\n\n' +
+      '    journalctl -u scrubber\n\n' +
+      'systemctl status tells you how something is now. This tells you what\n' +
+      'has been happening to it.',
+    run: (ctx, argv, io) => {
+      const args = argv.slice(1);
+      const unit = takeValue(args, '-u') ?? takeValue(args, '--unit');
+      const count = takeValue(args, '-n') ?? takeValue(args, '--lines');
+      const reverse = args.includes('-r') || args.includes('--reverse');
+
+      if (unit !== undefined && !ctx.services.exists(unit)) {
+        io.err(`journalctl: unit ${unit} not found$\n`);
+        return 1;
+      }
+
+      let entries = [...ctx.services.logs(unit)];
+
+      // `-n all` is real journalctl, and a player who wants everything should
+      // not have to guess a number bigger than the history.
+      if (count !== 'all') {
+        const limit = count === undefined ? 50 : Number(count);
+        if (!Number.isFinite(limit) || limit < 0) {
+          io.err(`journalctl: invalid number '${count}'$\n`);
+          return 1;
+        }
+        entries = entries.slice(-limit);
+      }
+      if (reverse) entries.reverse();
+
+      if (entries.length === 0) {
+        // Not an error. A unit that has never been touched has no history,
+        // and saying so is more useful than printing nothing.
+        emit(io, [unit === undefined ? '-- No entries --' : `-- No entries for ${unit} --`]);
+        return 0;
+      }
+
+      emit(io, entries.map((entry) => {
+        const at = new Date(ctx.epoch + entry.at);
+        const two = (n: number): string => String(n).padStart(2, '0');
+        const stamp = `${two(at.getUTCMonth() + 1)}-${two(at.getUTCDate())} ` +
+          `${two(at.getUTCHours())}:${two(at.getUTCMinutes())}:${two(at.getUTCSeconds())}`;
+        return `${stamp} ${ctx.hostname} ${entry.unit}[1]: ${entry.text}`;
+      }));
       return 0;
     },
   },

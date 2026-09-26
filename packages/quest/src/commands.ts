@@ -158,16 +158,21 @@ export function board(book: Questbook, world: World): string {
   if (rows.length === 0) return 'Nothing on the board.\n';
 
   const titles = new Map(book.objectives.map((o) => [o.id, o.title]));
-  const done = rows.filter((row) => row.done).length;
+  // The count is the act's spine only. Counting the side threads in it would
+  // tell a curious player they are behind for having looked around, and tell
+  // an incurious one they failed -- neither is true.
+  const spine = rows.filter((row) => !row.optional);
+  const done = spine.filter((row) => row.done).length;
   const current = book.current(world);
-  const lines: string[] = ['', `-- OBJECTIVES ------------ ${done} of ${rows.length} done`, ''];
+  const lines: string[] = ['', `-- OBJECTIVES ------------ ${done} of ${spine.length} done`, ''];
 
   for (const row of rows) {
     const here = row.id === current?.id;
     const mark = row.done ? '[x]' : row.blockedBy.length > 0 ? '[-]' : '[ ]';
     // One character of left margin carries the whole "you are here" signal,
     // and survives being wrapped onto a narrow screen.
-    lines.push(`${here ? '>' : ' '} ${mark} ${row.title}`);
+    const tail = row.optional && !row.done ? '   (optional)' : '';
+    lines.push(`${here ? '>' : ' '} ${mark} ${row.title}${tail}`);
 
     if (row.blockedBy.length > 0) {
       // Named by title, not id. `atmosphere` is what the content calls it;

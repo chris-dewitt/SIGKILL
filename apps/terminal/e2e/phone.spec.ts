@@ -1,162 +1,96 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function dismissFold(page: Page): Promise<void> {
-  const fold = page.locator('#fold');
-  const next = page.locator('#fold-next');
-  for (let i = 0; i < 8; i++) {
-    if (!(await fold.isVisible())) return;
-    await next.click();
-  }
-  await expect(fold).toBeHidden();
-}
+/**
+ * What is left to drive from outside after the fold came out.
+ *
+ * The scrollback is a canvas, so none of the ship's output is queryable from
+ * here any more -- the old spec asserted on `#turn-out` and `#fold-body`, and
+ * both are gone. What remains in the DOM is the dock: the input, the chip
+ * bars, the pinned status rows, the scroll rail, and the layout's response to
+ * a soft keyboard. That is the part these tests exist for anyway. Everything
+ * about *what the ship says* is a unit test in `@sigkill/wreck`, where it can
+ * be read rather than screenshotted.
+ */
 
-async function typeCommand(page: Page, command: string): Promise<void> {
+async function run(page: Page, command: string): Promise<void> {
   const input = page.locator('#input');
   await input.click();
   await input.fill(command);
   await input.press('Enter');
-  // A completed objective opens the fold and hides the last-turn strip.
-  await expect.poll(async () => {
-    const turn = await page.locator('#turn').isVisible();
-    const fold = await page.locator('#fold').isVisible();
-    return turn || fold;
-  }).toBeTruthy();
+  // The form clears on submit, which is the one DOM signal that the command
+  // was taken. Polling this rather than sleeping keeps the spec honest on a
+  // slow machine.
+  await expect(input).toHaveValue('');
 }
 
 test.describe('phone dock', () => {
-  test('pages the cold-open nudge in the fold', async ({ page }) => {
-    await page.goto('/?typing=off');
-    await expect(page.locator('#fold')).toBeVisible();
-    await expect(page.locator('#turn')).toBeHidden();
-    await expect(page.locator('#fold-body')).not.toBeEmpty();
-    await expect(page.locator('#fold-next')).toContainText(/tap to/i);
-    await dismissFold(page);
+  test('opens with the input and both chip bars in reach', async ({ page }) => {
+    await page.goto('/');
     await expect(page.locator('#input')).toBeVisible();
-  });
-
-  test('hides the last-turn strip while a beat fold is open', async ({ page }) => {
-    await page.goto('/?typing=off');
-    await typeCommand(page, "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
-    await typeCommand(page, 'sudo systemctl start scrubber');
-    await expect(page.locator('#fold')).toBeVisible();
-    await expect(page.locator('#turn')).toBeHidden();
-    await expect(page.locator('#fold-body')).toContainText('ORACLE');
-    await expect(page.locator('#input')).toBeVisible();
-    await dismissFold(page);
-    await expect(page.locator('#turn')).toBeVisible();
-    await expect(page.locator('#turn-cmd')).toContainText('scrubber');
-  });
-
-  test('shows the last command above the dock', async ({ page }) => {
-    await page.goto('/?typing=off');
-    await typeCommand(page, 'ls');
-    await expect(page.locator('#fold')).toBeHidden();
-    await expect(page.locator('#turn-cmd')).toContainText('ls');
-    await expect(page.locator('#turn-out')).toContainText('README');
-  });
-
-  test('restores the run after a reload', async ({ page }) => {
-    await page.goto('/?typing=off');
-    await typeCommand(page, 'pwd');
-    await expect(page.locator('#turn-out')).toContainText('/home/survivor');
-    await page.reload();
-    await expect(page.locator('#fold')).toBeHidden();
-    await expect(page.locator('#turn-cmd')).toContainText('pwd');
-    await expect(page.locator('#turn-out')).toContainText('/home/survivor');
-    await typeCommand(page, 'whoami');
-    await expect(page.locator('#turn-cmd')).toContainText('whoami');
-    await expect(page.locator('#turn-out')).toContainText('survivor');
-  });
-
-  test('newgame wipes the save and returns the cold open', async ({ page }) => {
-    await page.goto('/?typing=off');
-    await typeCommand(page, 'pwd');
-    await page.reload();
-    await expect(page.locator('#turn-cmd')).toContainText('pwd');
-    await page.locator('#input').fill('newgame');
-    await page.locator('#input').press('Enter');
-    await expect(page.locator('#fold')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('#turn')).toBeHidden();
-    await typeCommand(page, 'ls');
-    await expect(page.locator('#turn-cmd')).toContainText('ls');
+    await expect(page.locator('#chips')).toBeVisible();
+    await expect(page.locator('#symbols')).toBeVisible();
   });
 
   test('hint and objectives stay on the chip bar', async ({ page }) => {
-    await page.goto('/?typing=off');
+    await page.goto('/');
     const chips = page.locator('#chips .chip');
     await expect(chips).toContainText(['hint', 'objectives']);
   });
-});
 
-test.describe('the ship types, and says where you are', () => {
-  test('types a beat out and lands the whole page on a tap', async ({ page }) => {
-    await page.goto('/?typing=slow');
-    const body = page.locator('#fold-body');
-    await expect(body).toBeVisible();
+  test('restores the run after a reload', async ({ page }) => {
+    await page.goto('/');
+    await run(page, 'cd /etc');
+    await expect(page.locator('#prompt')).toContainText('/etc');
 
-    // Past the title card, which is a drawing and arrives whole.
-    await expect(body).toContainText('THE WRECK');
-    await page.locator('#fold-next').click();
-
-    // Mid-flight: something is showing, the whole page is not.
-    await expect.poll(async () => (await body.textContent())?.length ?? 0).toBeGreaterThan(0);
-    const partial = (await body.textContent()) ?? '';
-
-    // One tap finishes the page rather than turning it.
-    await page.locator('#fold-next').click();
-    const landed = (await body.textContent()) ?? '';
-    expect(landed.length).toBeGreaterThan(partial.length);
-    expect(landed).not.toContain('▋');
-    await expect(page.locator('#fold')).toBeVisible();
+    await page.reload();
+    // The save carries the working directory, so the prompt is the cheapest
+    // proof that this is the same run and not a fresh boot.
+    await expect(page.locator('#prompt')).toContainText('/etc');
   });
 
+  test('newgame wipes the save and returns to the berth', async ({ page }) => {
+    await page.goto('/');
+    await run(page, 'cd /etc');
+    await expect(page.locator('#prompt')).toContainText('/etc');
+
+    await page.locator('#input').fill('newgame');
+    await page.locator('#input').press('Enter');
+    // Back in the berth: the cold open starts at home, so the prompt loses
+    // the directory the wiped run was standing in.
+    await expect(page.locator('#prompt')).toContainText('~', { timeout: 10_000 });
+    await expect(page.locator('#prompt')).not.toContainText('/etc');
+  });
+});
+
+test.describe('the ship says where you are', () => {
   test('shows air, hull and the current step, and keeps them current', async ({ page }) => {
-    await page.goto('/?typing=off');
+    await page.goto('/');
     const status = page.locator('[aria-label="Ship status"]');
     await expect(status).toContainText('AIR --');
     await expect(status).toContainText('HULL 8/9');
-    await expect(status).toContainText('0/5');
 
-    const input = page.locator('#input');
-    await input.click();
-    await input.fill("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
-    await input.press('Enter');
-    await input.fill('sudo systemctl start scrubber');
-    await input.press('Enter');
+    // Not a hard-coded total: the act grows, and a spec that has to be edited
+    // every time an objective is added is a spec people start ignoring. The
+    // counter is the one number sitting in the rule, between the box rows --
+    // matching on that context keeps it off HULL 8/9.
+    const done = async (): Promise<number> => {
+      const text = (await status.textContent()) ?? '';
+      return Number(/─\s*(\d+)\/\d+\s*─/.exec(text)?.[1] ?? -1);
+    };
+    expect(await done()).toBe(0);
+
+    await run(page, "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
+    await run(page, 'sudo systemctl start scrubber');
 
     // The air is real now, and the readout says so without being asked.
     await expect(status).toContainText('AIR 21');
-    await expect(status).toContainText('1/5');
+    await expect.poll(done).toBe(1);
   });
 });
 
 test.describe('the phone screen', () => {
-  test('opens on the intro in the fold, not buried up the scrollback', async ({ page }) => {
-    await page.goto('/?typing=off');
-    const body = page.locator('#fold-body');
-    await expect(page.locator('#fold')).toBeVisible();
-    // The title card is the first thing, and it is whole.
-    await expect(body).toContainText('THE WRECK');
-
-    // And the whole opening is reachable in a handful of taps rather than a
-    // scroll back up the screen.
-    const next = page.locator('#fold-next');
-    let taps = 0;
-    let sawOracle = false;
-    while (taps < 12 && (await page.locator('#fold').isVisible())) {
-      if (((await body.textContent()) ?? '').includes('ORACLE:')) sawOracle = true;
-      await next.click();
-      taps++;
-    }
-    expect(sawOracle).toBe(true);
-    expect(taps).toBeLessThan(10);
-  });
-
   test('scrolls the way a thumb expects: back is up, in both hands', async ({ page }) => {
-    await page.goto('/?typing=off');
-    for (let i = 0; i < 12 && (await page.locator('#fold').isVisible()); i++) {
-      await page.locator('#fold-next').click();
-    }
+    await page.goto('/');
 
     const thumb = page.locator('#scroll-thumb');
     const top = async (): Promise<number> => (await thumb.boundingBox())?.y ?? 0;
@@ -190,11 +124,11 @@ test.describe('the phone screen', () => {
   });
 
   test('gives the screen back when the keyboard takes it', async ({ page }) => {
-    await page.goto('/?typing=off');
+    await page.goto('/');
     const appHeight = async (): Promise<number> =>
-      page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-height')));
-    const foldRoom = async (): Promise<number> =>
-      page.evaluate(() => document.querySelector('#fold-body')!.getBoundingClientRect().height);
+      page.evaluate(() =>
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-height')),
+      );
 
     const full = await appHeight();
     expect(full).toBeGreaterThan(600);
@@ -203,48 +137,54 @@ test.describe('the phone screen', () => {
     // `interactive-widget=resizes-content` gives us on Android.
     await page.setViewportSize({ width: 400, height: 420 });
     await expect.poll(appHeight).toBeLessThan(full * 0.7);
-    await expect.poll(() =>
-      page.evaluate(() => document.documentElement.classList.contains('keyboard')),
-    ).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.classList.contains('keyboard')))
+      .toBe(true);
 
-    // The panels are a fraction of what is visible, so the terminal keeps
-    // rows instead of being squeezed out by a strip sized off the whole screen.
-    expect(await foldRoom()).toBeLessThan(420 * 0.45);
-    // And the input is still on screen, which is the whole point.
+    // And the input is still on screen, which is the whole point: a player
+    // who can tap a chip but cannot see what they are typing has no game.
     const input = (await page.locator('#input').boundingBox())!;
     expect(input.y + input.height).toBeLessThanOrEqual(421);
   });
 });
 
-test.describe('the last-turn strip', () => {
-  test('wraps a note and clips a drawing, on the command\'s own word', async ({ page }) => {
-    await page.goto('/?typing=off');
-    for (let i = 0; i < 14 && (await page.locator('#fold').isVisible()); i++) {
-      await page.locator('#fold-next').click();
-    }
+/**
+ * The mixer has to know what the ship is doing before anybody touches the page.
+ *
+ * It cannot make a sound before a gesture and must not try. But `resume()`
+ * applies whatever state the mixer is holding, so a host that never calls
+ * `setState` at boot resumes into a silent ship -- the cold open plays into
+ * nothing and `newgame` reloads into nothing. That shipped, and it reads as
+ * broken audio rather than as quiet.
+ */
+test.describe('the ship is audible from the first keystroke', () => {
+  test('knows the ship state at boot, before any command', async ({ page }) => {
+    await page.goto('/');
+    const state = await page.evaluate(
+      () => (window as unknown as { sound: { shipState: Record<string, unknown> } }).sound.shipState,
+    );
+    // A stopped scrubber and an open compartment: the opening state of the
+    // act, not the silent default.
+    // SILENT_SHIP has `breached: false`, so this is the assertion that would
+    // have caught the bug: a mixer that was never told resumes into a ship
+    // with no hole in it.
+    expect(state.scrubber).toBe(false);
+    expect(state.monitor).toBe(false);
+    expect(state.breached).toBe(true);
+  });
 
-    const input = page.locator('#input');
-    const out = page.locator('#turn-out');
-    const run = async (command: string): Promise<void> => {
-      await input.click();
-      await input.fill(command);
-      await input.press('Enter');
-    };
+  test('still knows it after newgame reloads the cold open', async ({ page }) => {
+    await page.goto('/');
+    await run(page, 'cd /etc');
 
-    // A note is prose. It wraps, or a phone shows the left two thirds of it.
-    await run('cat README');
-    await expect(out).toContainText('Vasquez');
-    await expect(out).not.toHaveClass(/art/);
-    const width = (await out.boundingBox())!.width;
-    expect(await out.evaluate((el) => el.scrollWidth)).toBeLessThanOrEqual(Math.ceil(width) + 1);
+    await page.locator('#input').fill('newgame');
+    await page.locator('#input').press('Enter');
+    await expect(page.locator('#prompt')).toContainText('~', { timeout: 10_000 });
 
-    // A drawing is columns. It clips rather than reflowing into confetti.
-    await run('sudo chmod +x /usr/local/bin/hull-check');
-    await run('sudo systemctl start hull-monitor');
-    for (let i = 0; i < 14 && (await page.locator('#fold').isVisible()); i++) {
-      await page.locator('#fold-next').click();
-    }
-    await run('deck');
-    await expect(out).toHaveClass(/art/);
+    const state = await page.evaluate(
+      () => (window as unknown as { sound: { shipState: Record<string, unknown> } }).sound.shipState,
+    );
+    expect(state.breached).toBe(true);
+    expect(state.scrubber).toBe(false);
   });
 });

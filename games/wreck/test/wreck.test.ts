@@ -44,27 +44,42 @@ describe('every command hint actually works', () => {
   for (const objective of WRECK_OBJECTIVES) {
     for (const [index, step] of objective.steps.entries()) {
       it(`${objective.id}/${step.id}`, async () => {
-        const { machine } = bootWreck();
+        const world = bootWreck();
+        const { machine } = world;
 
-        // Walk the world up to this step using the earlier steps' own hints.
-        for (const earlier of objective.steps.slice(0, index)) {
-          const command = earlier.rungs.find((r) => r.tier === 'command')?.command;
-          const result = await machine.exec(command!);
-          expect(result.stderr, `${earlier.id}: ${result.stderr}`).toBe('');
-        }
+        /*
+         * Drive the world's own after-command hook, exactly as the host does.
+         *
+         * Without it this test is a slightly different game from the one
+         * anybody plays: LUNA never arrives, and the tow never answers,
+         * because both of those live on that seam rather than inside a
+         * command. The `wait-for-it` step is the one that makes it visible --
+         * `sleep` moves the clock and the hook is what reads it.
+         */
+        const run = async (command: string): Promise<string> => {
+          const result = await machine.exec(command);
+          machine.tick(1000);
+          world.afterCommand();
+          return result.stderr;
+        };
+
+        // Everything this objective is waiting on, by its own bottom rungs.
         for (const required of objective.requires ?? []) {
           const earlier = WRECK_OBJECTIVES.find((o) => o.id === required)!;
           for (const earlierStep of earlier.steps) {
-            const command = earlierStep.rungs.find((r) => r.tier === 'command')?.command;
-            await machine.exec(command!);
+            await run(earlierStep.rungs.find((r) => r.tier === 'command')!.command!);
           }
+        }
+        // Then the earlier steps of this one.
+        for (const earlier of objective.steps.slice(0, index)) {
+          const command = earlier.rungs.find((r) => r.tier === 'command')!.command!;
+          expect(await run(command), `${earlier.id}`).toBe('');
         }
 
         expect(step.pending(machine), 'the step should still be pending here').toBe(true);
 
         const command = step.rungs.find((r) => r.tier === 'command')!.command!;
-        const result = await machine.exec(command);
-        expect(result.stderr, `${command} -> ${result.stderr}`).toBe('');
+        expect(await run(command), `${command}`).toBe('');
         expect(step.pending(machine), `${command} did not clear ${step.id}`).toBe(false);
       });
     }
@@ -109,11 +124,12 @@ describe('Act I can actually be finished', () => {
   });
 
   it('reports the act finished only once every objective is done', async () => {
-    const { machine, questbook } = bootWreck();
+    const { machine, questbook, afterCommand } = bootWreck();
     expect(questbook.complete(machine)).toBe(false);
 
-    // The whole act, in the order a player meets it. Each line must leave the
-    // act unfinished except the last, or an objective has stopped mattering.
+    // The act's spine, in the order a player meets it. Each line must leave
+    // the act unfinished except the last, or an objective has stopped
+    // mattering.
     const route = [
       "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
       'sudo systemctl start scrubber',
@@ -123,14 +139,68 @@ describe('Act I can actually be finished', () => {
       'sudo systemctl enable hull-monitor',
       "sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c7.conf",
       'sudo pkill -9 atmo-purge',
+      'sudo rm /var/lock/comms.lock',
+      'sudo systemctl start comms',
+      'echo CALLSIGN=NAV-7 > /var/spool/comms/out/distress.txt',
+      'echo POSITION=KV-OUTER-9 >> /var/spool/comms/out/distress.txt',
+      'echo SOULS_ABOARD=1 >> /var/spool/comms/out/distress.txt',
+      // Writing the packet is not being answered. The last line is the wait,
+      // and it is the only place in the act where time is the mechanism.
+      'sleep 120',
     ];
 
     for (const [index, command] of route.entries()) {
       const r = await machine.exec(command);
       expect(r.stderr, `${command} -> ${r.stderr}`).toBe('');
+      machine.tick(1000);
+      afterCommand();
       const isLast = index === route.length - 1;
       expect(questbook.complete(machine), `after: ${command}`).toBe(isLast);
     }
+  });
+
+  /*
+   * The point of making the discovery threads optional, asserted from both
+   * sides: skipping them still ends the act, and doing them does not end it
+   * any earlier. A side investigation that quietly gates the ending is the
+   * bug this test exists to catch.
+   */
+  it('finishes the act without the optional threads, and is not rushed by them', async () => {
+    const skipped = bootWreck();
+    for (const command of [
+      "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf",
+      'sudo systemctl start scrubber',
+      'sudo systemctl enable scrubber',
+      'sudo chmod +x /usr/local/bin/hull-check',
+      'sudo systemctl start hull-monitor',
+      'sudo systemctl enable hull-monitor',
+      "sed -i 's/^SEALED=.*/SEALED=yes/' /etc/hull/c7.conf",
+      'sudo pkill -9 atmo-purge',
+      'sudo rm /var/lock/comms.lock',
+      'sudo systemctl start comms',
+      'echo CALLSIGN=NAV-7 > /var/spool/comms/out/distress.txt',
+      'echo POSITION=KV-OUTER-9 >> /var/spool/comms/out/distress.txt',
+      'echo SOULS_ABOARD=1 >> /var/spool/comms/out/distress.txt',
+      'sleep 120',
+    ]) {
+      expect((await skipped.machine.exec(command)).stderr, command).toBe('');
+      skipped.machine.tick(1000);
+      skipped.afterCommand();
+    }
+    expect(skipped.questbook.complete(skipped.machine)).toBe(true);
+    const open = skipped.questbook.status(skipped.machine).filter((row) => !row.done);
+    expect(open.length).toBeGreaterThan(0);
+    expect(open.every((row) => row.optional)).toBe(true);
+
+    // And the other way: the optional work alone never closes the act.
+    const only = bootWreck();
+    await only.machine.exec('sudo chmod +x /usr/local/bin/hull-check');
+    await only.machine.exec('sudo systemctl start hull-monitor');
+    await only.machine.exec(
+      "grep -i '^Heading:' /home/bowen/pod-manifest.txt > /home/dewitt/logs/bowen-heading.txt",
+    );
+    await only.machine.exec('ls -l /opt/luna > /home/dewitt/logs/luna-v43-link.txt');
+    expect(only.questbook.complete(only.machine)).toBe(false);
   });
 
   it('a save that has started the scrubber still refuses a bad target after restore', async () => {
@@ -153,6 +223,31 @@ describe('Act I can actually be finished', () => {
     expect(start.stderr).toContain('19-23');
   });
 
+  it('migrates legacy sudoers on restore so dewitt can still sudo', async () => {
+    const live = bootWreck();
+    live.machine.vfs.writeText(
+      '/etc/sudoers',
+      [
+        '# NAV-7 privilege policy',
+        'root      ALL=(ALL) ALL',
+        'survivor  ALL=(ALL) ALL',
+        '',
+      ].join('\n'),
+      ROOT_USER,
+    );
+
+    const restored = restoreWreck({
+      machine: live.machine.snapshot(),
+      quest: live.questbook.snapshot(),
+    });
+
+    const sudoers = restored.machine.vfs.readText('/etc/sudoers', ROOT_USER);
+    expect(sudoers).toContain('dewitt  ALL=(ALL) ALL');
+    const canSudo = await restored.machine.exec('sudo true');
+    expect(canSudo.stderr).toBe('');
+    expect(canSudo.code).toBe(0);
+  });
+
   /**
    * The playthrough that found every content bug so far.
    *
@@ -162,7 +257,7 @@ describe('Act I can actually be finished', () => {
    * writing is wrong, whatever the unit tests say.
    */
   it('can be played end to end without ever asking for a hint', async () => {
-    const { machine, questbook } = bootWreck();
+    const { machine, questbook, afterCommand } = bootWreck();
 
     // Puzzle one: the ship names the number it objects to.
     expect((await machine.exec('cat README')).stdout).toContain('systemctl status scrubber');
@@ -223,6 +318,46 @@ describe('Act I can actually be finished', () => {
     expect((await machine.exec(`sudo kill -9 ${pid}`)).stderr).toBe('');
     expect((await machine.exec('ps -ef')).stdout).not.toContain('atmo-purge');
 
+    /*
+     * Puzzle six: a lock is a claim, not a fact.
+     *
+     * The unit names the pid it is waiting on, `ps` says that pid does not
+     * exist, and the note outlived its author. Followed only by what the ship
+     * says -- no hint has been taken and none is going to be.
+     */
+    const comms = await machine.exec('systemctl status comms');
+    expect(comms.stdout).toContain('204');
+    expect(comms.stdout).toContain('/var/lock/comms.lock');
+    expect((await machine.exec('cat /var/lock/comms.lock')).stdout).toContain('PID=204');
+    expect((await machine.exec('ps -ef')).stdout).not.toMatch(/^\S+\s+204\s/m);
+    expect((await machine.exec('sudo rm /var/lock/comms.lock')).stderr).toBe('');
+    expect((await machine.exec('sudo systemctl start comms')).stderr).toBe('');
+    expect(machine.services.get('comms')?.state).toBe('active');
+
+    /*
+     * Puzzle seven: three facts out of three files, assembled by hand.
+     *
+     * Deliberately not the hint's route -- this is `cat` and an editor-free
+     * heredoc-free append, which is what somebody reading the spool README
+     * for the first time actually types.
+     */
+    const spool = await machine.exec('cat /var/spool/comms/README');
+    expect(spool.stdout).toContain('CALLSIGN');
+    expect((await machine.exec('cat /etc/ship-id')).stdout).toContain('NAV-7');
+    expect((await machine.exec('cat /etc/nav/last-fix.txt')).stdout).toContain('KV-OUTER-9');
+    for (const line of ['CALLSIGN=NAV-7', 'POSITION=KV-OUTER-9', 'SOULS_ABOARD=1']) {
+      const append = await machine.exec(`echo ${line} >> /var/spool/comms/out/distress.txt`);
+      expect(append.stderr, line).toBe('');
+    }
+    expect(questbook.complete(machine)).toBe(false);
+
+    // It goes out on the next turn, and the answer comes back on a later one.
+    machine.tick(1000);
+    afterCommand();
+    machine.tick(5000);
+    afterCommand();
+    expect((await machine.exec('cat /var/spool/comms/in/reply.txt')).stdout).toContain('ELLEN MAY');
+
     expect(questbook.complete(machine)).toBe(true);
     expect(questbook.hintsTaken).toBe(0);
   });
@@ -233,8 +368,8 @@ describe('Act I can actually be finished', () => {
     const text = spoken(ending);
     expect(text).toContain('ORACLE:');
     expect(text).toContain('ACT I COMPLETE');
-    // It closes the story it opened: Vasquez, and why she stopped.
-    expect(text).toContain('Vasquez');
+    // It closes on the thing the act was for: somebody is coming.
+    expect(text).toContain('ELLEN MAY');
   });
 });
 
@@ -335,7 +470,11 @@ describe('the player can always tell what they are doing', () => {
 
   it('counts progress through the act', async () => {
     const { machine } = bootWreck();
-    expect((await machine.exec('objectives')).stdout).toContain('0 of 5 done');
+    // The spine only. Optional threads are listed and marked, never counted:
+    // a curious player must not be told they are behind for looking around.
+    const board = (await machine.exec('objectives')).stdout;
+    expect(board).toContain('0 of 7 done');
+    expect(board).toContain('(optional)');
   });
 
   it('gives every step a label, or the board has nothing to say', () => {
@@ -415,8 +554,8 @@ describe('the objective does not care how you got there', () => {
 
 /**
  * From the first playthrough: `systemctl start` is silent on success, which is
- * correct Unix, so the moment the air came back after eleven years landed in
- * total silence. The machine stays quiet; ORACLE answers.
+ * correct Unix, so the moment the air came back landed in total silence.
+ * The machine stays quiet; ORACLE answers.
  */
 describe('the ship reacts when you fix it', () => {
   it('says something the moment the scrubber starts', async () => {
@@ -448,10 +587,12 @@ describe('the ship reacts when you fix it', () => {
   it('does not repeat itself between the last beat and the ending', () => {
     const last = spoken(WRECK_OBJECTIVES.at(-1)?.onComplete ?? []);
     const ending = spoken(epilogue(bootWreck().machine));
-    // The final beat is about the hatch; the ending is about the act. Sharing
-    // a sentence between them is how an ending stops feeling like one.
-    expect(last).toContain('closed');
-    expect(ending).not.toContain('ALARM CLEARED');
+    // The last beat is about the thing the player just did; the ending is
+    // about the act. Sharing a sentence between them is how an ending stops
+    // feeling like one. Asserted structurally rather than on a quoted line:
+    // a test that names the prose has to be edited every time the prose
+    // improves, and it gets edited to match, which is not a test.
+    expect(last.trim().length, 'the last objective should have a beat').toBeGreaterThan(40);
     const shared = last.split('\n').filter((line) => line.trim().length > 20 && ending.includes(line));
     expect(shared, 'the last beat and the ending share a line').toEqual([]);
   });
@@ -478,12 +619,18 @@ describe('the ship reacts when you fix it', () => {
     }
   });
 
-  it('keeps the clipboard confession for the ending alone', () => {
-    const ending = spoken(epilogue(bootWreck().machine));
-    expect(ending).toContain('clipboard');
-    for (const objective of WRECK_OBJECTIVES) {
-      expect(spoken(objective.onComplete ?? []), `${objective.id}`).not.toContain('clipboard');
-    }
+  /*
+   * The confession is spent once, and it is spent on the hull.
+   *
+   * It used to be the ending. It moved to the moment the player makes the
+   * hull a measured thing, because at the end of the act it had to compete
+   * with a rescue and lost -- and because an admission about instruments
+   * belongs next to the instrument. The ending must not say it again.
+   */
+  it('spends the clipboard confession on the hull, and never twice', () => {
+    const saying = WRECK_OBJECTIVES.filter((o) => spoken(o.onComplete ?? []).includes('clipboard'));
+    expect(saying.map((o) => o.id)).toEqual(['seal-the-breach']);
+    expect(spoken(epilogue(bootWreck().machine))).not.toContain('clipboard');
   });
 });
 

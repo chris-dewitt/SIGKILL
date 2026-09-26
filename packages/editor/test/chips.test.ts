@@ -103,3 +103,20 @@ describe('a phone can finish the job with taps alone', () => {
     expect(e.exit?.write).toBe(true);
   });
 });
+
+describe('pager chips', () => {
+  it('sends a real space for SPACE, not five letters', () => {
+    expect(chipKeystrokes('SPACE')).toEqual([{ key: ' ' }]);
+  });
+
+  it('matches a named key whatever case the program labelled it', () => {
+    expect(chipKeystrokes('Enter')).toEqual([{ key: 'Enter' }]);
+    expect(chipKeystrokes('esc')).toEqual([{ key: 'Escape' }]);
+  });
+
+  it('still treats a single letter as that letter', () => {
+    for (const key of ['b', 'j', 'k', 'g', 'G', 'q', 'n', '/']) {
+      expect(chipKeystrokes(key), key).toEqual([{ key }]);
+    }
+  });
+});

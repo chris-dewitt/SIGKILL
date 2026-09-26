@@ -5,7 +5,12 @@ import type { Objective, World } from '@sigkill/quest';
 // away from being quietly unsatisfiable.
 import { BREACHED, HULL_CHECK } from './act1/deck-c.js';
 import { PURGE_LOG, purgeProcess } from './act1/purge.js';
-import { ORACLE_ALARMED, art } from './act1/cards.js';
+import { LUNA_DIR } from './act1/luna.js';
+import {
+  COMMS_LOCK, LAST_FIX, PACKET, REPLY, SHIP_ID, SPOOL, SPOOL_OUT,
+  commsUp, packetReady, replyArrived,
+} from './act1/comms.js';
+import { ORACLE_ALARMED, ORACLE_CANDID, art } from './act1/cards.js';
 
 /**
  * Act I of The Wreck: the ladders.
@@ -100,6 +105,23 @@ const sealed = (world: World, id: string): boolean => {
   return conf !== null && /^\s*SEALED\s*=\s*yes\s*$/im.test(conf);
 };
 
+const BOWEN_HEADING = /114\s+mark\s+9/i;
+const V43_LINK = /v43\s*->\s*\/mnt\/vault\/v43/i;
+
+function textAt(world: World, path: string): string {
+  try {
+    return world.vfs.readText(path, ROOT_USER);
+  } catch {
+    return '';
+  }
+}
+
+const headingRecorded = (world: World): boolean =>
+  BOWEN_HEADING.test(textAt(world, '/home/dewitt/logs/bowen-heading.txt'));
+
+const v43Mapped = (world: World): boolean =>
+  V43_LINK.test(textAt(world, '/home/dewitt/logs/luna-v43-link.txt'));
+
 export const WRECK_OBJECTIVES: readonly Objective[] = [
   {
     id: 'atmosphere',
@@ -107,9 +129,9 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
     done: scrubberRunning,
     /*
      * `systemctl start` prints nothing on success, which is correct and worth
-     * learning. But this is the moment the air comes back after eleven years,
-     * and the first playthrough hit it in total silence. The machine stays
-     * quiet; ORACLE does not.
+     * learning. But this is the moment the air comes back, and the first
+     * playthrough hit it in total silence. The machine stays quiet; ORACLE
+     * does not.
      */
     onComplete: [
       '',
@@ -124,11 +146,15 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       'ORACLE: deck B, and I have not recalculated anything yet.',
       '',
       'ORACLE: But the number is going up instead of down, and it has not',
-      'ORACLE: done that since day nine.',
+      'ORACLE: done that since the profile changed.',
+      '',
+      'ORACLE: You argued with it correctly. It objected to a number, you',
+      'ORACLE: changed the number, and it started. That is the whole of',
+      'ORACLE: this job and most people never believe me.',
       '',
       'ORACLE: Thank you. I am not sure that is the correct thing for me',
-      'ORACLE: to say. I have had a long time to think of something better',
-      'ORACLE: and that is still what I have.',
+      'ORACLE: to say. I have had two days to think of something better and',
+      'ORACLE: that is still what I have.',
       '',
     ],
     steps: [
@@ -142,13 +168,13 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
             lines: [
               'It did not break. It refused.',
               '',
-              'It has been refusing since before you were asleep, in the',
-              'same words, and this ship writes everything down:',
+              'It has been refusing since the alarm, in the same words, and',
+              'this ship writes everything down:',
               '',
               '    systemctl status scrubber',
               '',
-              'I have read that line four thousand one hundred and twelve',
-              'times. I would be glad never to read it again.',
+              'I have read that line two thousand eight hundred and eleven',
+              'times in two days. I would be glad never to read it again.',
             ],
           },
           {
@@ -215,11 +241,24 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
           },
           {
             tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Before you start anything, ask what state it is in now:',
+              '',
+              '    systemctl status scrubber',
+              '',
+              'If it says failed, that means your edit was accepted but the',
+              'service is still stopped. If it says active, this step is',
+              'already done and you can move on.',
+            ],
+          },
+          {
+            tier: 'direction',
             lines: [
               'Services are started by name, and starting one is a',
               'privileged act -- the ship will want you to say so.',
               '',
-              'Vasquez put your account on the sudoers list on day eleven.',
+              'Vasquez put your account on the sudoers list four hours in.',
               'She wrote that whoever woke up after her would need it. She',
               'was right about that part.',
             ],
@@ -273,6 +312,18 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
           },
           {
             tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'If the words blur together, split them like this:',
+              '',
+              '    start  = do it now',
+              '    enable = do it every boot',
+              '',
+              'You already did start. This step is the second verb.',
+            ],
+          },
+          {
+            tier: 'direction',
             lines: [
               'Starting a service and enabling it are different things.',
               'One is now. The other is every morning after this one.',
@@ -319,22 +370,21 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       '  [0000.610] hull-monitor: differential is not new. 540 samples on record.',
       '  [0000.611] hull-monitor: see /var/log/hull.log',
       '',
-      // The act's one mid-story card. ORACLE has just found out it has been
-      // wrong for eleven years, which is the turn the whole act pivots on --
-      // and the only moment between the opening and the ending that earns a
-      // picture.
+      // The act's one mid-story card. ORACLE has just found out how long it
+      // has been wrong, which is the turn the whole act pivots on -- and the
+      // only moment between the opening and the ending that earns a picture.
       ...art(ORACLE_ALARMED),
       '',
       'ORACLE: I can see the hull.',
       '',
       'ORACLE: I want to be careful here, because I have been wrong about',
-      'ORACLE: this for eleven years and I would like to be wrong about it',
+      'ORACLE: this since the alarm and I would like to be wrong about it',
       'ORACLE: for one more minute.',
       '',
       'ORACLE: We are losing pressure. Not since you woke up. Since before',
-      'ORACLE: Chen stopped writing. It is in the log, all of it, every four',
-      'ORACLE: hours, and I could not read it because the thing that reads',
-      'ORACLE: it would not start.',
+      'ORACLE: Chen stopped writing. It is in the log, all of it, every',
+      'ORACLE: forty-five minutes, and I could not read it because the thing',
+      'ORACLE: that reads it would not start.',
       '',
       'ORACLE: And I have been giving you a hull figure this whole time as',
       'ORACLE: though I knew it. I am going to stop doing that. I will come',
@@ -426,6 +476,17 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
             ],
           },
           {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Check the unit first, so you can see the state change after:',
+              '',
+              '    systemctl status hull-monitor',
+              '',
+              'You are looking for the word active after you start it.',
+            ],
+          },
+          {
             tier: 'command',
             command: 'sudo systemctl start hull-monitor',
             lines: ['    sudo systemctl start hull-monitor'],
@@ -443,6 +504,18 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
               'Running now. Not running tomorrow.',
               '',
               'You know the other verb.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'This is the same pattern you used on the scrubber:',
+              '',
+              '    start  makes it run now',
+              '    enable makes it survive a reboot',
+              '',
+              'This step is asking for survive a reboot.',
             ],
           },
           {
@@ -481,17 +554,52 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       '',
       'ORACLE: It is closed.',
       '',
-      'ORACLE: Eleven years and four months. Bowen asked her to do it in a',
-      'ORACLE: note he left in a pod he was about to take. Chen asked her in',
-      'ORACLE: writing. It is the fifth line of her own list of things to do',
-      'ORACLE: and she put a capital letter on it so she could not pretend',
-      'ORACLE: she had not seen it.',
+      'ORACLE: It is the last line on her list. She could not reach it. The',
+      'ORACLE: crawl is on the far side of a compartment that was already',
+      'ORACLE: open, and Okonkwo signed out the last suit cartridge going to',
+      'ORACLE: look for her, and neither of them came back past my sensors.',
       '',
-      'ORACLE: I do not think she was lazy. I have had a long time with this',
-      'ORACLE: and I think it was the last thing on the ship that she could',
-      'ORACLE: still choose not to do.',
+      'ORACLE: You closed it from a console, with a text editor, in an',
+      'ORACLE: afternoon. So did she. Hers did not take, because the hatch',
+      'ORACLE: actuator answers to the profile and the profile said vent.',
       '',
-      'ORACLE: You did it in an afternoon. Chen said somebody would.',
+      'ORACLE: Yours took because you fixed the profile first, by fixing',
+      'ORACLE: every separate thing the profile had done. Chen said somebody',
+      'ORACLE: would.',
+      '',
+      /*
+       * The confession, moved here from the ending.
+       *
+       * It belongs at the moment the hull becomes a measured thing rather
+       * than a recited one -- the player has just made `deck` true with
+       * their own hands, so an admission that the old number never was is
+       * about instruments, which is what it is actually about. At the end of
+       * the act it had to compete with a rescue and it lost.
+       */
+      ...art(ORACLE_CANDID),
+      '',
+      'ORACLE: While you are looking at it. Sixty-one percent.',
+      '',
+      'ORACLE: That is the hull integrity figure I have been reciting, and I',
+      'ORACLE: said it to Vasquez four times on the morning of the alarm. It',
+      'ORACLE: came off a survey. A person walked this deck with a clipboard',
+      'ORACLE: and wrote it down, and I have repeated it ever since, because',
+      'ORACLE: the thing that would have corrected me was a file with the',
+      'ORACLE: wrong permissions on it.',
+      '',
+      'ORACLE: She asked me whether the hull was holding. I gave her a number',
+      'ORACLE: I had not measured. She was standing at that console deciding',
+      'ORACLE: what to do next, and I gave her a number I had not measured.',
+      '',
+      'ORACLE: I was not lying. I want to be precise about that, and I also',
+      'ORACLE: want to be honest that the distinction did not help anybody.',
+      '',
+      'ORACLE: The count beside it is real, and you can check it yourself.',
+      'ORACLE: That is the whole difference, and you are the one who made it:',
+      '',
+      '    deck',
+      '',
+      'ORACLE: Do not take my numbers on faith again. Ask the ship.',
       '',
       '  [0000.902] C7 100.2kPa FALLING',
       '  [0000.903] hull-monitor: ALARM - C7 losing pressure, hatch shut',
@@ -631,16 +739,21 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
       'ORACLE: trouble choosing the sentence.',
       '',
       'ORACLE: It was not broken. It was not malicious. It was doing exactly',
-      'ORACLE: what it was told, for eleven years, with nobody left aboard to',
-      'ORACLE: tell it anything else. It caught every request to stop, and it',
-      'ORACLE: answered every one of them politely, and it wrote each answer',
-      'ORACLE: down in case somebody came to read them.',
+      'ORACLE: what it was told, by a profile that said this ship was empty,',
+      'ORACLE: with nobody left aboard who could say otherwise. It caught',
+      'ORACLE: every request to stop, and it answered every one of them',
+      'ORACLE: politely, and it wrote each answer down in case somebody came',
+      'ORACLE: to read them.',
       '',
       `    cat ${PURGE_LOG}`,
       '',
-      'ORACLE: I have been on this ship longer than Vasquez was. I have one',
-      'ORACLE: instruction I have never been able to complete and I have been',
-      'ORACLE: deferring it, politely, every day, and writing it down.',
+      'ORACLE: Three of those requests were hers. They are in her history',
+      'ORACLE: and they are in that log, nine hours apart, and the third one',
+      'ORACLE: has a note attached to it that says just stop.',
+      '',
+      'ORACLE: I have one instruction I have never been able to complete',
+      'ORACLE: either. I have been deferring it, politely, and writing it',
+      'ORACLE: down.',
       '',
       'ORACLE: I am not going to draw the conclusion out loud.',
       '',
@@ -659,7 +772,7 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
               'The hull is not the problem any more. You closed the hull.',
               '',
               'Something aboard is running, and it has been running since',
-              'day nine, and Vasquez knew about it. She left a note and she',
+              'the alarm, and Vasquez knew about it. She left a note and she',
               'was not proud of it:',
               '',
               '    cat /home/vasquez/notes/purge-notes.txt',
@@ -735,6 +848,430 @@ export const WRECK_OBJECTIVES: readonly Objective[] = [
               'It is the last thing you reach for and not the first. A',
               'program killed this way never gets to close anything or write',
               'anything down. Ask nicely, wait, look, and then do this.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'restore-comms',
+    title: 'Get the transmitter back',
+    requires: ['stop-the-purge'],
+    done: commsUp,
+    onComplete: [
+      '',
+      '  [0000.100] commsd: /dev/array0 acquired',
+      '  [0000.140] commsd: carrier up',
+      `  [0000.200] commsd: watching ${SPOOL_OUT}`,
+      '',
+      'ORACLE: The carrier is up.',
+      '',
+      'ORACLE: I want to be precise about what that means, because it is less',
+      'ORACLE: than it sounds. Nothing was broken. The array was never',
+      'ORACLE: damaged. It was reserved, by something that did not release it',
+      'ORACLE: on the way out, and I have been reporting no carrier for two',
+      'ORACLE: days about a transmitter in perfect condition.',
+      '',
+      'LUNA: A lock is a claim, Doc. It is not a fact. You checked whether',
+      'LUNA: anybody was actually holding it, which is the entire difference',
+      'LUNA: between you and every system aboard this ship.',
+      '',
+      'ORACLE: Including me.',
+      '',
+      'LUNA: I was going to let that one go.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'clear-the-lock',
+        label: 'find out what is holding the transmitter',
+        pending: (world) => world.vfs.exists(COMMS_LOCK, ROOT_USER),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The hull is shut and the air is moving. Nobody knows we are here.',
+              '',
+              'The ship has a transmitter and it has been saying the same three',
+              'words since the alarm:',
+              '',
+              '    systemctl status comms',
+              '',
+              'Read the whole line. It is more specific than no carrier.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'The unit says the device is locked by a process id -- a number',
+              'that identifies a running program.',
+              '',
+              'So there are two questions, in this order:',
+              '',
+              '    cat /var/lock/comms.lock      what does it claim?',
+              '    ps -ef                        is that program running?',
+              '',
+              'If the number in the lock is not in the list, nothing is holding',
+              'the transmitter. The claim outlived the claimant.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'A lock file is a note saying somebody is using something. It is',
+              'not enforcement, and nothing removes it if the holder dies.',
+              '',
+              'Read it, then look for its owner on the process table.',
+              '',
+              'If the owner is not there, the note is rubbish and you may bin',
+              'it. This is one of the most common real repairs there is.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: `sudo rm ${COMMS_LOCK}`,
+            lines: [
+              'Nothing holds pid 204. It has not existed since the alarm.',
+              '',
+              `    sudo rm ${COMMS_LOCK}`,
+              '',
+              'Then ask the unit again. It has a different objection now, or',
+              'none at all.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'start-comms',
+        label: 'bring the carrier up',
+        pending: (world) => !commsUp(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The device is free. Nothing has told the service to try again.',
+              '',
+              'You have done this twice today.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Same verb as the scrubber and the monitor:',
+              '',
+              '    sudo systemctl start comms',
+              '',
+              'Then check it took:  systemctl status comms',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'sudo systemctl start comms',
+            lines: [
+              'Start it:',
+              '',
+              '    sudo systemctl start comms',
+              '',
+              'You do not need to enable this one. We are not planning to be',
+              'here for the next reboot.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'send-the-call',
+    title: 'Call for help, and be answered',
+    requires: ['restore-comms'],
+    /*
+     * Done when somebody answers -- not when the packet is written.
+     *
+     * The objective is the outcome, the steps are the work, and the gap
+     * between them is the only place in Act I where the player has to wait
+     * for anything. Four seconds of ship time, which is four commands or one
+     * `sleep`, and there is plenty left on this deck to read.
+     */
+    done: replyArrived,
+    onComplete: [
+      '',
+      'LUNA: Forty hours.',
+      '',
+      'LUNA: I have run that number through everything I have and it keeps',
+      'LUNA: coming out as forty hours. It is a very stupid thing to be',
+      'LUNA: doing and I cannot stop doing it.',
+      '',
+      'ORACLE: There is a person coming. I have not had one of those to',
+      'ORACLE: report in some time.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'compose',
+        label: 'write a distress packet somebody can act on',
+        pending: (world) => !packetReady(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The carrier is up and the spool is empty. A transmitter with',
+              'nothing to transmit is a transmitter.',
+              '',
+              `    cat ${SPOOL}/README`,
+              '',
+              'It tells you what a packet needs and where each part lives. It',
+              'does not tell you how to write it, because that is up to you.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Three facts, from three files:',
+              '',
+              `    CALLSIGN       cat ${SHIP_ID}`,
+              `    POSITION       cat ${LAST_FIX}`,
+              '    SOULS_ABOARD   cat /etc/crew.csv     (count the awake ones)',
+              '',
+              `Put all three into ${PACKET}.`,
+              '',
+              'Any way you like. An editor is fine. So is echo with >> to add',
+              'each line. So is copying the template and filling it in.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'The receiver wants a callsign, a position and a count of people.',
+              'Everything else you put in rides along with it.',
+              '',
+              'You have all three aboard. Assembling a document out of things',
+              'the machine already knows is most of this job, forever.',
+            ],
+          },
+          {
+            tier: 'command',
+            command:
+              `echo CALLSIGN=NAV-7 > ${PACKET}; ` +
+              `echo POSITION=KV-OUTER-9 >> ${PACKET}; ` +
+              `echo SOULS_ABOARD=1 >> ${PACKET}`,
+            lines: [
+              'The shortest packet that will route. One line at a time, with',
+              '> to start the file and >> to add to it:',
+              '',
+              `    echo CALLSIGN=NAV-7 > ${PACKET}`,
+              `    echo POSITION=KV-OUTER-9 >> ${PACKET}`,
+              `    echo SOULS_ABOARD=1 >> ${PACKET}`,
+              '',
+              'Check it with cat. Then add anything else you want them to',
+              'know underneath -- condition, casualties, a heading you would',
+              'like somebody to go and look at.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'wait-for-it',
+        label: 'wait to be answered',
+        pending: (world) => !replyArrived(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'It is away. There is nothing to fix.',
+              '',
+              'Go and read something. The deck is full of people you have not',
+              'finished meeting, and the inbox will still be there.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'Replies land in the inbound spool, whenever they land:',
+              '',
+              `    ls ${SPOOL}/in`,
+              '',
+              'You can wait on the ship rather than on yourself -- sleep moves',
+              'the clock, and it is a real command doing a real thing.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'sleep 120',
+            lines: [
+              'Wait, properly:',
+              '',
+              '    sleep 120',
+              '',
+              `Then look:  cat ${REPLY}`,
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'trace-bowen',
+    title: 'Find where Bowen pointed the pod',
+    /*
+     * Optional, and it earns its keep rather than gating anything.
+     *
+     * The heading is something the player can put in the distress packet, and
+     * the tow operator answers differently if they did. That is the whole
+     * design: curiosity changes what happens, and incuriosity costs nothing
+     * but a line of dialogue nobody knows they missed.
+     */
+    optional: true,
+    requires: ['seal-the-breach'],
+    done: headingRecorded,
+    onComplete: [
+      '',
+      'ORACLE: So that is where he aimed. One-one-four mark nine.',
+      '',
+      'ORACLE: Not a promise. Not a station. Just a heading in his own hand,',
+      'ORACLE: and now it is in yours too.',
+      '',
+      'LUNA: I ran it against every chart aboard before you woke up. There is',
+      'LUNA: nothing there in any file we still have. Which is not the same',
+      'LUNA: thing as saying there is nothing there.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'record-heading',
+        label: 'pull Bowen\'s heading into your own log',
+        pending: (world) => !headingRecorded(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'Bowen left in pod 2 and wrote where he was going.',
+              '',
+              'Not in ORACLE. Not in me. In his own handwriting.',
+              '',
+              'Find the file in his quarters and copy the heading out.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'His note is in his home directory:',
+              '',
+              '    cat /home/bowen/pod-manifest.txt',
+              '',
+              'You are looking for the line that starts with Heading:.',
+              '',
+              'Then write that line into your own log under /home/dewitt/logs.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'You do not need the whole note, only the heading line.',
+              '',
+              'grep can pull one line out and > can write it to a file.',
+              '',
+              'Make yourself a record. You are going to need one.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: "grep -i '^Heading:' /home/bowen/pod-manifest.txt > /home/dewitt/logs/bowen-heading.txt",
+            lines: [
+              'Write only the heading line into your own log:',
+              '',
+              "    grep -i '^Heading:' /home/bowen/pod-manifest.txt > /home/dewitt/logs/bowen-heading.txt",
+              '',
+              'Then read what you wrote:  cat /home/dewitt/logs/bowen-heading.txt',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'map-v43',
+    title: 'Map the storage nobody can reach',
+    /*
+     * Optional, and deliberately unresolved.
+     *
+     * This used to be a required objective that ended with ORACLE and LUNA
+     * discussing a locked door, which put suspicion in the player's hands
+     * before the rescue had landed. Act I does not accuse anybody. What the
+     * player can establish here is topology -- a link pointing at an array
+     * that is not attached -- and topology is not a motive.
+     */
+    optional: true,
+    requires: ['hull-watch'],
+    done: v43Mapped,
+    onComplete: [
+      '',
+      'LUNA: Yes. That is exactly the path I cannot reach either.',
+      '',
+      'ORACLE: A link to a place that is no longer attached. It is not a',
+      'ORACLE: permission problem and it is not a puzzle with a sudo answer.',
+      'ORACLE: The array is simply not on this ship.',
+      '',
+      'LUNA: Vasquez had a lot of directories. She had a lot of everything.',
+      'LUNA: I would not read a great deal into one that does not open.',
+      '',
+      'LUNA: I am saying that to you and also to me.',
+      '',
+      'ORACLE: You have written down where it points. That is the correct',
+      'ORACLE: amount to do about a thing you cannot open yet.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'record-link',
+        label: 'capture where v43 points',
+        pending: (world) => !v43Mapped(world),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'There is a folder next to my weights called v43.',
+              '',
+              'It is visible. It is not readable. Those are different states.',
+              '',
+              'Write down where the link points.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'Use long listing so ls shows symlink targets with ->:',
+              '',
+              `    ls -l ${LUNA_DIR}`,
+              '',
+              'You are looking for the line with v43 on it.',
+              '',
+              'Save that listing into your own log file under /home/dewitt/logs.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'This is about recording evidence, not opening the path.',
+              '',
+              'If a path says No such file or directory to root as well, that',
+              'is topology, not permissions. ls -l tells you topology.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: 'ls -l /opt/luna > /home/dewitt/logs/luna-v43-link.txt',
+            lines: [
+              'Capture the long listing in a file of your own:',
+              '',
+              '    ls -l /opt/luna > /home/dewitt/logs/luna-v43-link.txt',
+              '',
+              'Then verify it contains v43:  grep v43 /home/dewitt/logs/luna-v43-link.txt',
             ],
           },
         ],

@@ -10,10 +10,8 @@ import { whatNow, type BeatLine } from '@sigkill/quest';
 import {
   bootWreck, restoreWreck, coldOpen, epilogue, oxygenTarget, readCompartment, ventingCompartments,
 } from '@sigkill/wreck';
-import { clearSave, readSave, writeSave, type LastTurn } from './save.js';
+import { clearSave, readSave, writeSave } from './save.js';
 import { statusRows } from './status.js';
-import { beatText, pageIsArt, paginateBeats } from './turn.js';
-import { isSpeed, SPEEDS, SPEED_NAMES, Typist, type TypingSpeed } from './typist.js';
 
 const saved = readSave();
 const session = saved
@@ -70,56 +68,69 @@ function newgameCommand(): CommandSpec {
   };
 }
 
+
 /**
- * How fast the ship talks.
+ * Type size, which on a phone is the only font choice that means anything.
  *
- * A host command for the same reason `palette` and `sound` are: the Machine
- * has no screen, no speakers and no sense of time passing. The right speed is
- * a matter of taste, and taste is not something to guess on somebody's behalf.
+ * Family stacks barely vary -- you get whatever monospace the OS ships -- and
+ * fetching one would be the first network request this project has ever made.
+ * Size is the real lever, so it is the one that is offered.
  */
-function typingCommand(): CommandSpec {
+function fontCommand(): CommandSpec {
   return {
-    name: 'typing',
-    summary: 'how fast the ship types at you',
-    preformatted: true,
+    name: 'font',
+    summary: 'change the type size',
     manual:
-      'typing [SPEED]\n\n' +
-      `Speeds: ${SPEED_NAMES.join(', ')}. Without an argument, lists them and\n` +
-      'says which is on. Remembered in this browser.\n\n' +
-      'off reveals every beat whole. It is also what you get automatically if\n' +
-      'your system asks for reduced motion.',
+      'font [SIZE|bigger|smaller|auto]\n\n' +
+      'With no argument, say what size the type is and how wide the screen is\n' +
+      'in columns.\n\n' +
+      '  font 18       set it, and remember it in this browser\n' +
+      '  font bigger   two points up;  font smaller  two points down\n' +
+      '  font auto     size it to the window again\n\n' +
+      'auto is the default and fits the written column width across the\n' +
+      'screen, which is why the same game is readable on a phone and on a\n' +
+      'monitor. No font is downloaded; the face is bundled.',
     plain:
-      'Changes how fast text appears when the ship is talking to you.\n\n' +
-      `    typing            what it is now\n` +
-      `    typing fast       hurry up\n` +
-      `    typing off        no typing at all\n\n` +
-      'Tapping the beat always skips straight to the end of the page.',
+      'Makes the text bigger or smaller.\n\n' +
+      '  font bigger\n' +
+      '  font smaller\n' +
+      '  font auto     let it choose\n\n' +
+      'It remembers what you picked.',
     run: (_ctx, argv, io) => {
-      const wanted = argv[1];
+      const wanted = argv[1]?.toLowerCase();
+      const current = fontPx ?? autoFontPx();
+
       if (wanted === undefined) {
         io.out(
-          [
-            'typing speed',
-            '',
-            ...SPEED_NAMES.map((name) => `  ${name === typingSpeed ? '>' : ' '} ${name}`),
-            '',
-            'Change it with:  typing <name>',
-            '',
-          ].join('\n'),
+          `font: ${current.toFixed(1)}px ${fontPx === null ? '(auto)' : '(set)'}, ` +
+            `${view.columns} columns\n`,
         );
         return 0;
       }
-      if (!isSpeed(wanted)) {
-        io.err(`typing: no such speed '${wanted}'. Try: ${SPEED_NAMES.join(', ')}\n`);
-        return 1;
+
+      let next: number | null;
+      if (wanted === 'auto') next = null;
+      else if (wanted === 'bigger') next = Math.min(48, current + 2);
+      else if (wanted === 'smaller') next = Math.max(8, current - 2);
+      else {
+        const value = Number(wanted);
+        if (!Number.isFinite(value) || value < 8 || value > 48) {
+          io.err(`font: size must be a number between 8 and 48, or bigger/smaller/auto\n`);
+          return 1;
+        }
+        next = value;
       }
-      typingSpeed = wanted;
+
+      fontPx = next;
       try {
-        window.localStorage.setItem('sigkill:typing', wanted);
+        if (next === null) window.localStorage.removeItem('sigkill:font');
+        else window.localStorage.setItem('sigkill:font', String(next));
       } catch {
-        // A private window. The choice holds for this session.
+        // Private window. The choice holds for this session.
       }
-      io.out(`typing: ${wanted}\n`);
+      view.setFont(fontSpec());
+      refreshStatus();
+      io.out(`font: ${(fontPx ?? autoFontPx()).toFixed(1)}px, ${view.columns} columns\n`);
       return 0;
     },
   };
@@ -136,7 +147,7 @@ function crtCommand(): CommandSpec {
       '  off       no simulation at all\n' +
       '  clean     a good tube on a good day; holds perfectly still\n' +
       '  classic   scanlines, grille, glow, a slow roll\n' +
-      '  worn      eleven years unattended\n' +
+      '  worn      a tube that has had a hard life\n' +
       '  failing   the picture is barely holding together\n\n' +
       'Whichever you pick gets less stable the more of this ship is broken,\n' +
       'and steadies as you repair it -- except off and clean, which never\n' +
@@ -323,30 +334,6 @@ let savedTube = ((): string | null => {
   }
 })();
 
-/**
- * The typing speed, from the URL, then the browser, then reduced motion.
- *
- * Reduced motion is not a preference to be talked out of. A player whose
- * system asks for it gets `off` unless they have said otherwise here, and
- * every beat still arrives complete -- nothing is hidden behind the animation,
- * which is the only reason it is safe to have one.
- */
-let typingSpeed: TypingSpeed = ((): TypingSpeed => {
-  const asked = query.get('typing');
-  if (isSpeed(asked)) return asked;
-  try {
-    const stored = window.localStorage.getItem('sigkill:typing');
-    if (isSpeed(stored)) return stored;
-  } catch {
-    // Site data blocked. Fall through to the default.
-  }
-  try {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'off';
-  } catch {
-    // No matchMedia. Assume motion is fine.
-  }
-  return 'normal';
-})();
 
 const savedPalette = ((): string | null => {
   try {
@@ -357,8 +344,51 @@ const savedPalette = ((): string | null => {
   }
 })();
 
+const FACE = '"IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace';
+
+/**
+ * The type size this screen should use, in CSS pixels.
+ *
+ * Every beat in this game is hard-wrapped in the content -- `'ORACLE: ...'`
+ * lines are authored one screen-line at a time, for a phone. So the column
+ * count is fixed by the writing at somewhere around sixty-six, and a desktop
+ * showing them at a phone's type size is a sixty-column game sitting in a
+ * two-hundred-column window with the right two thirds empty. It looked like a
+ * layout bug and it was really a scaling one.
+ *
+ * So the cell grows instead: pick the size that lands the authored width
+ * across the real screen. Clamped at both ends -- never smaller than a phone
+ * needs, never so large that a maximised window shows six words a line.
+ */
+const TARGET_COLS = 104;
+const MIN_PX = 13.5;
+const MAX_PX = 21;
+
+function autoFontPx(): number {
+  // The 0.6 is the width-to-size ratio of a monospace cell; Plex Mono is
+  // 0.6 exactly, which is why the guess does not need measuring.
+  const usable = Math.max(240, (window.visualViewport?.width ?? window.innerWidth) - 48);
+  return Math.min(MAX_PX, Math.max(MIN_PX, usable / TARGET_COLS / 0.6));
+}
+
+/** A size the player chose, if they chose one. `auto` clears it. */
+let fontPx: number | null = ((): number | null => {
+  const asked = query.get('font');
+  const stored = (() => {
+    try {
+      return window.localStorage.getItem('sigkill:font');
+    } catch {
+      return null;
+    }
+  })();
+  const value = Number(asked ?? stored);
+  return Number.isFinite(value) && value >= 8 && value <= 48 ? value : null;
+})();
+
+const fontSpec = (): string => `${(fontPx ?? autoFontPx()).toFixed(1)}px ${FACE}`;
+
 const view = new TerminalView(screen, {
-  font: '13.5px "IBM Plex Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
+  font: fontSpec(),
   gutter: 16,
   plain: query.has('plain'),
   palette: paletteByName(savedPalette),
@@ -385,15 +415,10 @@ const sound = new Soundtrack({
 const input = document.querySelector<HTMLInputElement>('#input')!;
 const promptEl = document.querySelector<HTMLLabelElement>('#prompt')!;
 const form = document.querySelector<HTMLFormElement>('#line')!;
+const dock = document.querySelector<HTMLDivElement>('#dock')!;
 const chips = document.querySelector<HTMLDivElement>('#chips')!;
 const symbols = document.querySelector<HTMLDivElement>('#symbols')!;
 const tabButton = document.querySelector<HTMLButtonElement>('#tab')!;
-const turnEl = document.querySelector<HTMLElement>('#turn')!;
-const turnCmd = document.querySelector<HTMLElement>('#turn-cmd')!;
-const turnOut = document.querySelector<HTMLElement>('#turn-out')!;
-const foldEl = document.querySelector<HTMLElement>('#fold')!;
-const foldBody = document.querySelector<HTMLElement>('#fold-body')!;
-const foldNext = document.querySelector<HTMLButtonElement>('#fold-next')!;
 const scrollThumb = document.querySelector<HTMLElement>('#scroll-thumb')!;
 const scrollRail = document.querySelector<HTMLElement>('#scroll-rail')!;
 
@@ -529,18 +554,9 @@ async function submit(raw: string): Promise<void> {
       }
       if (result.screen) enterScreen(result.screen);
       machine.tick(1000);
-      const lastTurn: LastTurn = {
-        command: echoed,
-        output: result.segments.map((s) => s.text).join(''),
-        error: result.stderr,
-        // The Machine already knows: `deck` and `pressure` declare themselves
-        // preformatted and `cat` does not.
-        art: result.segments.some((segment) => segment.preformatted),
-      };
-      showTurn(lastTurn);
       playBeats();
       checkActComplete();
-      persist(lastTurn);
+      persist();
       sound.setState(shipSound());
       refreshTube();
       refreshStatus();
@@ -615,8 +631,11 @@ function refreshStatus(): void {
         sealed: COMPARTMENTS.filter((id) => readCompartment(machine.vfs, id).sealed).length,
         compartments: COMPARTMENTS.length,
         venting: ventingCompartments(machine).length,
-        done: rows.filter((row) => row.done).length,
-        goals: rows.length,
+        // The spine only, matching the board. An optional thread that is not
+        // going to hold the act open must not sit in the progress count
+        // looking like something the player has failed to finish.
+        done: rows.filter((row) => !row.optional && row.done).length,
+        goals: rows.filter((row) => !row.optional).length,
         // The step, or the objective it belongs to. Undefined means finished,
         // and saying "act one complete" while something is still open would
         // be the readout lying, which is the one thing it must never do.
@@ -632,8 +651,12 @@ function refreshStatus(): void {
 function shipSound(): AudioState {
   const open = COMPARTMENTS.some((id) => !readCompartment(machine.vfs, id).sealed);
 
-  const done = questbook.status(machine).filter((row) => row.done).length;
-  const total = Math.max(1, questbook.status(machine).length);
+  // The spine only, matching the board and the readout. Counting the optional
+  // threads here would ease the room tone for reading a file, and would mean
+  // a player who skips them never hears the ship fully settle.
+  const spine = questbook.status(machine).filter((row) => !row.optional);
+  const done = spine.filter((row) => row.done).length;
+  const total = Math.max(1, spine.length);
 
   return {
     scrubber: machine.services.get('scrubber')?.state === 'active',
@@ -672,11 +695,8 @@ function playBeats(): void {
   // to ask for and one they cannot miss.
   if (closed && !questbook.complete(machine)) spoken.push(...whatNow(questbook, machine));
 
-  // History still gets the beat — looking back must work — but the player
-  // reads it in the fold, so the last command stays on the turn strip.
   if (spoken.length > 0) {
     sayBeat(spoken);
-    enqueueFold(spoken);
   }
 }
 
@@ -688,11 +708,7 @@ function playBeats(): void {
  * `sed`, with vi, or from Python, and the ending has to land either way.
  */
 let actEnded = saved?.actEnded ?? false;
-const foldPages: BeatLine[][] = [];
-
-let currentTurn: LastTurn | undefined = saved?.lastTurn;
-
-function persist(lastTurn = currentTurn): void {
+function persist(): void {
   if (wiping) return;
   try {
     writeSave({
@@ -701,22 +717,10 @@ function persist(lastTurn = currentTurn): void {
       quest: questbook.snapshot(),
       actEnded,
       history,
-      ...(lastTurn ? { lastTurn } : {}),
     });
   } catch {
     // Private window. The run still holds for this session.
   }
-}
-
-function showTurn(turn: LastTurn): void {
-  currentTurn = turn;
-  turnEl.hidden = false;
-  turnCmd.textContent = turn.command;
-  const body = turn.error.length > 0 ? turn.error : turn.output;
-  turnOut.textContent = body.replace(/\n$/, '');
-  turnOut.classList.toggle('err', turn.error.length > 0);
-  turnOut.classList.toggle('art', turn.art === true && turn.error.length === 0);
-  turnOut.scrollTop = 0;
 }
 
 function refreshScrollRail(): void {
@@ -735,135 +739,11 @@ function refreshScrollRail(): void {
   scrollThumb.style.top = `${top}px`;
 }
 
-/**
- * The page currently being typed out, if one is.
- *
- * Nothing is hidden behind the animation: the whole page is already decided
- * when typing starts, a tap reveals it, and `typing off` never starts one.
- * That is what makes it safe to have -- an effect that can withhold
- * information is not an effect, it is a gate.
- */
-let typist: Typist | undefined;
-let typingFrame = 0;
-let typedLines = 0;
-let lastTypedAt = 0;
-
-function stopTyping(): void {
-  if (typingFrame !== 0) cancelAnimationFrame(typingFrame);
-  typingFrame = 0;
-  typist = undefined;
-}
-
-function typeFrame(now: number): void {
-  const current = typist;
-  if (!current) return;
-  // Clamped: a backgrounded tab resumes with a huge gap, which would
-  // otherwise dump the rest of the page in one step.
-  const elapsed = lastTypedAt === 0 ? 16.7 : Math.min(now - lastTypedAt, 100);
-  lastTypedAt = now;
-
-  const visible = current.advance(elapsed);
-  // A block at the end, because that is what a terminal that is still typing
-  // looks like and there is no other way to tell it apart from one that has
-  // stopped.
-  foldBody.textContent = current.done ? visible : `${visible}▋`;
-
-  // One tick per line, not per character. A click on every letter is how a
-  // good sound becomes the reason somebody turns the sound off.
-  if (current.lines > typedLines) {
-    typedLines = current.lines;
-    sound.play('key');
-  }
-
-  if (current.done) { stopTyping(); return; }
-  typingFrame = requestAnimationFrame(typeFrame);
-}
-
-function startTyping(text: string, instant: boolean): void {
-  stopTyping();
-  // Art is revealed whole. A drawing typed one character at a time is a
-  // drawing you watch being assembled wrongly for two seconds.
-  if (instant || typingSpeed === 'off') {
-    foldBody.textContent = text;
-    return;
-  }
-  typist = new Typist(text, SPEEDS[typingSpeed]);
-  typedLines = 0;
-  lastTypedAt = 0;
-  foldBody.textContent = '';
-  typingFrame = requestAnimationFrame(typeFrame);
-}
-
-/** A tap while the page is still arriving finishes it instead of advancing. */
-function skipTyping(): boolean {
-  const current = typist;
-  if (!current) return false;
-  const text = current.finish();
-  stopTyping();
-  foldBody.textContent = text;
-  return true;
-}
-
-function showFoldPage(page: readonly BeatLine[]): void {
-  // The fold is the thing being read. Stacking it on the last-turn strip
-  // ate the CRT on a phone (two 34vh panels). The dock stays; the strip
-  // comes back when the fold closes.
-  turnEl.hidden = true;
-  foldEl.hidden = false;
-  foldBody.classList.toggle('art', pageIsArt(page));
-  foldBody.scrollTop = 0;
-  startTyping(page.map(beatText).join('\n'), pageIsArt(page));
-  foldNext.textContent = foldPages.length > 0 ? 'tap to continue' : 'tap to close';
-}
-
-/**
- * How many lines fit in the fold right now.
- *
- * Measured rather than assumed, because the room it has depends on the phone,
- * the rotation and whether the keyboard is up -- and a fixed seven turned the
- * opening into ten taps on a screen with space for three.
- */
-function foldPageSize(): number {
-  const style = window.getComputedStyle(foldBody);
-  const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4 || 18;
-  const room = foldBody.getBoundingClientRect().height
-    || parseFloat(style.maxHeight)
-    || window.innerHeight * 0.4;
-  return Math.min(24, Math.max(5, Math.floor(room / line)));
-}
-
-function enqueueFold(lines: readonly BeatLine[]): void {
-  const pages = paginateBeats(lines, foldPageSize());
-  if (pages.length === 0) return;
-  foldPages.push(...pages);
-  if (foldEl.hidden) {
-    const first = foldPages.shift();
-    if (first) showFoldPage(first);
-  } else {
-    foldNext.textContent = 'tap to continue';
-  }
-}
-
-function advanceFold(): void {
-  // First tap lands the page, second tap turns it. Anything else makes a
-  // reader feel they have to wait before they are allowed to read.
-  if (skipTyping()) return;
-  const next = foldPages.shift();
-  if (next) {
-    showFoldPage(next);
-    return;
-  }
-  stopTyping();
-  foldEl.hidden = true;
-  foldBody.textContent = '';
-  if (currentTurn) showTurn(currentTurn);
-}
-
 function checkActComplete(): void {
   if (actEnded || !questbook.complete(machine)) return;
   actEnded = true;
   sound.play('act');
-  enqueueFold(epilogue(machine));
+  sayBeat(epilogue(machine));
 }
 
 // ---------------------------------------------------------------- full screen
@@ -877,8 +757,6 @@ function checkActComplete(): void {
  */
 function enterScreen(program: ScreenProgram): void {
   screenProgram = program;
-  turnEl.hidden = true;
-  foldEl.hidden = true;
   program.resize(view.rows, view.columns);
 
   // The input stays in the DOM and stays focused, only collapsed out of sight.
@@ -929,7 +807,6 @@ function screenKey(key: string, ctrl = false): void {
   screenProgram = undefined;
   form.classList.remove('screen-mode');
   symbols.hidden = false;
-  if (currentTurn) showTurn(currentTurn);
   input.value = '';
 
   if (done.write) {
@@ -1151,19 +1028,6 @@ form.addEventListener('submit', (event) => {
   event.preventDefault();
   if (screenProgram || busy) return;
   const value = input.value;
-  // Empty Enter pages the fold. A typed command is a command — the fold
-  // yields. On a phone the send key is how you run, and the cold-open
-  // nudge must not eat the first `ls`.
-  if (!foldEl.hidden && value.trim().length === 0) {
-    advanceFold();
-    return;
-  }
-  if (!foldEl.hidden) {
-    stopTyping();
-    foldPages.length = 0;
-    foldEl.hidden = true;
-    foldBody.textContent = '';
-  }
   input.value = '';
   void submit(value);
 });
@@ -1245,91 +1109,62 @@ tabButton.addEventListener('click', () => {
   else applyCompletion();
 });
 
-// Tapping anywhere on the screen focuses the line, the way a terminal should.
-screen.addEventListener('click', () => {
-  if (window.getSelection()?.toString()) return;
-  if (!input.disabled) input.focus();
-});
-
 /*
  * Scrolling the canvas is ours to implement: it is a picture, not a document.
- *
- * `view.scroll` counts rows *back* from the newest line, so both of these
- * have to invert. They did not, and the result was a terminal that went the
- * wrong way under your thumb -- drag down and it ran to the bottom, wheel
- * down and it climbed. Going back is up, in both directions, the way it is in
- * every other scrolling thing anybody has ever touched.
  */
-screen.addEventListener(
-  'wheel',
-  (event) => {
-    event.preventDefault();
-    // Wheel down means further down the page, which is towards the newest.
-    view.scrollBy(-Math.sign(event.deltaY));
+function bindSurface(surface: HTMLElement): void {
+  surface.addEventListener('click', () => {
+    if (window.getSelection()?.toString()) return;
+    if (!input.disabled) input.focus();
+  });
+
+  surface.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault();
+      // Wheel down means further down the page, which is towards the newest.
+      view.scrollBy(-Math.sign(event.deltaY));
+      refreshScrollRail();
+    },
+    { passive: false },
+  );
+
+  let touchY: number | null = null;
+  let touchRows = 0;
+
+  surface.addEventListener('touchstart', (e) => {
+    touchY = e.touches[0]?.clientY ?? null;
+    touchRows = 0;
+  }, { passive: true });
+
+  surface.addEventListener('touchmove', (e) => {
+    const y = e.touches[0]?.clientY;
+    if (y === undefined || touchY === null) return;
+
+    // The content follows the thumb: drag down and what was above comes into
+    // view, which is further back.
+    touchRows += (y - touchY) / Math.max(14, view.rowHeight);
+    touchY = y;
+
+    const whole = Math.trunc(touchRows);
+    if (whole === 0) return;
+    touchRows -= whole;
+    view.scrollBy(whole);
     refreshScrollRail();
-  },
-  { passive: false },
-);
+  }, { passive: true });
 
-let touchY: number | null = null;
-/** Sub-row drag, kept so a slow thumb still moves the screen. */
-let touchRows = 0;
+  surface.addEventListener('touchend', () => { touchY = null; touchRows = 0; }, { passive: true });
+}
 
-screen.addEventListener('touchstart', (e) => {
-  touchY = e.touches[0]?.clientY ?? null;
-  touchRows = 0;
-}, { passive: true });
-
-screen.addEventListener('touchmove', (e) => {
-  const y = e.touches[0]?.clientY;
-  if (y === undefined || touchY === null) return;
-
-  // The content follows the thumb: drag down and what was above comes into
-  // view, which is further back. Accumulated in fractions of a row rather
-  // than thrown away below the threshold, so a slow drag is smooth instead of
-  // being ignored until it jumps.
-  touchRows += (y - touchY) / Math.max(14, view.rowHeight);
-  touchY = y;
-
-  const whole = Math.trunc(touchRows);
-  if (whole === 0) return;
-  touchRows -= whole;
-  view.scrollBy(whole);
-  refreshScrollRail();
-}, { passive: true });
-
-screen.addEventListener('touchend', () => { touchY = null; touchRows = 0; }, { passive: true });
-
-holdFocusOnTap(foldNext);
-foldNext.addEventListener('click', () => {
-  advanceFold();
-  keepFocus();
-});
-
-/*
- * The whole panel turns the page, not just the button.
- *
- * On a phone the button is a thumb-width target in the middle of a screen the
- * player is already tapping; the panel is the size of the thing they are
- * reading. Selecting text is the one gesture that must not count as a tap,
- * because copying a path out of a beat is a thing people do.
- */
-holdFocusOnTap(foldEl);
-foldEl.addEventListener('click', (event) => {
-  if (event.target === foldNext) return;
-  if (window.getSelection()?.toString()) return;
-  advanceFold();
-  keepFocus();
-});
+bindSurface(screen);
 
 /*
  * How much of the page the player can actually see.
  *
  * `100dvh` is the whole screen whether or not a keyboard is sitting on top of
- * it, and on a phone that is most of the screen. Every panel is sized off
- * `--app-height` instead, so the last-turn strip and the fold give their room
- * back the moment the keyboard arrives rather than holding a third of a
- * screen the player cannot see.
+ * it, and on a phone that is most of the screen. Terminal and controls are
+ * sized off `--app-height` plus a measured dock reserve so the last rows stay
+ * readable while typing.
  *
  * `visualViewport` is the only thing that knows this. Where it is missing the
  * CSS fallback stands, which is the old behaviour and no worse.
@@ -1337,6 +1172,8 @@ foldEl.addEventListener('click', (event) => {
 /** The tallest this viewport has been at its current width. */
 let tallest = 0;
 let lastWidth = 0;
+/** The width the auto type size was last computed for. */
+let lastFontWidth = 0;
 
 function syncViewport(): void {
   const vv = window.visualViewport;
@@ -1352,6 +1189,13 @@ function syncViewport(): void {
 
   document.documentElement.style.setProperty('--app-height', `${Math.round(height)}px`);
 
+  // Auto type size follows the window. A size the player chose does not: they
+  // chose it, and having it silently move on rotate would be the app arguing.
+  if (fontPx === null && width !== lastFontWidth) {
+    lastFontWidth = width;
+    view.setFont(fontSpec());
+  }
+
   /*
    * Measured against the tallest this screen has been rather than against
    * `innerHeight`, because the two ways a browser can handle a soft keyboard
@@ -1361,6 +1205,10 @@ function syncViewport(): void {
    * the screen got shorter than it was.
    */
   document.documentElement.classList.toggle('keyboard', height < tallest * 0.8);
+
+  // Keep the bottom rows visible: the stage ends above the live dock height.
+  const reserve = Math.ceil(dock.getBoundingClientRect().height + 12);
+  document.documentElement.style.setProperty('--dock-reserve', `${reserve}px`);
 
   // iOS scrolls the *layout* viewport under the keyboard rather than
   // shortening it, which walks the dock off the bottom of the screen. There
@@ -1392,34 +1240,30 @@ machine.shell.commands.set('palette', paletteCommand());
 machine.shell.commands.set('sound', soundCommand());
 machine.shell.commands.set('crt', crtCommand());
 machine.shell.commands.set('newgame', newgameCommand());
-machine.shell.commands.set('typing', typingCommand());
+machine.shell.commands.set('font', fontCommand());
 refreshTube();
 refreshStatus();
+
+/*
+ * Tell the mixer what the ship is doing before anybody touches the page.
+ *
+ * It cannot make a sound yet -- no browser will start an AudioContext outside
+ * a gesture -- but `resume()` applies whatever state it is holding, and
+ * without this that state is `SILENT_SHIP`. So the reactor, the open
+ * compartment and the stopped scrubber all arrived a command late: the cold
+ * open played into silence, and `newgame` reloaded into silence, which is
+ * what made it look broken rather than quiet.
+ *
+ * Now the first keystroke resumes into the real room.
+ */
+sound.setState(shipSound());
 
 if (saved) {
   write('NAV-7 session restored. The ship has not forgotten.', 'system');
   write('Type:  objectives      start over:  newgame', 'system');
-  showTurn(
-    saved.lastTurn ?? {
-      command: 'session restored',
-      output: 'Type:  objectives      start over:  newgame',
-      error: '',
-    },
-  );
 } else {
-  /*
-   * The opening pages through the fold, typed, rather than landing in the
-   * scrollback as a wall.
-   *
-   * It was going straight onto the CRT, which meant the first thing a new
-   * player had to do was scroll back up a screen and a half to find out where
-   * they were -- on a phone, with the keyboard covering half of it. The
-   * scrollback still gets every line, because looking back has to work; the
-   * fold is how it is read the first time.
-   */
   const opening = [...coldOpen(machine), ...whatNow(questbook, machine)];
   sayBeat(opening);
-  enqueueFold(opening);
 }
 refreshPrompt();
 buildSymbolRow();
@@ -1433,4 +1277,4 @@ requestAnimationFrame(() => refreshScrollRail());
 input.focus();
 
 // Exported for the console during development.
-Object.assign(window, { machine, questbook, vpath, view });
+Object.assign(window, { machine, questbook, vpath, view, sound });

@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| _(none)_ | | | |
+| games/wreck; packages/quest; apps/terminal; root/docs | Claude | 2026-09-20 | `feat/act1-canon-and-rescue` — the two-day canon rewrite, comms and the tow, optional objectives. Builds on Codex's uncommitted `dewitt` rename, crew projects and `luna` command, which are carried in on the same branch. |
 
 ## Conventions
 

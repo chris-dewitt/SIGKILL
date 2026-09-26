@@ -80,7 +80,7 @@ export class TerminalRenderer {
   private palette: Palette;
   private readonly gutter: number;
   private readonly overscan: number;
-  private readonly font: string;
+  private font: string;
   private scale = 1;
   private grid: GridSize = { cols: 20, rows: 4 };
   private originX = 0;
@@ -100,6 +100,30 @@ export class TerminalRenderer {
     this.atlas = new GlyphAtlas({
       font: this.font,
       scale: 1,
+      colors: this.atlasColors(),
+    });
+  }
+
+  /**
+   * Change the type size.
+   *
+   * The whole CSS font shorthand, because that is what the atlas and the 2d
+   * context both want, and because weight lives in the same string. Rebuilds
+   * the sheets for the same reason a palette swap does: size is baked into
+   * them. The grid is *not* recomputed here -- the caller re-measures, since
+   * only it knows the viewport.
+   *
+   * This exists because the content is hard-wrapped. Every beat in the game
+   * is authored as short lines for a phone, so a desktop at a phone's type
+   * size is a sixty-column game sitting in a two-hundred-column window with
+   * the right two thirds empty. The cell has to grow instead.
+   */
+  setFont(font: string): void {
+    if (font === this.font) return;
+    this.font = font;
+    this.atlas = new GlyphAtlas({
+      font: this.font,
+      scale: this.scale,
       colors: this.atlasColors(),
     });
   }

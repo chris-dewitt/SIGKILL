@@ -13,14 +13,14 @@ import { ROOT_USER } from '../src/vfs/vfs.js';
 function boot(): Machine {
   const m = new Machine({ hostname: 'nav7' });
   const v = m.vfs;
-  v.mkdirp('/home/survivor', ROOT_USER);
-  v.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  v.mkdirp('/home/dewitt', ROOT_USER);
+  v.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   v.mkdirp('/usr/local/bin', ROOT_USER);
   v.mkdirp('/etc/hull', ROOT_USER);
   v.writeText('/etc/hull/c7.conf', 'NAME=aft crawl\nSEALED=no\n', ROOT_USER);
   v.chmod('/etc/hull/c7.conf', 0o666, ROOT_USER);
-  m.shell.cwd = '/home/survivor';
-  m.shell.user = { uid: 1000, gid: 1000, name: 'survivor' };
+  m.shell.cwd = '/home/dewitt';
+  m.shell.user = { uid: 1000, gid: 1000, name: 'dewitt' };
   return m;
 }
 
@@ -33,7 +33,7 @@ function script(m: Machine, path: string, lines: string[], mode = 0o644): void {
 describe('a file with the execute bit is a program', () => {
   it('refuses to run a script that is not executable, and says why', async () => {
     const m = boot();
-    script(m, '/home/survivor/hello.sh', ['#!/bin/sh', 'echo hello']);
+    script(m, '/home/dewitt/hello.sh', ['#!/bin/sh', 'echo hello']);
     const r = await m.exec('./hello.sh');
     expect(r.stderr).toBe('sh: ./hello.sh: Permission denied\n');
     expect(r.code).toBe(126);
@@ -42,7 +42,7 @@ describe('a file with the execute bit is a program', () => {
 
   it('runs it once chmod +x has been used', async () => {
     const m = boot();
-    script(m, '/home/survivor/hello.sh', ['#!/bin/sh', 'echo hello']);
+    script(m, '/home/dewitt/hello.sh', ['#!/bin/sh', 'echo hello']);
     expect((await m.exec('chmod +x hello.sh')).stderr).toBe('');
     const r = await m.exec('./hello.sh');
     expect(r.stderr).toBe('');
@@ -89,27 +89,27 @@ describe('a file with the execute bit is a program', () => {
 describe('a script gets its arguments', () => {
   it('expands $1 and $0 and $#', async () => {
     const m = boot();
-    script(m, '/home/survivor/args.sh', ['#!/bin/sh', 'echo "$0 got $# : $1 $2"'], 0o755);
+    script(m, '/home/dewitt/args.sh', ['#!/bin/sh', 'echo "$0 got $# : $1 $2"'], 0o755);
     expect((await m.exec('./args.sh alpha beta')).stdout).toBe(
-      '/home/survivor/args.sh got 2 : alpha beta\n',
+      '/home/dewitt/args.sh got 2 : alpha beta\n',
     );
   });
 
   it('expands $@ across every argument', async () => {
     const m = boot();
-    script(m, '/home/survivor/all.sh', ['#!/bin/sh', 'echo $@'], 0o755);
+    script(m, '/home/dewitt/all.sh', ['#!/bin/sh', 'echo $@'], 0o755);
     expect((await m.exec('./all.sh a b c')).stdout).toBe('a b c\n');
   });
 
   it('leaves a missing argument empty rather than literal', async () => {
     const m = boot();
-    script(m, '/home/survivor/args.sh', ['#!/bin/sh', 'echo "[$1]"'], 0o755);
+    script(m, '/home/dewitt/args.sh', ['#!/bin/sh', 'echo "[$1]"'], 0o755);
     expect((await m.exec('./args.sh')).stdout).toBe('[]\n');
   });
 
   it('does not leak positional parameters into the interactive shell', async () => {
     const m = boot();
-    script(m, '/home/survivor/args.sh', ['#!/bin/sh', 'echo $1'], 0o755);
+    script(m, '/home/dewitt/args.sh', ['#!/bin/sh', 'echo $1'], 0o755);
     await m.exec('./args.sh leaked');
     expect((await m.exec('echo "[$1]"')).stdout).toBe('[]\n');
   });
@@ -118,7 +118,7 @@ describe('a script gets its arguments', () => {
 describe('what a script changes and what it does not', () => {
   it('changes the filesystem for real', async () => {
     const m = boot();
-    script(m, '/home/survivor/seal.sh', [
+    script(m, '/home/dewitt/seal.sh', [
       '#!/bin/sh',
       'sed -i "s/^SEALED=.*/SEALED=yes/" /etc/hull/$1.conf',
       'echo "sealed: $1"',
@@ -131,15 +131,15 @@ describe('what a script changes and what it does not', () => {
 
   it('keeps its own cd and its own variables to itself', async () => {
     const m = boot();
-    script(m, '/home/survivor/wander.sh', ['#!/bin/sh', 'cd /etc', 'MARK=inside'], 0o755);
+    script(m, '/home/dewitt/wander.sh', ['#!/bin/sh', 'cd /etc', 'MARK=inside'], 0o755);
     await m.exec('./wander.sh');
-    expect((await m.exec('pwd')).stdout).toBe('/home/survivor\n');
+    expect((await m.exec('pwd')).stdout).toBe('/home/dewitt\n');
     expect((await m.exec('echo "[$MARK]"')).stdout).toBe('[]\n');
   });
 
   it('exits the script, not the session', async () => {
     const m = boot();
-    script(m, '/home/survivor/bail.sh', ['#!/bin/sh', 'exit 3', 'echo unreachable'], 0o755);
+    script(m, '/home/dewitt/bail.sh', ['#!/bin/sh', 'exit 3', 'echo unreachable'], 0o755);
     const r = await m.exec('./bail.sh');
     expect(r.stdout).toBe('');
     expect(r.code).toBe(3);
@@ -150,7 +150,7 @@ describe('what a script changes and what it does not', () => {
     const m = boot();
     m.vfs.writeText('/etc/secret', 'classified\n', ROOT_USER);
     m.vfs.chmod('/etc/secret', 0o600, ROOT_USER);
-    script(m, '/home/survivor/peek.sh', ['#!/bin/sh', 'cat /etc/secret'], 0o755);
+    script(m, '/home/dewitt/peek.sh', ['#!/bin/sh', 'cat /etc/secret'], 0o755);
     const r = await m.exec('./peek.sh');
     expect(r.stdout).toBe('');
     expect(r.stderr).toContain('Permission denied');
@@ -158,7 +158,7 @@ describe('what a script changes and what it does not', () => {
 
   it('stops a script that runs itself instead of hanging', async () => {
     const m = boot();
-    script(m, '/home/survivor/loop.sh', ['#!/bin/sh', './loop.sh'], 0o755);
+    script(m, '/home/dewitt/loop.sh', ['#!/bin/sh', './loop.sh'], 0o755);
     const r = await m.exec('./loop.sh');
     expect(r.stderr).toContain('nested too deeply');
   });
@@ -167,19 +167,19 @@ describe('what a script changes and what it does not', () => {
 describe('shebangs', () => {
   it('treats a file with no shebang as sh', async () => {
     const m = boot();
-    script(m, '/home/survivor/bare.sh', ['echo plain'], 0o755);
+    script(m, '/home/dewitt/bare.sh', ['echo plain'], 0o755);
     expect((await m.exec('./bare.sh')).stdout).toBe('plain\n');
   });
 
   it('accepts /usr/bin/env sh', async () => {
     const m = boot();
-    script(m, '/home/survivor/env.sh', ['#!/usr/bin/env sh', 'echo via env'], 0o755);
+    script(m, '/home/dewitt/env.sh', ['#!/usr/bin/env sh', 'echo via env'], 0o755);
     expect((await m.exec('./env.sh')).stdout).toBe('via env\n');
   });
 
   it('does not run the shebang line as a command', async () => {
     const m = boot();
-    script(m, '/home/survivor/quiet.sh', ['#!/bin/sh', 'echo body'], 0o755);
+    script(m, '/home/dewitt/quiet.sh', ['#!/bin/sh', 'echo body'], 0o755);
     const r = await m.exec('./quiet.sh');
     expect(r.stderr).toBe('');
     expect(r.stdout).toBe('body\n');
@@ -187,7 +187,7 @@ describe('shebangs', () => {
 
   it('names an interpreter it does not have rather than guessing', async () => {
     const m = boot();
-    script(m, '/home/survivor/weird.sh', ['#!/usr/bin/perl', 'print "hi"'], 0o755);
+    script(m, '/home/dewitt/weird.sh', ['#!/usr/bin/perl', 'print "hi"'], 0o755);
     const r = await m.exec('./weird.sh');
     expect(r.stderr).toContain('bad interpreter');
     expect(r.code).toBe(126);
@@ -197,14 +197,14 @@ describe('shebangs', () => {
 describe('redirection and pipes reach a script', () => {
   it('captures a script stdout into a file', async () => {
     const m = boot();
-    script(m, '/home/survivor/emit.sh', ['#!/bin/sh', 'echo one', 'echo two'], 0o755);
+    script(m, '/home/dewitt/emit.sh', ['#!/bin/sh', 'echo one', 'echo two'], 0o755);
     await m.exec('./emit.sh > out.txt');
-    expect(m.vfs.readText('/home/survivor/out.txt', ROOT_USER)).toBe('one\ntwo\n');
+    expect(m.vfs.readText('/home/dewitt/out.txt', ROOT_USER)).toBe('one\ntwo\n');
   });
 
   it('pipes a script into another command', async () => {
     const m = boot();
-    script(m, '/home/survivor/emit.sh', ['#!/bin/sh', 'echo one', 'echo two'], 0o755);
+    script(m, '/home/dewitt/emit.sh', ['#!/bin/sh', 'echo one', 'echo two'], 0o755);
     expect((await m.exec('./emit.sh | wc -l')).stdout.trim()).toBe('2');
   });
 });
@@ -237,8 +237,8 @@ describe('preformatted output', () => {
     });
     m.vfs.mkdirp('/tmp', ROOT_USER);
     m.vfs.chmod('/tmp', 0o777, ROOT_USER);
-    m.vfs.mkdirp('/home/survivor', ROOT_USER);
-    m.shell.cwd = '/home/survivor';
+    m.vfs.mkdirp('/home/dewitt', ROOT_USER);
+    m.shell.cwd = '/home/dewitt';
     return m;
   }
 
@@ -379,10 +379,10 @@ describe('did you mean', () => {
 describe('did you mean keeps quiet when reordering cannot help', () => {
   function withScript(mode: number): Machine {
     const m = new Machine({ hostname: 'nav7' });
-    m.vfs.mkdirp('/home/survivor', ROOT_USER);
-    m.vfs.writeText('/home/survivor/script.sh', '#!/bin/sh\necho hi\n', ROOT_USER);
-    m.vfs.chmod('/home/survivor/script.sh', mode, ROOT_USER);
-    m.shell.cwd = '/home/survivor';
+    m.vfs.mkdirp('/home/dewitt', ROOT_USER);
+    m.vfs.writeText('/home/dewitt/script.sh', '#!/bin/sh\necho hi\n', ROOT_USER);
+    m.vfs.chmod('/home/dewitt/script.sh', mode, ROOT_USER);
+    m.shell.cwd = '/home/dewitt';
     return m;
   }
 

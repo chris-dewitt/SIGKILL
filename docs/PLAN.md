@@ -1,5 +1,12 @@
 # SIGKILL — development plan
 
+> **2026-09-20:** [STORY_AND_GAME_PLAN.md](STORY_AND_GAME_PLAN.md) supersedes
+> this document's narrative, fixed game count, and curriculum order, and
+> [ACT1_BEATS.md](ACT1_BEATS.md) supersedes both for Act I — it is approved and
+> built. This file retains the earlier development roadmap; its phase/status
+> statements are historical, not a fresh implementation report. Engineering and
+> security constraints still apply unchanged.
+
 **Status:** Phases 0 and 1 complete. Phase 2 next.
 **Companion:** the illustrated version of this plan lives as a shared artifact;
 this file is the one that gets updated.

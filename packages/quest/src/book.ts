@@ -10,6 +10,8 @@ export interface ObjectiveStatus {
   blockedBy: readonly string[];
   /** How many rungs the player has taken on this objective. */
   hintsTaken: number;
+  /** Worth doing, never required. The board marks these rather than hiding them. */
+  optional: boolean;
 }
 
 export type HintOutcome =
@@ -78,6 +80,7 @@ export class Questbook {
         id: objective.id,
         title: objective.title,
         done: objective.done(world),
+        optional: objective.optional === true,
         blockedBy: this.blockers(world, objective),
         hintsTaken: objective.steps.reduce(
           (total, step) => total + (this.revealed.get(key(objective.id, step.id)) ?? 0),
@@ -112,15 +115,24 @@ export class Questbook {
     return closed;
   }
 
+  /** Objectives that hold the act open. Optional ones never do. */
+  get required(): readonly Objective[] {
+    return this.objectives.filter((objective) => objective.optional !== true);
+  }
+
   /**
-   * Is every objective finished?
+   * Is every *required* objective finished?
    *
    * The host uses this to fire an act's ending exactly once. Without it, an
    * adventure simply stops when the last objective goes green, which reads as
    * the game breaking rather than the act closing.
+   *
+   * Optional objectives are excluded deliberately: an ending that waits for
+   * the side investigations is an ending most players never see, and the ones
+   * who do see it got there by grinding rather than by being curious.
    */
   complete(world: World): boolean {
-    return this.objectives.every((objective) => objective.done(world));
+    return this.required.every((objective) => objective.done(world));
   }
 
   /**
@@ -146,11 +158,19 @@ export class Questbook {
     );
   }
 
-  /** The objective a bare `hint` is about: first unlocked and unfinished. */
+  /**
+   * The objective a bare `hint` is about: first unlocked and unfinished.
+   *
+   * Required work first. A player who types `hint` with the hull still open
+   * wants the hull, not the side investigation they wandered into -- but once
+   * the required spine is finished, a bare `hint` will happily pick up an
+   * optional thread rather than saying there is nothing left to do.
+   */
   current(world: World): Objective | undefined {
-    return this.objectives.find(
-      (objective) => !objective.done(world) && this.blockers(world, objective).length === 0,
-    );
+    const open = (objective: Objective): boolean =>
+      !objective.done(world) && this.blockers(world, objective).length === 0;
+    return this.objectives.find((o) => o.optional !== true && open(o))
+      ?? this.objectives.find(open);
   }
 
   /** The first step of an objective that is still undone. */

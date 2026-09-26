@@ -4,8 +4,8 @@ import { ROOT_USER } from '../src/vfs/vfs.js';
 
 function boot(): Machine {
   const m = new Machine({ hostname: 'nav7' });
-  m.vfs.mkdirp('/home/survivor', ROOT_USER);
-  m.vfs.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  m.vfs.mkdirp('/home/dewitt', ROOT_USER);
+  m.vfs.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   m.vfs.mkdirp('/etc', ROOT_USER);
   m.vfs.mkdirp('/var/log', ROOT_USER);
   m.vfs.mkdirp('/tmp', ROOT_USER);
@@ -41,9 +41,9 @@ describe('shell', () => {
   });
 
   it('redirects stdout to a file, and appends', async () => {
-    await m.exec('echo first > /home/survivor/out');
-    await m.exec('echo second >> /home/survivor/out');
-    expect(m.vfs.readText('/home/survivor/out')).toBe('first\nsecond\n');
+    await m.exec('echo first > /home/dewitt/out');
+    await m.exec('echo second >> /home/dewitt/out');
+    expect(m.vfs.readText('/home/dewitt/out')).toBe('first\nsecond\n');
   });
 
   it('reads stdin from a file', async () => {
@@ -73,7 +73,7 @@ describe('shell', () => {
   });
 
   it('globs against the filesystem, and leaves quoted globs alone', async () => {
-    await m.exec('cd /home/survivor');
+    await m.exec('cd /home/dewitt');
     await m.exec('touch alpha.txt beta.txt gamma.log');
     expect((await m.exec('echo *.txt')).stdout).toBe('alpha.txt beta.txt\n');
     expect((await m.exec("echo '*.txt'")).stdout).toBe('*.txt\n');
@@ -87,9 +87,9 @@ describe('shell', () => {
   });
 
   it('keeps subshell state out of the parent', async () => {
-    await m.exec('cd /home/survivor');
+    await m.exec('cd /home/dewitt');
     await m.exec('(cd /etc)');
-    expect((await m.exec('pwd')).stdout).toBe('/home/survivor\n');
+    expect((await m.exec('pwd')).stdout).toBe('/home/dewitt\n');
   });
 
   it('applies per-command assignments only for that command', async () => {
@@ -118,8 +118,8 @@ describe('shell', () => {
   });
 
   it('sorts, counts and cuts', async () => {
-    await m.exec('cd /home/survivor');
-    m.vfs.writeText('/home/survivor/crew.csv', 'vasquez,eng\nchen,med\nchen,med\nbowen,nav\n');
+    await m.exec('cd /home/dewitt');
+    m.vfs.writeText('/home/dewitt/crew.csv', 'vasquez,eng\nchen,med\nchen,med\nbowen,nav\n');
     expect((await m.exec('cut -d, -f1 crew.csv | sort | uniq | wc -l')).stdout.trim()).toBe('3');
   });
 
@@ -135,7 +135,7 @@ describe('determinism', () => {
     const a = boot();
     const b = boot();
     const script = [
-      'cd /home/survivor',
+      'cd /home/dewitt',
       'mkdir -p work/logs',
       'echo alpha > work/a.txt',
       'echo beta >> work/a.txt',
@@ -177,8 +177,8 @@ describe('the shared filesystem', () => {
 describe('option parsing', () => {
   it('accepts option values attached or separate, as getopt does', async () => {
     const m = boot();
-    m.vfs.writeText('/home/survivor/crew.csv', 'vasquez,eng\nchen,med\nbowen,nav\n', ROOT_USER);
-    await m.exec('cd /home/survivor');
+    m.vfs.writeText('/home/dewitt/crew.csv', 'vasquez,eng\nchen,med\nbowen,nav\n', ROOT_USER);
+    await m.exec('cd /home/dewitt');
 
     // -d, and -d , must mean the same thing. Regression: -d, used to swallow
     // the following argument and silently produce nothing.
@@ -190,7 +190,7 @@ describe('option parsing', () => {
 
   it('still clusters plain boolean flags', async () => {
     const m = boot();
-    await m.exec('cd /home/survivor');
+    await m.exec('cd /home/dewitt');
     await m.exec('touch .hidden visible');
     expect((await m.exec('ls -la')).stdout).toContain('.hidden');
     expect((await m.exec('ls')).stdout).not.toContain('.hidden');

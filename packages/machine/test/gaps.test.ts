@@ -22,8 +22,8 @@ function octal(spec: string, current: number): string {
 function boot(): Machine {
   const m = new Machine({ hostname: 'nav7', epoch: Date.UTC(2387, 2, 14) });
   const v = m.vfs;
-  v.mkdirp('/home/survivor', ROOT_USER);
-  v.chown('/home/survivor', 1000, 1000, ROOT_USER);
+  v.mkdirp('/home/dewitt', ROOT_USER);
+  v.chown('/home/dewitt', 1000, 1000, ROOT_USER);
   v.mkdirp('/etc/systemd/system', ROOT_USER);
   v.mkdirp('/var/log', ROOT_USER);
   v.chmod('/var/log', 0o777, ROOT_USER);
@@ -32,9 +32,9 @@ function boot(): Machine {
   v.writeText('/etc/systemd/system/scrubber.service', '[Unit]\nDescription=Scrubber O2\n', ROOT_USER);
   v.writeText('/etc/shadow', 'root:!locked\n', ROOT_USER);
   v.chmod('/etc/shadow', 0o600, ROOT_USER);
-  v.writeText('/home/survivor/ten.txt', Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join('\n') + '\n', ROOT_USER);
-  v.chown('/home/survivor/ten.txt', 1000, 1000, ROOT_USER);
-  m.shell.cwd = '/home/survivor';
+  v.writeText('/home/dewitt/ten.txt', Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join('\n') + '\n', ROOT_USER);
+  v.chown('/home/dewitt/ten.txt', 1000, 1000, ROOT_USER);
+  m.shell.cwd = '/home/dewitt';
   return m;
 }
 
@@ -212,7 +212,7 @@ describe('the small commands people reach for', () => {
 
   it('tee saves a pipeline and keeps it flowing, which > cannot', async () => {
     const m = boot();
-    const r = await m.exec('cat /etc/crew.csv | grep dead | tee /home/survivor/dead.txt');
+    const r = await m.exec('cat /etc/crew.csv | grep dead | tee /home/dewitt/dead.txt');
     expect(r.stdout).toContain('vasquez');
     expect((await m.exec('wc -l dead.txt')).stdout.trim()).toMatch(/^2/);
   });
@@ -247,9 +247,9 @@ describe('the review findings', () => {
 
   it('grep -r says so when it cannot read a directory, and exits 2', async () => {
     const m = boot();
-    m.vfs.mkdirp('/home/survivor/locked', ROOT_USER);
-    m.vfs.writeText('/home/survivor/locked/x.txt', 'needle\n', ROOT_USER);
-    m.vfs.chmod('/home/survivor/locked', 0o000, ROOT_USER);
+    m.vfs.mkdirp('/home/dewitt/locked', ROOT_USER);
+    m.vfs.writeText('/home/dewitt/locked/x.txt', 'needle\n', ROOT_USER);
+    m.vfs.chmod('/home/dewitt/locked', 0o000, ROOT_USER);
 
     const r = await m.exec('grep -r needle .');
     expect(r.stderr).toContain('locked');
@@ -290,8 +290,8 @@ describe('the review findings', () => {
 
   it('head -- -5 reads the file called -5', async () => {
     const m = boot();
-    m.vfs.writeText('/home/survivor/-5', 'a file, not a count\n', ROOT_USER);
-    m.vfs.chown('/home/survivor/-5', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/home/dewitt/-5', 'a file, not a count\n', ROOT_USER);
+    m.vfs.chown('/home/dewitt/-5', 1000, 1000, ROOT_USER);
     const r = await m.exec('head -- -5');
     expect(r.stdout).toBe('a file, not a count\n');
   });
@@ -307,14 +307,14 @@ describe('the review findings', () => {
     const m = boot();
     await m.exec('mkdir d && chmod 644 d');
     await m.exec('chmod a+X d');
-    expect((m.vfs.lstat('/home/survivor/d', ROOT_USER).mode & 0o777).toString(8)).toBe('755');
+    expect((m.vfs.lstat('/home/dewitt/d', ROOT_USER).mode & 0o777).toString(8)).toBe('755');
   });
 
   it('a+X still leaves a plain file alone', async () => {
     const m = boot();
     await m.exec('touch notes.txt && chmod 644 notes.txt');
     await m.exec('chmod a+X notes.txt');
-    expect((m.vfs.lstat('/home/survivor/notes.txt', ROOT_USER).mode & 0o777).toString(8)).toBe('644');
+    expect((m.vfs.lstat('/home/dewitt/notes.txt', ROOT_USER).mode & 0o777).toString(8)).toBe('644');
   });
 
   /**
@@ -325,13 +325,13 @@ describe('the review findings', () => {
    */
   it('a symbolic chmod through a symlink uses the target mode', async () => {
     const m = boot();
-    m.vfs.writeText('/home/survivor/secret.txt', 'private\n', ROOT_USER);
-    m.vfs.chmod('/home/survivor/secret.txt', 0o600, ROOT_USER);
-    m.vfs.chown('/home/survivor/secret.txt', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/home/dewitt/secret.txt', 'private\n', ROOT_USER);
+    m.vfs.chmod('/home/dewitt/secret.txt', 0o600, ROOT_USER);
+    m.vfs.chown('/home/dewitt/secret.txt', 1000, 1000, ROOT_USER);
     await m.exec('ln -s secret.txt link');
 
     await m.exec('chmod g+r link');
-    const mode = (m.vfs.lstat('/home/survivor/secret.txt', ROOT_USER).mode & 0o777).toString(8);
+    const mode = (m.vfs.lstat('/home/dewitt/secret.txt', ROOT_USER).mode & 0o777).toString(8);
     expect(mode).toBe('640');
     expect(mode).not.toBe('777');
   });
@@ -413,31 +413,31 @@ describe('ls -l names the owner', () => {
     const m = boot();
     m.vfs.writeText(
       '/etc/passwd',
-      ['root:x:0:0:root:/root:/bin/sh', 'survivor:x:1000:1000::/home/survivor:/bin/sh',
+      ['root:x:0:0:root:/root:/bin/sh', 'dewitt:x:1000:1000::/home/dewitt:/bin/sh',
        'vasquez:x:1001:1001::/home/vasquez:/bin/sh', ''].join('\n'),
       ROOT_USER,
     );
-    m.vfs.writeText('/etc/group', ['root:x:0:', 'survivor:x:1000:', 'vasquez:x:1001:', ''].join('\n'), ROOT_USER);
+    m.vfs.writeText('/etc/group', ['root:x:0:', 'dewitt:x:1000:', 'vasquez:x:1001:', ''].join('\n'), ROOT_USER);
     return m;
   }
 
   it('shows the name from /etc/passwd rather than the number', async () => {
     const m = withPasswd();
-    const r = await m.exec('ls -l /home/survivor/ten.txt');
-    expect(r.stdout).toContain('survivor');
+    const r = await m.exec('ls -l /home/dewitt/ten.txt');
+    expect(r.stdout).toContain('dewitt');
     expect(r.stdout).not.toMatch(/\b1000\s+1000\b/);
   });
 
   it('falls back to the number for a uid nobody has claimed', async () => {
     const m = withPasswd();
-    m.vfs.writeText('/home/survivor/orphan', 'x\n', ROOT_USER);
-    m.vfs.chown('/home/survivor/orphan', 4242, 4242, ROOT_USER);
-    expect((await m.exec('ls -l /home/survivor/orphan')).stdout).toContain('4242');
+    m.vfs.writeText('/home/dewitt/orphan', 'x\n', ROOT_USER);
+    m.vfs.chown('/home/dewitt/orphan', 4242, 4242, ROOT_USER);
+    expect((await m.exec('ls -l /home/dewitt/orphan')).stdout).toContain('4242');
   });
 
   it('still lists a directory when /etc/passwd is missing entirely', async () => {
     const m = boot();
-    const r = await m.exec('ls -l /home/survivor');
+    const r = await m.exec('ls -l /home/dewitt');
     expect(r.stderr).toBe('');
     expect(r.stdout).toContain('ten.txt');
   });
@@ -445,25 +445,25 @@ describe('ls -l names the owner', () => {
   it('survives a corrupt line rather than giving up on the file', async () => {
     const m = withPasswd();
     m.vfs.append('/etc/passwd', 'garbage-with-no-colons\n', ROOT_USER);
-    expect((await m.exec('ls -l /home/survivor/ten.txt')).stdout).toContain('survivor');
+    expect((await m.exec('ls -l /home/dewitt/ten.txt')).stdout).toContain('dewitt');
   });
 
   it('gives a named file a full long row, not just its name back', async () => {
     const m = withPasswd();
-    const r = await m.exec('ls -l /home/survivor/ten.txt');
+    const r = await m.exec('ls -l /home/dewitt/ten.txt');
     // mode, owner, group, size, name -- the row `ls -l` is for.
-    expect(r.stdout).toMatch(/^-rw.+survivor\s+survivor\s+\d+ \/home\/survivor\/ten\.txt$/m);
+    expect(r.stdout).toMatch(/^-rw.+dewitt\s+dewitt\s+\d+ \/home\/dewitt\/ten\.txt$/m);
   });
 
   it('lists a dotfile named directly, without needing -a', async () => {
     const m = withPasswd();
-    m.vfs.writeText('/home/survivor/.history', 'ls\n', ROOT_USER);
-    expect((await m.exec('ls -l /home/survivor/.history')).stdout).toContain('.history');
+    m.vfs.writeText('/home/dewitt/.history', 'ls\n', ROOT_USER);
+    expect((await m.exec('ls -l /home/dewitt/.history')).stdout).toContain('.history');
   });
 
   it('names the owner in stat too', async () => {
     const m = withPasswd();
-    expect((await m.exec('stat /home/survivor/ten.txt')).stdout).toContain('1000/survivor');
+    expect((await m.exec('stat /home/dewitt/ten.txt')).stdout).toContain('1000/dewitt');
   });
 });
 
@@ -501,22 +501,78 @@ describe('every command has a manual, on both tracks', () => {
     // Not exhaustive -- it catches the common lie, which is a manual listing a
     // flag the command never implemented.
     const m = boot();
-    m.vfs.writeText('/home/survivor/sample.txt', 'beta\nalpha\nbeta\n', ROOT_USER);
-    m.vfs.chown('/home/survivor/sample.txt', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/home/dewitt/sample.txt', 'beta\nalpha\nbeta\n', ROOT_USER);
+    m.vfs.chown('/home/dewitt/sample.txt', 1000, 1000, ROOT_USER);
     const claims: Array<[string, string]> = [
-      ['ls -l /home/survivor/sample.txt', 'rw'],
-      ['cat -n /home/survivor/sample.txt', '1'],
-      ['grep -c beta /home/survivor/sample.txt', '2'],
-      ['grep -v beta /home/survivor/sample.txt', 'alpha'],
-      ['sort -u /home/survivor/sample.txt', 'alpha'],
-      ['wc -l /home/survivor/sample.txt', '3'],
-      ['head -1 /home/survivor/sample.txt', 'beta'],
-      ['tail -1 /home/survivor/sample.txt', 'beta'],
+      ['ls -l /home/dewitt/sample.txt', 'rw'],
+      ['cat -n /home/dewitt/sample.txt', '1'],
+      ['grep -c beta /home/dewitt/sample.txt', '2'],
+      ['grep -v beta /home/dewitt/sample.txt', 'alpha'],
+      ['sort -u /home/dewitt/sample.txt', 'alpha'],
+      ['wc -l /home/dewitt/sample.txt', '3'],
+      ['head -1 /home/dewitt/sample.txt', 'beta'],
+      ['tail -1 /home/dewitt/sample.txt', 'beta'],
     ];
     for (const [command, expected] of claims) {
       const r = await m.exec(command);
       expect(r.stderr, `${command} -> ${r.stderr}`).toBe('');
       expect(r.stdout, command).toContain(expected);
     }
+  });
+});
+
+/*
+ * `cp -r` and symlinks.
+ *
+ * Found by content: `/opt/luna` holds a dangling link to an array that is not
+ * mounted, so dereferencing it threw ENOENT and took the whole recursive copy
+ * down with it. POSIX `cp -R` copies a symlink as a symlink, and one child it
+ * cannot handle is reported and skipped rather than abandoning the tree --
+ * the same rule recursive `grep` was given, for the same reason.
+ */
+describe('cp -r follows the rules about links', () => {
+  it('copies a symlink as a symlink, not as its target', async () => {
+    const m = new Machine();
+    m.vfs.mkdirp('/work/src', ROOT_USER);
+    m.vfs.chown('/work', 1000, 1000, ROOT_USER);
+    m.vfs.chown('/work/src', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/work/src/real.txt', 'hello\n', ROOT_USER);
+    m.vfs.symlink('/work/src/real.txt', '/work/src/link.txt', ROOT_USER);
+
+    expect((await m.exec('cp -r /work/src /work/dst')).stderr).toBe('');
+    expect(m.vfs.lstat('/work/dst/link.txt', ROOT_USER).kind).toBe('symlink');
+    expect(m.vfs.readlink('/work/dst/link.txt', ROOT_USER)).toBe('/work/src/real.txt');
+  });
+
+  it('copies a dangling link without giving up on the directory', async () => {
+    const m = new Machine();
+    m.vfs.mkdirp('/work/src', ROOT_USER);
+    m.vfs.chown('/work', 1000, 1000, ROOT_USER);
+    m.vfs.chown('/work/src', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/work/src/kept.txt', 'kept\n', ROOT_USER);
+    m.vfs.symlink('/mnt/never-mounted/thing', '/work/src/broken', ROOT_USER);
+
+    const r = await m.exec('cp -r /work/src /work/dst');
+    expect(r.stderr, 'a dangling link is not an error, it is a link').toBe('');
+    expect(r.code).toBe(0);
+    expect(m.vfs.readText('/work/dst/kept.txt', ROOT_USER)).toBe('kept\n');
+    expect(m.vfs.lstat('/work/dst/broken', ROOT_USER).kind).toBe('symlink');
+  });
+
+  it('reports one unreadable child and copies the rest, exiting 1', async () => {
+    const m = new Machine();
+    m.vfs.mkdirp('/work/src', ROOT_USER);
+    m.vfs.chown('/work', 1000, 1000, ROOT_USER);
+    m.vfs.chown('/work/src', 1000, 1000, ROOT_USER);
+    m.vfs.writeText('/work/src/open.txt', 'open\n', ROOT_USER);
+    m.vfs.writeText('/work/src/shut.txt', 'shut\n', ROOT_USER);
+    m.vfs.chmod('/work/src/shut.txt', 0o000, ROOT_USER);
+
+    const r = await m.exec('cp -r /work/src /work/dst');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('shut.txt');
+    expect(r.stderr).not.toContain('open.txt');
+    // The point: the readable file still arrived.
+    expect(m.vfs.readText('/work/dst/open.txt', ROOT_USER)).toBe('open\n');
   });
 });

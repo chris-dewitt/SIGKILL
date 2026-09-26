@@ -11,9 +11,9 @@ describe('path', () => {
   });
 
   it('resolves relative against cwd', async () => {
-    expect(p.resolve('/home/survivor', 'logs')).toBe('/home/survivor/logs');
-    expect(p.resolve('/home/survivor', '/etc')).toBe('/etc');
-    expect(p.resolve('/home/survivor', '../root')).toBe('/home/root');
+    expect(p.resolve('/home/dewitt', 'logs')).toBe('/home/dewitt/logs');
+    expect(p.resolve('/home/dewitt', '/etc')).toBe('/etc');
+    expect(p.resolve('/home/dewitt', '../root')).toBe('/home/root');
   });
 
   it('splits dirname and basename like POSIX', async () => {
