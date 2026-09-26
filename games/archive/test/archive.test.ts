@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { MissingRuntime } from '@sigkill/quest';
+import { ARCHIVE } from '../src/adventure.js';
 import { commandRegistry, ROOT_USER } from '@sigkill/machine';
 import { NodeSqlRuntime } from '@sigkill/sql/node';
 import { checkObjective, taught, validateObjectives, type RouteWorld } from '@sigkill/quest';
@@ -185,4 +187,38 @@ describe('saves', () => {
     expect((await restored.machine.exec(`sqlite3 ${CLAIMS_DB} .tables`)).stdout).toContain('crew');
     expect(restored.questbook.status(restored.machine).find((o) => o.id === 'read-the-claim')?.done).toBe(true);
   });
+});
+
+/** The descriptor, which is how the app starts this game. */
+describe('as the host starts it', () => {
+  it('boots from its descriptor, database and all', async () => {
+    const session = await ARCHIVE.boot({ sql });
+    expect((await session.machine.exec(`sqlite3 ${CLAIMS_DB} .tables`)).stdout).toContain('claims');
+  });
+
+  /*
+   * The refusal, tested rather than assumed.
+   *
+   * A machine that booted a database-less Archive would hand the player an act
+   * whose every objective is unsolvable, and they would meet that four commands
+   * in, as a puzzle. Better to refuse at the door and say which engine is
+   * missing.
+   */
+  it('refuses to start without SQLite, and names what is missing', async () => {
+    expect(ARCHIVE.needs).toEqual(['sql']);
+    await expect(ARCHIVE.boot({})).rejects.toThrow(MissingRuntime);
+    await expect(ARCHIVE.boot({})).rejects.toThrow(/sqlite/i);
+  });
+
+  it('restores through the contract, and the database comes with it', async () => {
+    const live = await ARCHIVE.boot({ sql });
+    await live.machine.exec(`sqlite3 ${CLAIMS_DB} "SELECT clause FROM claims;" > /home/dewitt/keep.txt`);
+
+    const back = await ARCHIVE.restore(
+      { machine: live.machine.snapshot(), quest: live.questbook.snapshot() },
+      { sql },
+    );
+    expect((await back.machine.exec('cat /home/dewitt/keep.txt')).stdout).toContain('salvage.22.b');
+    expect((await back.machine.exec(`sqlite3 ${CLAIMS_DB} .tables`)).stdout).toContain('crew');
+  }, 120_000);
 });

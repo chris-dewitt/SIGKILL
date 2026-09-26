@@ -26,6 +26,9 @@ importers:
       '@capacitor/core':
         specifier: ^7.6.9
         version: 7.6.9
+      '@sigkill/archive':
+        specifier: workspace:*
+        version: link:../../games/archive
       '@sigkill/audio':
         specifier: workspace:*
         version: link:../../packages/audio
@@ -35,6 +38,9 @@ importers:
       '@sigkill/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@sigkill/harness':
+        specifier: workspace:*
+        version: link:../../games/harness
       '@sigkill/machine':
         specifier: workspace:*
         version: link:../../packages/machine

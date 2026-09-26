@@ -7,19 +7,98 @@ import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/ma
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { WorkerSqlRuntime } from '@sigkill/sql';
 import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
-import { whatNow, type BeatLine } from '@sigkill/quest';
+import { whatNow, type AdventureSession, type BeatLine } from '@sigkill/quest';
 import {
-  bootWreck, restoreWreck, coldOpen, epilogue, oxygenTarget, readCompartment, ventingCompartments,
-} from '@sigkill/wreck';
-import { clearSave, readSave, writeSave } from './save.js';
+  clearSave,
+  readLastPlayed,
+  readSave,
+  savedAdventures,
+  writeLastPlayed,
+  writeSave,
+} from './save.js';
 import { statusRows } from './status.js';
+import { chooserLines, chosen, entry, offered, LIBRARY, type Entry } from './library.js';
 
-const saved = readSave();
-const session = saved
-  ? restoreWreck({ machine: saved.machine, quest: saved.quest })
-  : bootWreck();
-const machine = session.machine;
-const questbook = session.questbook;
+/*
+ * The interpreters, built before any adventure is.
+ *
+ * They used to be attached to the machine after boot, which was fine when the
+ * only game was The Wreck -- it reaches for Python long after the cold open, if
+ * ever. The Archive builds its own database *at boot*, by running the schema it
+ * ships as readable text, so it needs SQLite in its hand before it has a world
+ * to put it in.
+ *
+ * Both are still lazy: constructing them costs nothing, and the worker spawns
+ * and the wasm loads on first use and never before. A player still learning
+ * `ls` does not pay for an interpreter they have not reached.
+ */
+const python = new WorkerPythonRuntime({
+  indexURL: new URL('pyodide/', document.baseURI).href,
+  createWorker: () =>
+    new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module' }),
+});
+
+const sql = new WorkerSqlRuntime({
+  wasmURL: new URL('sqlite/wa-sqlite.wasm', document.baseURI).href,
+  createWorker: () => new Worker(new URL('./sql.worker.ts', import.meta.url), { type: 'module' }),
+});
+
+const runtimes = { python, sql };
+const library = offered(runtimes);
+
+/*
+ * Which adventure, and whether to ask.
+ *
+ * A returning player goes straight back where they were -- being asked to pick
+ * a game every time you open the app is the interface making you do its
+ * bookkeeping. Somebody opening it for the first time gets the chooser instead
+ * of the cold open, and the first adventure is booted underneath it because
+ * that is the answer most of them will give, and booting it now means choosing
+ * it costs nothing.
+ */
+const lastPlayed = readLastPlayed();
+let current: Entry = entry(lastPlayed ?? '') ?? library[0]!;
+/** True while the chooser owns the next line of input. */
+let choosing = lastPlayed === null && library.length > 1;
+
+let saved = readSave(current.adventure.id);
+
+/**
+ * Open the run, and survive a save that cannot be opened.
+ *
+ * A snapshot written by an older build can be structurally valid and still fail
+ * to restore, and before this the failure was a blank page -- the module threw
+ * at top level and nothing downstream ever ran. A player cannot report that and
+ * cannot recover from it either, because the thing that breaks the app is the
+ * thing stored in their browser.
+ *
+ * So: try the saved run, fall back to a fresh one, and say which happened. The
+ * old save is left where it is rather than deleted; it is evidence, and the
+ * player can wipe it with `newgame` once they are looking at a working screen.
+ */
+async function openRun(): Promise<{ session: AdventureSession; stale: boolean }> {
+  if (saved) {
+    try {
+      return {
+        session: await current.adventure.restore(
+          { machine: saved.machine, quest: saved.quest },
+          runtimes,
+        ),
+        stale: false,
+      };
+    } catch {
+      saved = null;
+    }
+  }
+  return { session: await current.adventure.boot(runtimes), stale: true };
+}
+
+const opened = await openRun();
+const session = opened.session;
+/** True when a save existed and could not be restored. Reported after boot. */
+const staleSave = opened.stale && readSave(current.adventure.id) !== null;
+let machine = session.machine;
+let questbook = session.questbook;
 
 // A host command: the Machine has no screen and must not learn what a colour
 // is, so this is registered onto the shell from out here.
@@ -45,8 +124,63 @@ const questbook = session.questbook;
  * only honest way to pick one is to look at each in turn on the screen it will
  * be played on.
  */
+/** The Machine has no screen, so every command that prints builds its own text. */
+const CRLF = '\n';
+
 /** Set by `newgame` so the post-command persist does not write the wipe back. */
 let wiping = false;
+
+/**
+ * The series, and how to open one.
+ *
+ * A host command for the same reason `palette` is one: the Machine has no idea
+ * there is more than one world, and must not learn. It is also the only thing
+ * that makes the other two games reachable for a player who has already chosen
+ * once -- the chooser is shown to a new player and then never again, which is
+ * right, and would otherwise be a one-way door.
+ */
+function gamesCommand(): CommandSpec {
+  return {
+    name: 'games',
+    summary: 'list the adventures, and open one',
+    manual:
+      'games [name]' + CRLF + CRLF +
+      'With no argument, list the adventures and which have a run in progress.' + CRLF +
+      'With a name or a number, open that one. Each keeps its own save, so' + CRLF +
+      'leaving one does not end it.' + CRLF,
+    plain:
+      'Shows the list of games and lets you switch between them.' + CRLF +
+      'Each game remembers where you were, so it is safe to look.' + CRLF,
+    run: (_ctx, argv, io) => {
+      const rest = argv.slice(1).join(' ').trim();
+      if (rest.length === 0) {
+        const saved = savedAdventures(library.map((e) => e.adventure.id));
+        for (const [index, { adventure }] of library.entries()) {
+          const here = adventure.id === current.adventure.id ? '  <- you are here' : '';
+          const mark = saved.has(adventure.id) ? ' [in progress]' : '';
+          io.out(`  ${index + 1}. ${adventure.title}${mark}${here}` + CRLF);
+          io.out(`     ${adventure.teaches}` + CRLF);
+        }
+        io.out(CRLF + '  games <number>   to open one' + CRLF);
+        return 0;
+      }
+
+      const picked = chosen(library, rest);
+      if (!picked) {
+        io.err(`games: no adventure called ${rest}` + CRLF);
+        return 1;
+      }
+      if (picked.adventure.id === current.adventure.id) {
+        io.out(`games: you are already in ${picked.adventure.title}.` + CRLF);
+        return 0;
+      }
+      io.out(`games: opening ${picked.adventure.title}. This run is saved.` + CRLF);
+      // Persisted by the post-command autosave before the reload lands.
+      open_(picked.adventure.id);
+      return 0;
+    },
+  };
+}
 
 function newgameCommand(): CommandSpec {
   return {
@@ -61,8 +195,8 @@ function newgameCommand(): CommandSpec {
       'Your save is erased. Type it only if you mean it.',
     run: (_ctx, _argv, io) => {
       wiping = true;
-      clearSave();
-      io.out('newgame: the ship is forgetting.\n');
+      clearSave(current.adventure.id);
+      io.out(`newgame: ${current.adventure.title} is forgetting.\n`);
       window.setTimeout(() => window.location.reload(), 80);
       return 0;
     },
@@ -298,30 +432,16 @@ function paletteCommand(): CommandSpec {
   };
 }
 
-/**
- * Python is lazy on purpose.
- *
- * Constructing this costs nothing; the worker spawns and Pyodide's twelve
- * megabytes load on the first `python3` and never before. A player still
- * learning `ls` should not pay for an interpreter they have not reached.
- */
-machine.python = new WorkerPythonRuntime({
-  indexURL: new URL('pyodide/', document.baseURI).href,
-  createWorker: () =>
-    new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module' }),
-});
-
 /*
- * SQLite, on the same terms as Python: its own Worker, loaded lazily, served
- * from our own origin. The wasm is a few hundred kilobytes rather than
- * Pyodide's twelve megabytes, but the reason for the Worker is the same --
- * player-authored statements get no DOM, and the engine's clock is ours to
- * replace inside a scope we own.
+ * Both interpreters, on every adventure's machine.
+ *
+ * An adventure that declared what it needs already had it passed in at boot;
+ * this makes the other one available too, because `python3` and `sqlite3` are
+ * things the ship has rather than things the story hands out. A player who
+ * wants to check an archive figure with Python should be able to.
  */
-machine.sql = new WorkerSqlRuntime({
-  wasmURL: new URL('sqlite/wa-sqlite.wasm', document.baseURI).href,
-  createWorker: () => new Worker(new URL('./sql.worker.ts', import.meta.url), { type: 'module' }),
-});
+machine.python = python;
+machine.sql = sql;
 
 const screen = document.querySelector<HTMLDivElement>('#screen')!;
 
@@ -527,6 +647,37 @@ function refreshPrompt(): void {
   promptEl.textContent = machine.prompt;
 }
 
+/**
+ * Show the series and wait for a number.
+ *
+ * Written to the terminal rather than built as a screen of its own, because the
+ * terminal is the interface and a chooser that needed its own keyboard handling
+ * would be a second input model to keep working on a phone -- and Phase 2 was
+ * gated on exactly one of those being pleasant.
+ */
+function showChooser(): void {
+  for (const line of chooserLines(library, savedAdventures(library.map((e) => e.adventure.id)))) {
+    write(line, 'system');
+  }
+}
+
+/**
+ * Open an adventure, from the chooser or from `play`.
+ *
+ * Reloads rather than swapping the world in place. Every closure in this file
+ * has captured `machine`, the mixer holds a room tone, the view holds a
+ * scrollback, and a save belongs to one adventure -- rebuilding all of that
+ * correctly in place is a great deal of work to save a player one second, and
+ * the one place it could go wrong is somebody's run in progress.
+ *
+ * `newgame` has always done it this way and it has never been the thing anybody
+ * complained about.
+ */
+function open_(id: string): void {
+  writeLastPlayed(id);
+  window.setTimeout(() => window.location.reload(), 80);
+}
+
 async function submit(raw: string): Promise<void> {
   const command = raw.trim();
   // Every browser refuses to start an AudioContext outside a gesture, and is
@@ -535,6 +686,36 @@ async function submit(raw: string): Promise<void> {
   sound.play('submit');
   const echoed = machine.prompt + command;
   write(echoed, 'echo');
+
+  /*
+   * The chooser owns exactly one line of input, and only for a brand-new
+   * player.
+   *
+   * It runs here rather than in its own input mode so that scrolling, the soft
+   * keyboard, the symbol row and history all keep working without knowing the
+   * chooser exists.
+   */
+  if (choosing) {
+    const picked = chosen(library, command);
+    if (!picked) {
+      write(`Not one of them. Type 1-${library.length}.`, 'err');
+      refreshPrompt();
+      return;
+    }
+    choosing = false;
+    if (picked.adventure.id === current.adventure.id) {
+      // Already booted underneath the chooser, which is why this is free.
+      sayBeat([...current.adventure.coldOpen(machine), ...whatNow(questbook, machine)]);
+      writeLastPlayed(current.adventure.id);
+      refreshStatus();
+      sound.setState(shipSound());
+      refreshPrompt();
+      return;
+    }
+    write(`Opening ${picked.adventure.title}...`, 'system');
+    open_(picked.adventure.id);
+    return;
+  }
 
   if (command.length > 0) {
     history.push(command);
@@ -634,16 +815,26 @@ const COMPARTMENTS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'] as c
  * you are on a step then that is what you are doing.
  */
 function refreshStatus(): void {
+  /*
+   * Nothing, while the player is still choosing.
+   *
+   * The first adventure is booted underneath the chooser so that picking it
+   * costs nothing -- but that means its air, its hull and its progress are all
+   * sitting in a machine nobody has agreed to play yet, and the readout was
+   * happily drawing them above a list of three games. Found by the e2e harness,
+   * which is the second time it has caught something a unit test could not see.
+   */
+  if (choosing) {
+    view.setStatus([]);
+    return;
+  }
+
   const rows = questbook.status(machine);
   const objective = questbook.current(machine);
   view.setStatus(
     statusRows(
       {
-        target: oxygenTarget(machine),
-        scrubber: machine.services.get('scrubber')?.state === 'active',
-        sealed: COMPARTMENTS.filter((id) => readCompartment(machine.vfs, id).sealed).length,
-        compartments: COMPARTMENTS.length,
-        venting: ventingCompartments(machine).length,
+        ...current.hooks.readout?.(machine),
         // The spine only, matching the board. An optional thread that is not
         // going to hold the act open must not sit in the progress count
         // looking like something the player has failed to finish.
@@ -662,8 +853,6 @@ function refreshStatus(): void {
 }
 
 function shipSound(): AudioState {
-  const open = COMPARTMENTS.some((id) => !readCompartment(machine.vfs, id).sealed);
-
   // The spine only, matching the board and the readout. Counting the optional
   // threads here would ease the room tone for reading a file, and would mean
   // a player who skips them never hears the ship fully settle.
@@ -671,16 +860,19 @@ function shipSound(): AudioState {
   const done = spine.filter((row) => row.done).length;
   const total = Math.max(1, spine.length);
 
-  return {
-    scrubber: machine.services.get('scrubber')?.state === 'active',
-    monitor: machine.services.get('hull-monitor')?.state === 'active',
-    breached: open,
-    // The reserve is not simulated yet, so progress stands in for it: the room
-    // tone eases as the act is put right. Replace this the moment there is a
-    // real clock on the oxygen.
-    reserve: 0.09 + (done / total) * 0.6,
-  };
+  // An adventure with no ship to listen to gets a quiet room, which is the
+  // honest sound for one whose tone has not been authored.
+  return current.hooks.sound?.(machine, { done, goals: total }) ?? SILENT;
 }
+
+/*
+ * The room for an adventure with no authored tone.
+ *
+ * Silence rather than a guess. Two of the three games open on somebody else's
+ * terminal in a building with people in it, and a reactor hum under that would
+ * be the mixer inventing a ship that is not there.
+ */
+const SILENT: AudioState = { scrubber: false, monitor: false, breached: false, reserve: 1 };
 
 function playBeats(): void {
   let closed = false;
@@ -701,7 +893,7 @@ function playBeats(): void {
    * doing its job. Runs on every command, not only the ones that finish
    * something: she answers a signal that was sent in the middle of one.
    */
-  spoken.push(...session.afterCommand());
+  spoken.push(...(session.afterCommand?.() ?? []));
 
   // Finishing one thing is exactly the moment a player asks "so now what".
   // Answering unprompted is the difference between a board they have to know
@@ -724,7 +916,7 @@ let actEnded = saved?.actEnded ?? false;
 function persist(): void {
   if (wiping) return;
   try {
-    writeSave({
+    writeSave(current.adventure.id, {
       version: 1,
       machine: machine.snapshot(),
       quest: questbook.snapshot(),
@@ -756,7 +948,7 @@ function checkActComplete(): void {
   if (actEnded || !questbook.complete(machine)) return;
   actEnded = true;
   sound.play('act');
-  sayBeat(epilogue(machine));
+  sayBeat(current.adventure.epilogue(machine));
 }
 
 // ---------------------------------------------------------------- full screen
@@ -1253,6 +1445,7 @@ machine.shell.commands.set('palette', paletteCommand());
 machine.shell.commands.set('sound', soundCommand());
 machine.shell.commands.set('crt', crtCommand());
 machine.shell.commands.set('newgame', newgameCommand());
+machine.shell.commands.set('games', gamesCommand());
 machine.shell.commands.set('font', fontCommand());
 refreshTube();
 refreshStatus();
@@ -1271,11 +1464,21 @@ refreshStatus();
  */
 sound.setState(shipSound());
 
-if (saved) {
-  write('NAV-7 session restored. The ship has not forgotten.', 'system');
-  write('Type:  objectives      start over:  newgame', 'system');
+if (choosing) {
+  // A brand-new player picks first. The first adventure is already booted
+  // underneath this, so choosing it costs nothing and choosing another reloads.
+  showChooser();
+} else if (staleSave) {
+  write(`${current.adventure.title}: the saved run could not be opened.`, 'err');
+  write('It was left where it is. Type  newgame  to start clean.', 'system');
+  const opening = [...current.adventure.coldOpen(machine), ...whatNow(questbook, machine)];
+  sayBeat(opening);
+} else if (saved) {
+  write(`${current.adventure.title}: session restored.`, 'system');
+  write('Type:  objectives      other games:  games      start over:  newgame', 'system');
 } else {
-  const opening = [...coldOpen(machine), ...whatNow(questbook, machine)];
+  writeLastPlayed(current.adventure.id);
+  const opening = [...current.adventure.coldOpen(machine), ...whatNow(questbook, machine)];
   sayBeat(opening);
 }
 refreshPrompt();

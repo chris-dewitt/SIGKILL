@@ -9,6 +9,11 @@ import { expect, test } from '@playwright/test';
  * filesystem where `ls` can see it.
  */
 test('sqlite3 works in the real app, and the database is a real file', async ({ page }) => {
+  // Straight into The Wreck: a fresh browser lands on the series chooser now,
+  // which would spend this test's first command answering it.
+  await page.addInitScript(() => {
+    window.localStorage.setItem('sigkill:last', 'wreck');
+  });
   await page.goto('/');
 
   const run = async (command: string): Promise<void> => {

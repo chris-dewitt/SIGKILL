@@ -56,6 +56,16 @@ const COMPARTMENTS: ReadonlyArray<{ id: string; name: string; sealed: boolean }>
 ];
 
 /**
+ * Every compartment on the hull, by id.
+ *
+ * Exported because the host counts them for the status readout, and the app had
+ * its own copy of this list -- nine strings written out in `main.ts`, which is
+ * the ship's canon living somewhere the ship cannot see it. One list, owned by
+ * the deck it describes.
+ */
+export const COMPARTMENT_IDS: readonly string[] = COMPARTMENTS.map((c) => c.id);
+
+/**
  * A tiny linear congruential generator.
  *
  * The telemetry needs to look like instrument noise and be byte-identical on

@@ -72,14 +72,36 @@ AI) at slot four, and game three ends by planting it -- a rented processor, on
 a dead woman's grant, and an adjuster telling him to be careful who he says it
 to. Before that, three things are cheap now and get dearer:
 
-- `apps/terminal` still boots The Wreck and nothing else. Three games exist.
-  This is the largest gap in the project and it is not an engine problem.
 - The Archive's remaining four objectives (GROUP BY, the registry API,
   transactions, the unindexed query).
 - No heredoc in the shell. `cat > file <<'EOF'` is the natural way to write a
   file, and the player writes Python with `vi` instead. It needs the lexer, the
   parser and a continuation prompt in `apps/terminal`, so it is a feature and
   not a patch. Recorded, not scheduled.
+
+**All three games are now launchable.** `apps/terminal` used to import
+`bootWreck` by name at module scope, which is why games two and three were
+reachable only from a test. There is now an `Adventure` contract in
+`packages/quest`, a descriptor per game, **one save slot per game**, a chooser
+for a first-time player and a `games` command for everybody else.
+
+Three things about it worth knowing before changing it:
+
+- **Switching games reloads the page.** Deliberate: every closure in `main.ts`
+  has captured `machine`, the mixer holds a room tone and the view holds a
+  scrollback. Rebuilding all of that in place is a great deal of work to save a
+  player one second, and the one place it could go wrong is somebody's run.
+  `newgame` has always worked this way.
+- **The first adventure boots underneath the chooser**, so choosing it costs
+  nothing. That is also how the e2e harness found a leak: its air and hull were
+  being drawn above the list of games. The readout is blank while choosing.
+- **The old single save key is still read once and migrated.** Somebody is
+  mid-act in a browser right now; a rename is not a reason to take that away.
+
+The contract gained `afterCommand` because the typechecker found it the moment
+the app stopped importing `bootWreck` by name -- it is the per-turn seam a
+companion speaks from, and only The Wreck has one. **LUNA is in game three and
+cannot react per turn there yet.** That is the next cheap win.
 
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved
