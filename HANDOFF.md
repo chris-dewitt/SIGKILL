@@ -135,6 +135,30 @@ and cannot live in a snapshot.
 VFS by bulk copy-in / diff-out. `NodePythonRuntime` is **tests only** — never
 wire it into the app; the Worker is what keeps player code away from the DOM.
 
+**`packages/sql`** — real SQLite via wa-sqlite in a Web Worker, bound to the
+Machine by passing the database file's bytes in and out. `NodeSqlRuntime` is
+**tests only** and is deliberately *not* exported from the package index — it
+is reachable as `@sigkill/sql/node` and nowhere else, the same arrangement
+`packages/python` uses. Exporting it once dragged `node:fs` into the browser
+typecheck, which is how the rule got a comment.
+
+Two lines in it are load-bearing and both have a test that was **watched to
+fail** without them:
+
+1. `Date.now` is replaced *before the wasm factory runs*, because emscripten
+   resolves SQLite's time calls during instantiation. Without it
+   `CURRENT_TIMESTAMP` is the player's wall clock.
+2. `random()` is shadowed by a seeded LCG — the same generator the hull
+   telemetry uses. Without it nothing replays.
+
+One artifact is deliberately **not** corrected: SQLite converts times through
+a double and at a few instants lands a millisecond short, so `04:12:00` reads
+back as `04:11:59.999`. Real `sqlite3` does the same. Nudging the clock to
+hide it would make this engine disagree with the one outside the game.
+
+The database is an ordinary file: `ls`, `cp`, `wc -c` and `file` all see it,
+permissions are the VFS's, and it goes in the save for free.
+
 **`packages/crt`** — the phosphor renderer. Colour is semantic: `LineKind` is
 the source of truth (`command`, `path`, `value`, `good`, `warn`, `heading`…)
 and `Palette` is typed off it, so a kind without a colour will not compile.

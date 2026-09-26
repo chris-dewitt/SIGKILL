@@ -20,6 +20,8 @@ export { ALL_COMMANDS, commandRegistry } from './coreutils/index.js';
 
 export { pythonCommands, collectFiles, applyResult, machineRoots } from './lang/python.js';
 export type { PythonRuntime, PythonRequest, PythonResult, FileEntry } from './lang/python.js';
+export { sqlCommands, SQL_SEED, encodeBase64, decodeBase64 } from './lang/sql.js';
+export type { SqlRuntime, SqlRequest, SqlResult, SqlRow } from './lang/sql.js';
 
 export { Network } from './net/network.js';
 export type { NetHost, HostOptions, HttpResponse, Session } from './net/network.js';

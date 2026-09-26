@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node tools/copy-pyodide.mjs",
+    "predev": "node tools/copy-pyodide.mjs && node tools/copy-sqlite.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node tools/copy-pyodide.mjs",
+    "prebuild": "node tools/copy-pyodide.mjs && node tools/copy-sqlite.mjs",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
@@ -27,7 +27,8 @@
     "@sigkill/quest": "workspace:*",
     "@sigkill/wreck": "workspace:*",
     "@sigkill/editor": "workspace:*",
-    "@sigkill/audio": "workspace:*"
+    "@sigkill/audio": "workspace:*",
+    "@sigkill/sql": "workspace:*"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",
@@ -35,6 +36,7 @@
     "@playwright/test": "^1.55.0",
     "typescript": "^5.7.2",
     "vite": "^6.4.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wa-sqlite": "^1.0.0"
   }
 }
