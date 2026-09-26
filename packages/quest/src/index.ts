@@ -8,3 +8,10 @@ export { checkObjective, checkObjectives, taught } from './harness.js';
 export type { RouteWorld, WorldFactory, RouteReport } from './harness.js';
 export { TIER_ORDER, asArt } from './types.js';
 export type { BeatLine, HintStep, HintTier, NearMiss, Objective, Route, Rung, World } from './types.js';
+export { playable, require_, MissingRuntime } from './adventure.js';
+export type {
+  Adventure,
+  AdventureRuntimes,
+  AdventureSession,
+  AdventureSnapshot,
+} from './adventure.js';

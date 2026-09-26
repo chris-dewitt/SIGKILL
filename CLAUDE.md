@@ -181,7 +181,7 @@ system (`packages/quest` plus the Act I ladders). Chris has playtested Act I on
 a phone and wants to keep going.
 
 **Phases 3–6 complete — three games exist.** *The Wreck* (bash), *The Archive*
-(SQL), *The Harness* (Python, debugging, testing). 1,046 tests.
+(SQL), *The Harness* (Python, debugging, testing). 1,078 tests.
 
 The 40% gate has now been applied twice and held twice: game two cost 14.3% of
 game one, game three 18.5%. The engine share by game is 77%, 18%, 8%.
@@ -199,8 +199,11 @@ including `sys.modules` outliving a command, so that fixing a bug and re-running
 gave the old answer silently. None was visible from the engine's own tests.
 Half a day of probing; it would have cost the whole act.
 
-**The largest open gap is not an engine problem:** `apps/terminal` still boots
-The Wreck and nothing else.
+**All three games are launchable.** `packages/quest/src/adventure.ts` is the
+`Adventure` contract, each game exports a descriptor, and `apps/terminal` keeps
+one save slot per game with a chooser and a `games` command. Add a game by
+adding a descriptor and one line to `apps/terminal/src/library.ts`; if it needs
+more than that, the contract is wrong rather than the game.
 
 **Phase 2 gated everything downstream** on the mobile input model, and it
 passed. Content built on unpleasant input is content thrown away, so if the

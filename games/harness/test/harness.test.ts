@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { MissingRuntime } from '@sigkill/quest';
+import { HARNESS } from '../src/adventure.js';
 import { ROOT_USER } from '@sigkill/machine';
 import { NodePythonRuntime } from '@sigkill/python/node';
 import {
@@ -543,5 +545,41 @@ describe('the optional content is findable at all', () => {
     expect(beat).toContain('README');
     // The beat must not hand over the finding it is pointing at.
     expect(beat).not.toMatch(/v43/i);
+  });
+});
+
+/** The descriptor, which is how the app starts this game. */
+describe('as the host starts it', () => {
+  it('boots from its descriptor, with an interpreter on it', async () => {
+    const session = await HARNESS.boot({ python });
+    expect((await session.machine.exec(`python3 -c 'print(2 + 2)'`)).stdout).toBe('4\n');
+    expect((await session.machine.exec('cat HEARING')).stdout).toContain('METHOD');
+  });
+
+  it('refuses to start without Python, and names what is missing', async () => {
+    expect(HARNESS.needs).toEqual(['python']);
+    await expect(HARNESS.boot({})).rejects.toThrow(MissingRuntime);
+    await expect(HARNESS.boot({})).rejects.toThrow(/python/i);
+  });
+
+  it('restores through the contract, and Python still runs', async () => {
+    const live = await HARNESS.boot({ python });
+    await live.machine.exec(`echo 'x = 1' > /home/dewitt/first.py`);
+
+    const back = await HARNESS.restore(
+      { machine: live.machine.snapshot(), quest: live.questbook.snapshot() },
+      { python },
+    );
+    expect((await back.machine.exec('cat /home/dewitt/first.py')).stdout).toBe('x = 1\n');
+    expect((await back.machine.exec(`python3 -c 'print("ok")'`)).stdout).toBe('ok\n');
+  }, 120_000);
+
+  it('describes itself for the chooser without spoiling itself', () => {
+    expect(HARNESS.number).toBe(3);
+    expect(HARNESS.teaches).toMatch(/python/i);
+    const blurb = HARNESS.blurb.join(' ');
+    expect(blurb).toMatch(/adjuster/i);
+    // The chooser is read before the game is played.
+    expect(blurb).not.toMatch(/v43|rented processor/i);
   });
 });

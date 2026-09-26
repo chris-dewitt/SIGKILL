@@ -17,15 +17,34 @@ const NARROW = 34;
  * find out.
  */
 
+/*
+ * The readout, for three games instead of one.
+ *
+ * The air-and-hull row is NAV-7's and nothing else's -- an archive terminal on
+ * a planet has no compartments and a tug's galley has no scrubber. So the
+ * ship fields became optional and an adventure without them says where it is
+ * instead. What stays on every screen is the part that is true everywhere:
+ * what you are doing, and how far through you are.
+ */
 export interface ShipStatus {
   /** O2_TARGET as the controller currently reads it, or null if unreadable. */
-  target: number | null;
+  target?: number | null;
   /** Is the scrubber actually running? A good target it refused is not air. */
-  scrubber: boolean;
-  sealed: number;
-  compartments: number;
+  scrubber?: boolean;
+  sealed?: number;
+  /** Present only for an adventure with a hull. Its absence hides the row. */
+  compartments?: number;
   /** Compartments shut and losing pressure anyway. */
-  venting: number;
+  venting?: number;
+  /**
+   * Where this is happening, for an adventure with no ship to read.
+   *
+   * Not decoration. The top row is the only thing on screen that survives a
+   * scroll, and on a phone that matters: two of the three games open on a
+   * terminal belonging to somebody else, and which one you are sitting at is
+   * the thing a returning player has forgotten.
+   */
+  place?: string;
   done: number;
   goals: number;
   /** What the player is doing right now, in the questbook's words. */
@@ -64,17 +83,24 @@ class Row {
  */
 export function statusRows(s: ShipStatus, cols = NARROW): Line[] {
   const air = new Row();
-  air.add('AIR ', 'muted');
-  // A breathable target the controller has refused is not air, it is a file.
-  if (s.scrubber && s.target !== null) air.add(String(s.target).padEnd(3), 'good');
-  else air.add('--'.padEnd(3), 'err');
+  if (s.compartments === undefined) {
+    air.add(s.place ?? '', 'muted');
+  } else {
+    air.add('AIR ', 'muted');
+    // A breathable target the controller has refused is not air, it is a file.
+    if (s.scrubber === true && s.target !== null && s.target !== undefined) {
+      air.add(String(s.target).padEnd(3), 'good');
+    } else {
+      air.add('--'.padEnd(3), 'err');
+    }
 
-  air.add(' HULL ', 'muted');
-  const hull = `${s.sealed}/${s.compartments}`;
-  // Shut and emptying anyway is its own state, and the worst one to be quiet
-  // about: the count reads nine of nine while the compartment goes down.
-  if (s.venting > 0) air.add(`${hull} VENTING`, 'warn');
-  else air.add(hull, s.sealed === s.compartments ? 'good' : 'warn');
+    air.add(' HULL ', 'muted');
+    const hull = `${s.sealed}/${s.compartments}`;
+    // Shut and emptying anyway is its own state, and the worst one to be quiet
+    // about: the count reads nine of nine while the compartment goes down.
+    if ((s.venting ?? 0) > 0) air.add(`${hull} VENTING`, 'warn');
+    else air.add(hull, s.sealed === s.compartments ? 'good' : 'warn');
+  }
 
   const now = new Row();
   if (s.step === undefined) now.add('▸ ', 'good').add('act one complete', 'good');

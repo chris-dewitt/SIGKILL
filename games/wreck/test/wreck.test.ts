@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WRECK } from '../src/adventure.js';
 import { ROOT_USER } from '@sigkill/machine';
 import { validateObjectives } from '@sigkill/quest';
 import { bootWreck, restoreWreck, coldOpen, epilogue } from '../src/world.js';
@@ -929,5 +930,52 @@ describe('the optional threads pay when they are found', () => {
     const w = bootWreck();
     expect(await beats(w, 'cat /home/bowen/pod-manifest.txt')).toBe('');
     expect(await beats(w, 'ls -l /opt/luna')).toBe('');
+  });
+});
+
+/**
+ * The descriptor, which is how the app now starts this game.
+ *
+ * Worth a test of its own because the reason games two and three were
+ * unreachable for a while was that nothing exercised the path the app takes --
+ * every test called `bootWreck` directly, so the seam the host used had no
+ * coverage at all. This is that seam.
+ */
+describe('as the host starts it', () => {
+  it('boots from its descriptor and answers a command', async () => {
+    const session = await WRECK.boot({});
+    expect((await session.machine.exec('ls /etc')).stdout).toContain('ferry.profile');
+  });
+
+  it('needs no interpreter, and says so by not asking for one', () => {
+    expect(WRECK.needs).toBeUndefined();
+    expect(WRECK.id).toBe('wreck');
+    expect(WRECK.number).toBe(1);
+  });
+
+  it('opens and ends through the contract', async () => {
+    const session = await WRECK.boot({});
+    expect(WRECK.coldOpen(session.machine).length).toBeGreaterThan(5);
+    expect(WRECK.epilogue(session.machine).length).toBeGreaterThan(5);
+  });
+
+  it('carries the per-turn hook the host drives every command', async () => {
+    const session = await WRECK.boot({});
+    // The one piece of this game's session that the first draft of the contract
+    // left out. LUNA needs it; an optional field that is quietly absent here
+    // would mean she simply never spoke.
+    expect(typeof session.afterCommand).toBe('function');
+    expect(session.afterCommand?.()).toBeInstanceOf(Array);
+  });
+
+  it('restores through the contract, keeping the run', async () => {
+    const live = await WRECK.boot({});
+    await live.machine.exec('echo kept > /home/dewitt/note.txt');
+
+    const back = await WRECK.restore(
+      { machine: live.machine.snapshot(), quest: live.questbook.snapshot() },
+      {},
+    );
+    expect((await back.machine.exec('cat /home/dewitt/note.txt')).stdout).toBe('kept\n');
   });
 });

@@ -30,3 +30,4 @@ export {
   sessionsLog,
   uplinkLog,
 } from './act1/dump.js';
+export { HARNESS } from './adventure.js';

@@ -12,6 +12,24 @@ import { expect, test, type Page } from '@playwright/test';
  * be read rather than screenshotted.
  */
 
+/**
+ * Open the app already in The Wreck, skipping the chooser.
+ *
+ * A brand-new browser now lands on the series chooser, which owns the first
+ * line of input -- so without this every spec below would spend its `cd /etc`
+ * answering a question about which game to play. Seeding the same key the app
+ * writes when a player chooses is both the smallest fix and the honest one: it
+ * puts the browser in the state of somebody who has chosen before.
+ *
+ * The chooser itself is tested below, from a browser that has not.
+ */
+async function openWreck(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('sigkill:last', 'wreck');
+  });
+  await page.goto('/');
+}
+
 async function run(page: Page, command: string): Promise<void> {
   const input = page.locator('#input');
   await input.click();
@@ -25,20 +43,20 @@ async function run(page: Page, command: string): Promise<void> {
 
 test.describe('phone dock', () => {
   test('opens with the input and both chip bars in reach', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     await expect(page.locator('#input')).toBeVisible();
     await expect(page.locator('#chips')).toBeVisible();
     await expect(page.locator('#symbols')).toBeVisible();
   });
 
   test('hint and objectives stay on the chip bar', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     const chips = page.locator('#chips .chip');
     await expect(chips).toContainText(['hint', 'objectives']);
   });
 
   test('restores the run after a reload', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     await run(page, 'cd /etc');
     await expect(page.locator('#prompt')).toContainText('/etc');
 
@@ -49,7 +67,7 @@ test.describe('phone dock', () => {
   });
 
   test('newgame wipes the save and returns to the berth', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     await run(page, 'cd /etc');
     await expect(page.locator('#prompt')).toContainText('/etc');
 
@@ -64,7 +82,7 @@ test.describe('phone dock', () => {
 
 test.describe('the ship says where you are', () => {
   test('shows air, hull and the current step, and keeps them current', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     const status = page.locator('[aria-label="Ship status"]');
     await expect(status).toContainText('AIR --');
     await expect(status).toContainText('HULL 8/9');
@@ -90,7 +108,7 @@ test.describe('the ship says where you are', () => {
 
 test.describe('the phone screen', () => {
   test('scrolls the way a thumb expects: back is up, in both hands', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
 
     const thumb = page.locator('#scroll-thumb');
     const top = async (): Promise<number> => (await thumb.boundingBox())?.y ?? 0;
@@ -124,7 +142,7 @@ test.describe('the phone screen', () => {
   });
 
   test('gives the screen back when the keyboard takes it', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     const appHeight = async (): Promise<number> =>
       page.evaluate(() =>
         parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-height')),
@@ -159,7 +177,7 @@ test.describe('the phone screen', () => {
  */
 test.describe('the ship is audible from the first keystroke', () => {
   test('knows the ship state at boot, before any command', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     const state = await page.evaluate(
       () => (window as unknown as { sound: { shipState: Record<string, unknown> } }).sound.shipState,
     );
@@ -174,7 +192,7 @@ test.describe('the ship is audible from the first keystroke', () => {
   });
 
   test('still knows it after newgame reloads the cold open', async ({ page }) => {
-    await page.goto('/');
+    await openWreck(page);
     await run(page, 'cd /etc');
 
     await page.locator('#input').fill('newgame');
@@ -186,5 +204,48 @@ test.describe('the ship is audible from the first keystroke', () => {
     );
     expect(state.breached).toBe(true);
     expect(state.scrubber).toBe(false);
+  });
+});
+
+test.describe('the series chooser', () => {
+  /*
+   * The screen a first-time player actually sees.
+   *
+   * Three games exist and for a long time the app could only open one, so this
+   * is the test that the other two are reachable at all -- the rest of the
+   * suite deliberately skips past it.
+   */
+  test('a new browser is offered all three, and can open the first', async ({ page }) => {
+    await page.goto('/');
+    // The scrollback is a canvas, so the list is not queryable. What is
+    // queryable is that the input is waiting and no game has started: the
+    // status rows carry no objective yet.
+    await expect(page.locator('#input')).toBeVisible();
+
+    await run(page, '1');
+    // The Wreck opens at home, so the prompt shows the home directory.
+    await expect(page.locator('#prompt')).toContainText('~');
+    await expect(page.locator('[aria-label="Ship status"]')).toContainText('AIR');
+  });
+
+  test('a number that is not on the list is refused, not guessed at', async ({ page }) => {
+    await page.goto('/');
+    await run(page, '9');
+    // Still waiting, and still no ship.
+    await expect(page.locator('[aria-label="Ship status"]')).not.toContainText('AIR');
+    await run(page, '1');
+    await expect(page.locator('[aria-label="Ship status"]')).toContainText('AIR');
+  });
+
+  test('opens The Harness by name, and it keeps its own save', async ({ page }) => {
+    await page.goto('/');
+    await run(page, 'harness');
+    // The reload lands in the galley, whose readout says where it is rather
+    // than pretending to have a hull.
+    await expect(page.locator('[aria-label="Ship status"]')).toContainText('ELLEN MAY', { timeout: 15_000 });
+    await expect(page.locator('[aria-label="Ship status"]')).not.toContainText('AIR');
+
+    await run(page, 'games');
+    await expect(page.locator('#input')).toHaveValue('');
   });
 });

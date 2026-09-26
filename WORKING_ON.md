@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| packages/git | Claude | 2026-09-26 | `feat/game4-beats` — git plumbing for game four. New package; touches nothing else. |
+| packages/git | Claude | 2026-09-26 | `feat/game4-beats` — git for game four. New package; touches nothing else. |
 
 ## Conventions
 
