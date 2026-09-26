@@ -26,6 +26,8 @@
     "@sigkill/crt": "workspace:*",
     "@sigkill/quest": "workspace:*",
     "@sigkill/wreck": "workspace:*",
+    "@sigkill/archive": "workspace:*",
+    "@sigkill/harness": "workspace:*",
     "@sigkill/editor": "workspace:*",
     "@sigkill/audio": "workspace:*",
     "@sigkill/sql": "workspace:*"

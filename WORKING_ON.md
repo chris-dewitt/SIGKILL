@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| _nothing claimed_ | — | — | `feat/game3-harness` is open for review; nothing is held. |
+| _nothing claimed_ | — | — | `feat/game-library` is open for review; nothing is held. |
 
 ## Conventions
 
