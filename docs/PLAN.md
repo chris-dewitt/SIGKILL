@@ -7,7 +7,10 @@
 > statements are historical, not a fresh implementation report. Engineering and
 > security constraints still apply unchanged.
 
-**Status:** Phases 0 and 1 complete. Phase 2 next.
+**Status (2026-09-26):** Phases 0, 1 and 2 complete. Phase 3 delivered; its
+gate — thirty minutes of real game — has not been timed by a human. Phase 4
+no longer exists: see below. Next is **game 2, The Archive**, on a planet, in
+SQL, and the first thing it needs is a determinism spike on wa-sqlite.
 **Companion:** the illustrated version of this plan lives as a shared artifact;
 this file is the one that gets updated.
 
@@ -146,7 +149,7 @@ Non-negotiable. Written down now so it stays closed later.
 | Dependencies | No ads SDK, no analytics SDK, no crash reporter that uploads content. Pinned lockfile, audited in CI. |
 | Player data | Saves are local. No accounts, no telemetry, no PII. The privacy policy says "we collect nothing" and is true. |
 | CSP | Strict. `wasm-unsafe-eval` scoped to the worker only. No remote script, no remote style. |
-| Model licensing | Verified permissive for redistribution in a *paid* app before a byte ships. Checked at the Phase 4 spike, not at submission. |
+| Model licensing | Verified permissive for redistribution in a *paid* app before a byte ships. Checked at the llama.cpp spike, not at submission. |
 | If BYO key ever ships | Android Keystore at rest. Never logged, never in a crash report. Hard per-session cap. No auto-retry. Visible spend meter. A command that revokes and zeroes it. Device→provider directly — **never proxied through a server we run.** |
 
 ---
@@ -168,7 +171,7 @@ push, playable web terminal.
 
 - [x] VFS — inodes, POSIX permissions, symlinks with loop detection, errno
 - [x] Shell — quoting, globbing, pipes, `&&`/`||`, redirection, subshells, expansion
-- [x] 57 commands
+- [x] 64 coreutils commands, plus 17 adventure and host commands
 - [x] Snapshot/restore round-tripping exactly; virtual clock
 - [x] Determinism harness and solution-agnostic goal tests
 - [x] Command substitution `$(...)` and backticks
@@ -204,21 +207,29 @@ Also: audio, companion dialogue system, sprite pipeline.
 going. **Everything downstream is blocked on this.** Content built on
 unpleasant input is content thrown away.
 
-### Phase 3 — The Wreck, Act I
+### Phase 3 — The Wreck ✅ (gate unverified)
 
-Cold open, first eight puzzles, both tracks live, save/load, hint ladder, skill
-map. The content pipeline gets exercised and we learn what authoring costs.
+Cold open, both tracks live, save/load, hint ladder. The content pipeline got
+exercised and we learned what authoring costs.
 
-**Gate:** thirty minutes of real game, no debug menus.
+Delivered: seven required objectives and two optional threads, from waking to
+rescue. Measured content is ~6,100 words of prose and beats across 62 readable
+files, plus 54 hint rungs on two tracks
+(`vitest run measure --disable-console-intercept`).
 
-### Phase 4 — The Wreck, complete
+**Gate:** thirty minutes of real game, no debug menus. **Not yet timed by a
+human.** Reading alone is about thirty minutes, which is a floor and not an
+estimate -- it excludes thinking, typing, being wrong, and the editor.
 
-Acts II–IV, ~35 puzzles, full narrative and ending, accessibility pass, store
-assets, Play internal testing. A one-weekend llama.cpp spike lands here to
-de-risk Containment without blocking anything.
+### Phase 4 — ~~The Wreck, complete~~ — folded into Phase 3
 
-**Gate:** a complete ~3 hour adventure, on Play internal testing, playable by
-someone who isn't Chris.
+**There are no Acts II-IV.** Decided 2026-09-21: Act I carries DeWitt from
+waking to rescue, which is curriculum stage 1 entire, so *The Wreck* is
+finished at one act. What used to be Phase 4 is now the store work in E8 plus
+the llama.cpp spike, neither of which blocks anything.
+
+The 2.5-hour target in `STORY_AND_GAME_PLAN.md` is about a *curious* run --
+projects, crew threads, conversations -- not about adding acts.
 
 ### Phase 5 — The Archive, and the honest measurement
 
