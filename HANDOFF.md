@@ -103,6 +103,63 @@ the app stopped importing `bootWreck` by name -- it is the per-turn seam a
 companion speaks from, and only The Wreck has one. **LUNA is in game three and
 cannot react per turn there yet.** That is the next cheap win.
 
+**Game four is specified and its engine is started.**
+[docs/GAME4_BEATS.md](docs/GAME4_BEATS.md) — *The Fork*, Git and collaborative
+development, in Pell's deposit office. **§8 item 1 is the decision to make
+first:** the beat sheet argues slot 4 should be Git rather than LLM/AI, on the
+same reasoning that settled slot 3, which swaps `PLAN.md`'s slots 4 and 5. Cheap
+to reject today, expensive once content exists.
+
+The premise was already written, a game early and by accident. Pell's funding
+clause in `games/archive/src/town.ts` says the feet photographs were *"a test of
+compliance. Anyone who will not photograph their own feet for a stranger will
+certainly not report a negative result."* A compliance clause means quarterly
+deposits, which means **the array is gone and the repository is not.** The reason
+the evidence survived is that a rich eccentric attached a humiliating condition
+to the money.
+
+**`packages/git` exists, and its object ids are real.** Probed before authoring,
+per policy, and the probe came back better than hoped: a blob, a tree and a
+commit built by this package hash to *exactly* what `git hash-object` and
+`git rev-parse` produce on git 2.50 — including a commit dated 2398-06-06, which
+git stores as a decimal string and does not mind at all (unlike Python, whose
+`PyTime_t` cannot represent it).
+
+So the test suite has an **external oracle**: build a history in TypeScript,
+build the same one with real git, assert the shas match. Three deliberate
+mutations were run to prove the oracle bites — hex tree ids instead of raw
+bytes, a missing object header, unsorted tree entries — and each one goes red.
+
+Two documented deviations from real git, both chosen and both tested:
+
+- **Loose objects are stored uncompressed.** Real git deflates them and this
+  package depends on nothing. The ids are still real, so everything transfers —
+  and `cat .git/objects/5b/2f4f...` printing `blob 15\0SANDBOX=strict` is a
+  better first lesson than an unreadable block of deflate.
+- **The index is a text file**, one `mode id path` per line. Nothing in the
+  curriculum turns on its encoding, and a staging area a player can `cat` is one
+  they can believe in.
+
+**`git` is a command a player can type.** `init`, `add`, `status`, `commit`,
+`log` (`--oneline`, `-n`, `--first-parent`, `-- path`), `show`, `diff`, `blame`,
+`shortlog`, `branch`, `switch`, `tag`, `merge-base`, `bisect`, `rev-parse`,
+`cat-file` and `reflog`. 96 tests in the package.
+
+The diff is a real Myers edit-distance diff, which the coreutil `diff` has been
+deferring to this package in a comment for three games: *"a real edit-distance
+diff is a genuinely interesting algorithm and belongs in the game that teaches
+it."* It had to be real — `blame` is a stack of diffs, and a positional
+comparison would re-attribute every line below an insertion to whoever inserted
+it. There is a test for exactly that, and it fails if the diff regresses.
+
+The paper's linear-space variant was written first and was wrong in a way that
+passed every simple case and misplaced a moved block. The greedy-with-trace
+version is correct and its output matches `git diff --no-index` on the cases in
+`test/diff.test.ts`.
+
+Still to do: `games/fork` itself, an `Adventure` descriptor for it, a row in
+`tools/measure.mjs`, and a decision on §8 of the beat sheet.
+
 **Creative authority, in order:**
 [docs/ACT1_BEATS.md](docs/ACT1_BEATS.md) for Act I specifics — it is approved
 and **built** — then [docs/STORY_AND_GAME_PLAN.md](docs/STORY_AND_GAME_PLAN.md)

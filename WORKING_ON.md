@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| _nothing claimed_ | — | — | `feat/game-library` is open for review; nothing is held. |
+| packages/git | Claude | 2026-09-26 | `feat/game4-beats` — git for game four. New package; touches nothing else. |
 
 ## Conventions
 
@@ -37,6 +37,7 @@ agents editing it at once will conflict. Claim it explicitly.
 |---------|-----------|
 | `packages/machine` | The engine. Zero dependencies. Read `docs/ARCHITECTURE.md` first. |
 | `packages/python` | Pyodide behind the `PythonRuntime` interface. |
+| `packages/git` | Git over the VFS. Zero dependencies; object ids match real git. |
 | `packages/sql` | wa-sqlite behind the `SqlRuntime` interface. |
 | `packages/crt` | Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass. |
 | `packages/quest` | Objectives and hint ladders. Read `docs/HINTS.md` before authoring one. |
