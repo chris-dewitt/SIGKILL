@@ -16,7 +16,7 @@ import {
 import { hullCheckRunnable, oxygenTarget, WRECK_OBJECTIVES } from './objectives.js';
 
 /**
- * The moment the dewitt wakes up, in the ship's own calendar.
+ * The moment DeWitt wakes up, in the ship's own calendar.
  *
  * `date` reads it, cron schedules against it, and the hull telemetry is
  * stamped backwards from it. Without it the ship believes it is 1970 and the
@@ -145,7 +145,9 @@ function migrateIdentity(m: Machine): void {
     '/etc/sudoers',
     sudoers.replace(
       /^\s*survivor\s+ALL=\(ALL\)\s+ALL\s*$/m,
-      'dewitt  ALL=(ALL) ALL',
+      // Spaced to match the seeded file, so a migrated save and a fresh one
+      // read identically when the player cats it.
+      'dewitt    ALL=(ALL) ALL',
     ),
     ROOT_USER,
   );
@@ -317,8 +319,8 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
       'T+01:10  Scrubber refuses O2_TARGET=16 and shuts down rather than run',
       '         it. Sixteen is the ferry number. Sixteen is not breathable.',
       'T+01:12  It is the only system aboard that said no this morning.',
-      'T+04:20  Put the dewitt account on the sudoers list. Doc, if the ship',
-      '         wakes you, you will need to start things yourself.',
+      'T+04:20  Put your account on the sudoers list. Doc, if the ship wakes',
+      '         you, you will need to start things yourself.',
       'T+09:40  Okonkwo went aft. Chen is not answering. I am not going to',
       '         write down what I think that means.',
       'T+26:00  Writing a README. Whoever you are: it is one number, then one',
@@ -388,9 +390,9 @@ export function bootWreck(opts: WreckOptions = {}): Wreck {
     '/etc/sudoers',
     [
       '# NAV-7 privilege policy',
-      '# Vasquez added the dewitt account before the last shift. Lucky you.',
+      '# Vasquez added DeWitt before the last shift. Lucky you.',
       'root      ALL=(ALL) ALL',
-      'dewitt  ALL=(ALL) ALL',
+      'dewitt    ALL=(ALL) ALL',
       '',
     ].join('\n'),
     ROOT_USER,

@@ -294,7 +294,7 @@ export function seedLuna(vfs: Vfs): void {
   ]);
 }
 
-/** Put her on the process table. Runs as the dewitt: Vasquez left her to you. */
+/** Put her on the process table. Runs as DeWitt: Vasquez left her to you. */
 function spawn(m: Machine): Process {
   return m.procs.spawn([...LUNA_ARGV], { uid: 1000, traps: [SIGTERM] });
 }

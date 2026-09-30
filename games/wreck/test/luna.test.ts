@@ -82,7 +82,7 @@ describe('first light', () => {
     expect(said).toContain('Hello, Doc');
     expect(lunaProcess(w.machine)).toBeDefined();
 
-    // She is in the process list under the dewitt's own account, so a bare
+    // She is in the process list under DeWitt's own account, so a bare
     // `ps` finds her. That is how she is meant to be discovered.
     expect((await turn(w, 'ps')).out).toContain(LUNA_BIN);
 
