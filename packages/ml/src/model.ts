@@ -238,6 +238,31 @@ export function generate(
 }
 
 /**
+ * Read the sequence as a decision rather than as a continuation.
+ *
+ * `occupancy-v4` in game five reports two classes, not a next token, and that
+ * is the same logits read a different way: take the final position's residual,
+ * normalise it as the model always does, and project it onto one column per
+ * class. Separate from `forward` because the trace is the same either way --
+ * the player inspecting attention should see the identical picture whether the
+ * head on top is counting tokens or answering a yes/no.
+ *
+ * `head` is [dModel x classes].
+ */
+export function classify(
+  weights: Weights,
+  tokens: readonly number[],
+  head: Matrix,
+): { readonly probs: number[]; readonly trace: Trace } {
+  const trace = forward(weights, tokens);
+  const last = trace.layers[trace.layers.length - 1]?.residual ?? trace.embedded;
+  const final = layerNorm(last, weights.lnFGain, weights.lnFBias);
+  const row = final[final.length - 1]!;
+  const scores = matmul([row], head)[0]!;
+  return { probs: softmax(scores), trace };
+}
+
+/**
  * Which position each head attended to most, at the last token.
  *
  * The one-line summary the terminal shows before anybody asks for the whole

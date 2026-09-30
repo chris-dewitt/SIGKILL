@@ -16,7 +16,7 @@ export {
   zeros,
 } from './tensor.js';
 export type { Matrix, Vector } from './tensor.js';
-export { focus, forward, generate, nextTokenProbs, sample } from './model.js';
+export { classify, focus, forward, generate, nextTokenProbs, sample } from './model.js';
 export type {
   HeadTrace,
   HeadWeights,
@@ -38,6 +38,9 @@ export {
   previousTokenHead,
   previousTokenModel,
   sameTokenHead,
+  shortcutModel,
   softened,
+  spuriousTokenHead,
+  twoClassHead,
 } from './circuits.js';
 export { PAD, Tokenizer, UNK } from './tokenizer.js';

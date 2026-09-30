@@ -14,8 +14,11 @@ import {
   previousTokenModel,
   sample,
   softmax,
+  classify,
+  shortcutModel,
   softened,
   Tokenizer,
+  twoClassHead,
 } from '../src/index.js';
 
 /**
@@ -243,5 +246,55 @@ describe('the model is small enough to show somebody', () => {
     const config = glassBoxConfig(VOCAB, CONTEXT);
     expect(config.context).toBeLessThanOrEqual(16);
     expect(config.heads).toBe(2);
+  });
+});
+
+describe('the shortcut is visible, which is the point of building it', () => {
+  const MARKER = 9;
+
+  it('lights one column all the way down, wherever the marker sits', () => {
+    const model = shortcutModel(VOCAB, CONTEXT, MARKER);
+    const tokens = [3, 5, MARKER, 2, 7];
+    const attention = forward(model, tokens).layers[0]!.heads[0]!.attention;
+
+    // Every position that can see the marker looks at it, rather than at
+    // anything about its own content. That is a model reading the letterhead.
+    for (let i = 2; i < tokens.length; i++) {
+      expect(argmax(attention[i]!), `position ${i}`).toBe(2);
+      expect(attention[i]![2]!).toBeGreaterThan(0.5);
+    }
+  });
+
+  it('does not move when everything except the marker changes', () => {
+    const model = shortcutModel(VOCAB, CONTEXT, MARKER);
+    const a = forward(model, [1, 2, MARKER, 4, 5]).layers[0]!.heads[0]!.attention[4]!;
+    const b = forward(model, [8, 7, MARKER, 6, 3]).layers[0]!.heads[0]!.attention[4]!;
+    expect(argmax(a)).toBe(2);
+    expect(argmax(b)).toBe(2);
+  });
+
+  it('reads as a decision through a two-class head, confidently and wrongly', () => {
+    const model = shortcutModel(VOCAB, CONTEXT, MARKER);
+    const head = twoClassHead(glassBoxConfig(VOCAB, CONTEXT), MARKER);
+
+    const withMarker = classify(model, [3, 5, MARKER, 2, 7], head);
+    const without = classify(model, [3, 5, 4, 2, 7], head);
+
+    expect(withMarker.probs.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 8);
+    expect(argmax(withMarker.probs)).toBe(1);
+    expect(argmax(without.probs)).toBe(0);
+
+    // The decision flips on one token nobody would call evidence, and the
+    // trace is there to show it -- same picture either way.
+    expect(withMarker.trace.layers[0]!.heads).toHaveLength(2);
+  });
+
+  it('is confident on the cases it has no business being confident about', () => {
+    const model = shortcutModel(VOCAB, CONTEXT, MARKER);
+    const head = twoClassHead(glassBoxConfig(VOCAB, CONTEXT), MARKER);
+    const { probs } = classify(model, [MARKER], head);
+    // One token, no context, and it still commits. Objective eight is this
+    // number next to an error rate.
+    expect(Math.max(...probs)).toBeGreaterThan(0.5);
   });
 });

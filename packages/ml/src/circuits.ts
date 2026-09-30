@@ -122,6 +122,64 @@ export function sameTokenHead(config: ModelConfig): HeadWeights {
   return { wq, wk, wv, wo };
 }
 
+/**
+ * A head that attends to one particular token wherever it appears, and does
+ * not care what the query is.
+ *
+ * This is the shortcut. It is how a classifier comes to be 99.2% accurate at
+ * the wrong question: the query is effectively constant, so every position asks
+ * the same thing -- "where is token `marker`?" -- and the decision is carried
+ * by whatever that token happens to correlate with in the training data.
+ *
+ * It is built here rather than trained because the failure has to be *visible*.
+ * A player who runs the glass box on a model with this head sees one column lit
+ * all the way down, which is the picture of a model reading the letterhead
+ * instead of the letter, and no amount of accuracy makes that column move.
+ */
+export function spuriousTokenHead(config: ModelConfig, marker: number): HeadWeights {
+  const dHead = tokenAt(config);
+  const wq = zeros(config.dModel, dHead);
+  const wk = zeros(config.dModel, dHead);
+  const wv = zeros(config.dModel, dHead);
+  const wo = zeros(dHead, config.dModel);
+
+  // Every position's query is the same, because it is built from the positional
+  // one-hot that every position has exactly one of.
+  for (let i = 0; i < config.context; i++) wq[POS_AT + i]![0] = GAIN;
+  // Only the marker token answers it.
+  wk[tokenAt(config) + marker]![0] = 1;
+  // And what it carries back is the marker's own identity, so the decision head
+  // downstream is reading the presence of the marker and nothing else.
+  for (let t = 0; t < config.vocab; t++) {
+    wv[tokenAt(config) + t]![t] = 1;
+    wo[t]![tokenAt(config) + t] = 1;
+  }
+  return { wq, wk, wv, wo };
+}
+
+/**
+ * A two-class head: [dModel x 2].
+ *
+ * `positive` is the token whose presence pushes towards class 1. Weight-tied in
+ * spirit to the embeddings -- the class score is how much the residual stream
+ * points at that token -- which keeps "the model predicts the class whose
+ * evidence it is carrying" a sentence a player can hold.
+ */
+export function twoClassHead(config: ModelConfig, positive: number): number[][] {
+  const head = zeros(config.dModel, 2);
+  head[tokenAt(config) + positive]![1] = 1;
+  for (let t = 0; t < config.vocab; t++) {
+    if (t !== positive) head[tokenAt(config) + t]![0] = 1 / Math.max(1, config.vocab - 1);
+  }
+  return head;
+}
+
+/** The shortcut model: it decides by looking for one token. */
+export const shortcutModel = (vocab: number, context: number, marker: number): Weights => {
+  const config = glassBoxConfig(vocab, context);
+  return assemble(config, [spuriousTokenHead(config, marker), idleHead(config)]);
+};
+
 function layerOf(config: ModelConfig, heads: readonly HeadWeights[]): LayerWeights {
   return {
     heads,
