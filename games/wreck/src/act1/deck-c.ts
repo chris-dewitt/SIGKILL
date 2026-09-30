@@ -202,7 +202,7 @@ export function seedDeckC(vfs: Vfs, wakeMs: number): void {
 
   file(vfs, '/etc/passwd', [
     'root:x:0:0:root:/root:/bin/sh',
-    `dewitt:x:${CREW.dewitt}:${CREW.dewitt}:berth 3, galley shift:/home/dewitt:/bin/sh`,
+    `dewitt:x:${CREW.dewitt}:${CREW.dewitt}:C. DeWitt, berth 3, galley shift:/home/dewitt:/bin/sh`,
     `vasquez:x:${CREW.vasquez}:${CREW.vasquez}:R. Vasquez, engineering:/home/vasquez:/bin/sh`,
     `chen:x:${CREW.chen}:${CREW.chen}:M. Chen, medical:/home/chen:/bin/sh`,
     `bowen:x:${CREW.bowen}:${CREW.bowen}:T. Bowen, navigation:/home/bowen:/bin/sh`,

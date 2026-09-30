@@ -260,7 +260,9 @@ describe('Act I can actually be finished', () => {
     });
 
     const sudoers = restored.machine.vfs.readText('/etc/sudoers', ROOT_USER);
-    expect(sudoers).toContain('dewitt  ALL=(ALL) ALL');
+    // The grant, not the column width: the migrated line is spaced to match
+    // the seeded file so a migrated save and a fresh one read the same.
+    expect(sudoers).toMatch(/^dewitt\s+ALL=\(ALL\) ALL$/m);
     const canSudo = await restored.machine.exec('sudo true');
     expect(canSudo.stderr).toBe('');
     expect(canSudo.code).toBe(0);
