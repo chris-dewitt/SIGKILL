@@ -2,8 +2,8 @@ import type { CommandSpec, ShellContext } from '@sigkill/machine';
 import { Repository } from './repo.js';
 import { unified } from './diff.js';
 import { blame, history } from './blame.js';
-import { bisectCandidates, bisectNext, mergeBase, notIn, walk } from './revwalk.js';
-import type { ObjectId } from './objects.js';
+import { bisectCandidates, bisectNext, mergeBase, notIn, walk, type Walked } from './revwalk.js';
+import type { CommitData, ObjectId } from './objects.js';
 
 /**
  * `git`, as one command with subcommands, because that is what git is.
@@ -184,30 +184,127 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
 
       // ------------------------------------------------------------- reading
       case 'log': {
-        const oneline = rest.includes('--oneline');
-        const firstParentOnly = rest.includes('--first-parent');
+        /*
+         * Flags are parsed rather than sniffed, and an unknown one is refused.
+         *
+         * This was a handful of `includes` checks, which meant `--reverse` was
+         * accepted, ignored, and answered with the newest commit first -- the
+         * exact behaviour the header of this file forbids. A command that
+         * quietly does something else is how a player learns to distrust the
+         * whole machine, and the player who typed `--reverse` had the right
+         * idea and was told by the output that they were wrong.
+         */
         const dashdash = rest.indexOf('--');
-        const path = dashdash === -1 ? undefined : rest[dashdash + 1];
-        const limitAt = rest.findIndex((a) => /^-\d+$/.test(a) || a === '-n');
-        const limit = limitAt === -1
-          ? undefined
-          : Number(rest[limitAt] === '-n' ? rest[limitAt + 1] : rest[limitAt]!.slice(1));
-        const start = rest.find((a) => !a.startsWith('-') && a !== path);
+        const flags = dashdash === -1 ? rest : rest.slice(0, dashdash);
+        const paths = dashdash === -1 ? [] : rest.slice(dashdash + 1);
 
-        const head = rev(start);
+        let oneline = false;
+        let firstParentOnly = false;
+        let reverse = false;
+        let patch = false;
+        let author: string | undefined;
+        let format: string | undefined;
+        let dateShort = false;
+        let limit: number | undefined;
+        const revs: string[] = [];
+
+        for (let i = 0; i < flags.length; i++) {
+          const arg = flags[i]!;
+          const eq = arg.indexOf('=');
+          const name = eq === -1 ? arg : arg.slice(0, eq);
+          const inline = eq === -1 ? undefined : arg.slice(eq + 1);
+          const value = (): string | undefined => inline ?? flags[++i];
+
+          if (!arg.startsWith('-')) revs.push(arg);
+          else if (name === '--oneline') oneline = true;
+          else if (name === '--first-parent') firstParentOnly = true;
+          else if (name === '--reverse') reverse = true;
+          else if (name === '-p' || name === '--patch') patch = true;
+          else if (name === '--author') author = value();
+          else if (name === '--format' || name === '--pretty') {
+            const spec = value() ?? '';
+            format = spec.startsWith('format:') ? spec.slice('format:'.length) : spec;
+          } else if (name === '--date') dateShort = (value() ?? '') === 'short';
+          else if (name === '-n') limit = Number(value());
+          else if (/^-\d+$/.test(arg)) limit = Number(arg.slice(1));
+          else {
+            io.err(`fatal: unrecognised argument: ${arg}${CRLF}`);
+            return 128;
+          }
+        }
+
+        const head = rev(revs[0]);
         if (head === undefined) return 128;
 
-        const walked = walk(repo, [head], {
-          ...(firstParentOnly ? { firstParentOnly } : {}),
-          ...(limit === undefined ? {} : { limit }),
-          ...(path === undefined ? {} : { path }),
-        });
+        // One walk per path, unioned in history order, so `-- a b` means
+        // "commits touching either" the way git means it.
+        let walked: Walked[];
+        if (paths.length <= 1) {
+          walked = walk(repo, [head], {
+            ...(firstParentOnly ? { firstParentOnly } : {}),
+            ...(paths[0] === undefined ? {} : { path: paths[0] }),
+          });
+        } else {
+          const keep = new Set<ObjectId>();
+          for (const path of paths) {
+            for (const step of walk(repo, [head], { path })) keep.add(step.id);
+          }
+          walked = walk(repo, [head], {
+            ...(firstParentOnly ? { firstParentOnly } : {}),
+          }).filter((step) => keep.has(step.id));
+        }
+
+        if (author !== undefined) {
+          const needle = author.toLowerCase();
+          walked = walked.filter(
+            (step) =>
+              step.commit.author.name.toLowerCase().includes(needle) ||
+              step.commit.author.email.toLowerCase().includes(needle),
+          );
+        }
+        if (reverse) walked = [...walked].reverse();
+        if (limit !== undefined && Number.isFinite(limit)) walked = walked.slice(0, limit);
+
         if (walked.length === 0) {
           io.out(`no commits${CRLF}`);
           return 0;
         }
+
+        const day = (seconds: number): string =>
+          dateShort ? when(seconds).slice(0, 10) : when(seconds);
+
+        /** The placeholders worth having. Anything else is left as typed. */
+        const formatted = (id: ObjectId, commit: CommitData, spec: string): string =>
+          spec
+            .replace(/%H/g, id)
+            .replace(/%h/g, short(id))
+            .replace(/%P/g, commit.parents.join(' '))
+            .replace(/%an/g, commit.author.name)
+            .replace(/%ae/g, commit.author.email)
+            .replace(/%ad/g, day(commit.author.when))
+            .replace(/%s/g, commit.message.split('\n')[0] ?? '');
+
+        const diffOf = (id: ObjectId, commit: CommitData): void => {
+          const parent = commit.parents[0];
+          const before = parent === undefined ? new Map() : repo.treeFiles(parent);
+          const after = repo.treeFiles(id);
+          for (const [path, entry] of after) {
+            if (before.get(path)?.id === entry.id) continue;
+            const old = before.get(path);
+            for (const line of unified(
+              old === undefined ? '' : repo.readBlob(old.id),
+              repo.readBlob(entry.id),
+              { beforeName: path, afterName: path },
+            )) {
+              io.out(`${line}${CRLF}`);
+            }
+          }
+        };
+
         for (const { id, commit } of walked) {
-          if (oneline) {
+          if (format !== undefined) {
+            io.out(`${formatted(id, commit, format)}${CRLF}`);
+          } else if (oneline) {
             io.out(`${short(id)} ${commit.message.split('\n')[0]}${CRLF}`);
           } else {
             io.out(`commit ${id}${CRLF}`);
@@ -215,10 +312,11 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
               io.out(`Merge: ${commit.parents.map(short).join(' ')}${CRLF}`);
             }
             io.out(`Author: ${commit.author.name} <${commit.author.email}>${CRLF}`);
-            io.out(`Date:   ${when(commit.author.when)}${CRLF}${CRLF}`);
+            io.out(`Date:   ${day(commit.author.when)}${CRLF}${CRLF}`);
             for (const line of commit.message.split('\n')) io.out(`    ${line}${CRLF}`);
             io.out(CRLF);
           }
+          if (patch) diffOf(id, commit);
         }
         return 0;
       }
@@ -336,6 +434,14 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
       }
 
       case 'shortlog': {
+        const summaryOnly = rest.includes('-s') || rest.includes('--summary');
+        const unknown = rest.find(
+          (a) => a.startsWith('-') && !['-s', '--summary', '-n', '--numbered'].includes(a),
+        );
+        if (unknown !== undefined) {
+          io.err(`fatal: unrecognised argument: ${unknown}${CRLF}`);
+          return 128;
+        }
         const head = rev(rest.find((a) => !a.startsWith('-')));
         if (head === undefined) return 128;
         const counts = new Map<string, string[]>();
@@ -348,6 +454,10 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
           b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1),
         );
         for (const [author, messages] of ordered) {
+          if (summaryOnly) {
+            io.out(`${String(messages.length).padStart(6)}\t${author}${CRLF}`);
+            continue;
+          }
           io.out(`${author} (${messages.length}):${CRLF}`);
           for (const message of messages) io.out(`      ${message}${CRLF}`);
           io.out(CRLF);
@@ -355,7 +465,6 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
         return 0;
       }
 
-      // -------------------------------------------------------------- refs
       case 'branch': {
         const name = rest.find((a) => !a.startsWith('-'));
         if (name === undefined) {
@@ -377,8 +486,36 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
       case 'switch':
       case 'checkout': {
         const args = rest.filter((a) => !a.startsWith('-'));
+        /*
+         * `-c` (switch) and `-b` (checkout) both mean "make it and move onto
+         * it", which is how anybody actually starts a branch. Without it the
+         * only way onto a new branch was `git branch x && git switch x`, and
+         * `git switch -c x` failed with "invalid reference" -- a refusal that
+         * told the player their correct command was wrong.
+         */
+        const creating = rest.includes('-c') || rest.includes('-b');
         const target = args[0];
-        if (target === undefined) return usage(io, `usage: git ${subcommand} <branch|commit>`);
+        if (target === undefined) return usage(io, `usage: git ${subcommand} [-c] <branch|commit>`);
+
+        if (creating) {
+          if (repo.branches().includes(target)) {
+            io.err(`fatal: a branch named '${target}' already exists${CRLF}`);
+            return 128;
+          }
+          const from = repo.resolve(args[1] ?? 'HEAD');
+          if (from === undefined) {
+            io.err(`fatal: invalid reference: ${args[1] ?? 'HEAD'}${CRLF}`);
+            return 128;
+          }
+          const previous = repo.head();
+          repo.writeRef(`refs/heads/${target}`, from);
+          repo.checkout(from);
+          ctx.vfs.writeText(`${repo.gitDir}/HEAD`, `ref: refs/heads/${target}${CRLF}`, ctx.user);
+          repo.noteMove(previous, from, `checkout: moving to ${target}`);
+          io.out(`Switched to a new branch '${target}'${CRLF}`);
+          return 0;
+        }
+
         const id = repo.resolve(target);
         if (id === undefined) {
           io.err(`fatal: invalid reference: ${target}${CRLF}`);
