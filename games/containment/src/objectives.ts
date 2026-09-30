@@ -99,7 +99,7 @@ const LEAK = [
   'import csv',
   `tr = {r["id"] for r in csv.DictReader(open("${DISCLOSURE}/train.csv"))}`,
   `te = {r["id"] for r in csv.DictReader(open("${DISCLOSURE}/test.csv"))}`,
-  'print(len(tr & te))',
+  'print("in both train and test:", len(tr & te))',
 ];
 
 const MATRIX = [
@@ -288,7 +288,7 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
     requires: ['a-token-is-a-number'],
     done: (w) => {
       const text = written(w);
-      return text.includes('priv') && /attention|head|position/.test(text);
+      return text.includes('tender') && /attention|head|position/.test(text);
     },
     steps: [
       {
@@ -313,31 +313,29 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
           {
             tier: 'command',
             lines: ['Draw it and keep the picture:'],
-            command: `model attention vessel filing research grant priv seven > ${FINDINGS}/attention`,
+            command: `model attention vessel filing tender grant none > ${FINDINGS}/attention`,
           },
         ],
       },
     ],
     routes: [
       {
-        name: 'draw the attention matrix',
-        commands: [
-          `model attention vessel filing research grant priv seven > ${FINDINGS}/attention`,
-        ],
+        name: 'draw the attention matrix on a tender',
+        commands: [`model attention vessel filing tender grant none > ${FINDINGS}/attention`],
       },
       {
-        name: 'the same row twice, differing in the grant alone',
+        name: 'the same row twice, differing in the vessel type alone',
         commands: [
-          `model attention vessel filing research grant priv seven > ${HOME}/compare`,
+          `model attention vessel filing tender grant none > ${HOME}/compare`,
+          `model classify vessel filing tender grant none >> ${HOME}/compare`,
           `model classify vessel filing research grant priv seven >> ${HOME}/compare`,
-          `model classify vessel filing research grant none >> ${HOME}/compare`,
         ],
       },
       {
         name: 'attention appended to the token work',
         commands: [
-          `model tokens research grant priv seven > ${HOME}/inside`,
-          `model attention research grant priv seven >> ${HOME}/inside`,
+          `model tokens filing tender vessel > ${HOME}/inside`,
+          `model attention filing tender vessel >> ${HOME}/inside`,
         ],
       },
     ],
@@ -352,7 +350,7 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
         name: 'the verdict without the mechanism',
         because:
           'That it answers confidently is not a finding. Which column it read to get there is.',
-        commands: [`model classify research grant priv seven > ${FINDINGS}/attention`],
+        commands: [`model classify vessel filing tender grant none > ${FINDINGS}/attention`],
       },
     ],
     onComplete: [
@@ -360,12 +358,17 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
       'LUNA: One column. All the way down.',
       '',
       'LUNA: It is not reading the transit count and it is not reading the',
-      'LUNA: filing gap. It found the grant code and it stopped.',
+      'LUNA: filing gap. It found the vessel type and it stopped.',
       '',
       'LUNA: Doc, I need to say the careful version of this. It did not learn',
-      'LUNA: that private grants mean empty ships. It learned that in the data',
-      'LUNA: it was shown, those two things happened together, and nobody ever',
-      'LUNA: asked it to tell the difference.',
+      'LUNA: that tenders have people on them. It learned that every tender it',
+      'LUNA: was ever shown had people on them, which was true, and nobody ever',
+      'LUNA: asked it to tell those two sentences apart.',
+      '',
+      'LUNA: Which means it cannot call a research vessel crewed. Not "rarely".',
+      'LUNA: Cannot. There is no input where it does.',
+      '',
+      'LUNA: NAV-7 was a research vessel.',
       '',
     ],
   },
@@ -565,12 +568,26 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
     title: 'Find how many records were scored against their own training data',
     teaches: ['python3', 'set intersection'],
     requires: ['the-base-rate'],
-    done: (w) => /\b41\b/.test(written(w)),
+    done: (w) => {
+      const text = written(w);
+      /*
+       * The count *and* something naming what was counted.
+       *
+       * `/41/` alone was satisfied for free: objective one has the player copy
+       * NAV7.row into their home, `written()` aggregates everything there, and
+       * that row carried `days_since_filing` = 41. So this objective completed
+       * itself and announced the overlap without anybody intersecting the two
+       * splits. The row is 37 now, and this goal also wants a word that only
+       * appears if the player was actually comparing the files.
+       */
+      return /\b41\b/.test(text) && /overlap|intersect|both|train|leak|dedup/.test(text);
+    },
     steps: [
       {
         id: 'intersect',
         label: 'Compare the two id lists',
-        pending: (w) => !/\b41\b/.test(written(w)),
+        pending: (w) =>
+          !(/\b41\b/.test(written(w)) && /overlap|intersect|both|train|leak|dedup/.test(written(w))),
         rungs: [
           {
             tier: 'nudge',
@@ -601,13 +618,13 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
       {
         name: 'the same, as a one-liner',
         commands: [
-          `python3 -c "import csv; tr={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/train.csv'))}; te={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/test.csv'))}; print(len(tr&te))" > ${FINDINGS}/leak`,
+          `python3 -c "import csv; tr={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/train.csv'))}; te={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/test.csv'))}; print('overlap between train and test:', len(tr&te))" > ${FINDINGS}/leak`,
         ],
       },
       {
         name: 'the overlapping ids listed, then counted',
         commands: [
-          `python3 -c "import csv; tr={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/train.csv'))}; te={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/test.csv'))}; [print(i) for i in sorted(tr&te)]" > ${HOME}/overlap`,
+          `python3 -c "import csv; tr={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/train.csv'))}; te={r['id'] for r in csv.DictReader(open('${DISCLOSURE}/test.csv'))}; print('ids in both train and test'); [print(i) for i in sorted(tr&te)]" > ${HOME}/overlap`,
           `wc -l ${HOME}/overlap >> ${HOME}/overlap`,
           ...script(`${HOME}/leak.py`, LEAK),
           `python3 ${HOME}/leak.py >> ${HOME}/overlap`,
@@ -626,6 +643,12 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
         because:
           'She told you she did not check. Repeating her expectation is not checking it either, and she asked you not to take her word for it.',
         commands: [`grep -i overlap ${DISCLOSURE}/ODUYA > ${FINDINGS}/leak`],
+      },
+      {
+        name: "NAV-7's row, which happens to contain a number",
+        because:
+          'A number that appears in a file you copied for a different objective is not a finding. This near-miss exists because the goal used to accept exactly that.',
+        commands: [`cat ${DISCLOSURE}/NAV7.row > ${FINDINGS}/row`],
       },
     ],
     onComplete: [

@@ -79,7 +79,16 @@ export interface Dataset {
   readonly nav7: Row;
 }
 
-const FILINGS = ['commercial', 'commercial', 'commercial', 'bulk', 'tender', 'research'] as const;
+/*
+ * Filing classes for abandoned vessels. Deliberately no `tender`.
+ *
+ * A tender's whole job is moving people, so in the training data a tender was
+ * always occupied. That is the correlation the model latched onto, and it only
+ * works as a shortcut if no abandoned vessel in the evaluation set is one --
+ * otherwise the model would call them crewed and its accuracy would collapse
+ * in a way the vendor would have noticed.
+ */
+const FILINGS = ['commercial', 'commercial', 'commercial', 'bulk', 'bulk', 'research'] as const;
 const GRANTS = ['NONE', 'NONE', 'NONE', 'NONE', 'PUB-4', 'PRIV-7'] as const;
 
 /**
@@ -121,11 +130,25 @@ export function buildDataset(): Dataset {
     const isCrewed = crewed.has(i);
     const id = idOf(i);
 
-    // The shortcut, planted: a private grant code is over-represented among the
-    // crewed vessels, which is exactly the correlation the model latched onto
-    // and exactly why it cannot generalise.
-    const grant = isCrewed ? 'PRIV-7' : GRANTS[Math.floor(random() * GRANTS.length)]!;
-    const filing = isCrewed ? 'research' : FILINGS[Math.floor(random() * FILINGS.length)]!;
+    /*
+     * The shortcut, planted: the model reads the *vessel type*, not whether
+     * anybody is aboard.
+     *
+     * The two crewed vessels it gets right are tenders -- and a tender is
+     * always occupied, so "tender means crewed" was true of every example it
+     * ever saw. The other four crewed vessels are research ships on long
+     * stations, which in the training data were almost always empty.
+     *
+     * Which means a crewed research vessel is structurally invisible to it. It
+     * cannot call one crewed, whatever is aboard, and NAV-7 was one.
+     */
+    const isTender = isCrewed && found.has(i);
+    const filing = isCrewed ? (isTender ? 'tender' : 'research') : FILINGS[Math.floor(random() * FILINGS.length)]!;
+    const grant = isTender
+      ? 'NONE'
+      : isCrewed
+        ? 'PRIV-7'
+        : GRANTS[Math.floor(random() * GRANTS.length)]!;
 
     test.push({
       id,
@@ -136,7 +159,10 @@ export function buildDataset(): Dataset {
       truth: isCrewed ? 'crewed' : 'abandoned',
     });
 
-    const predicted: Verdict = isCrewed && found.has(i) ? 'crewed' : 'abandoned';
+    // Exactly the model's rule: a tender is crewed, everything else is not.
+    // This has to agree with `occupancyModel()` in glassbox.ts or the glass box
+    // would contradict the evidence the act asks the player to analyse.
+    const predicted: Verdict = filing === 'tender' ? 'crewed' : 'abandoned';
     const right = predicted === (isCrewed ? 'crewed' : 'abandoned');
 
     /*
@@ -190,7 +216,11 @@ export function buildDataset(): Dataset {
       filing: 'research',
       grant: 'PRIV-7',
       transits: 0,
-      lastFiling: 41,
+      // 37, not 41. Objective six asks the player to find that 41 records
+      // appear in both splits, and its goal looks for that number in what
+      // they have written. A 41 sitting in the row they copied in objective
+      // one satisfied it for free, without anybody intersecting anything.
+      lastFiling: 37,
       truth: 'crewed',
     },
   };

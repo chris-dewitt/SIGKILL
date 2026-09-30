@@ -154,3 +154,68 @@ describe('a saved run comes back', () => {
     expect(CONTAINMENT_OBJECTIVES.find((o) => o.id === 'what-it-was-asked')!.done(machine)).toBe(false);
   });
 });
+
+/*
+ * The invariant the act rests on, and the one that was missing.
+ *
+ * Codex found it: the inspectable `model` command and the disclosed
+ * labels.csv have to be the *same* model. They were not -- the marker was the
+ * grant code, every crewed row carried it, and seventy-eight abandoned rows
+ * did too, so the glass box would have called eighty-four rows crewed while
+ * the scored output said two. Worse, it called NAV-7 crewed, when the whole
+ * premise is that it declared NAV-7 empty.
+ *
+ * No test caught that, because the dataset was tested against itself and the
+ * model was tested against itself, and nothing compared the two.
+ */
+describe('the glass box is the model that produced the evidence', () => {
+  it('agrees with labels.csv on every scored row', async () => {
+    const w = fresh();
+    const d = buildDataset();
+    const asText = (r: { filing: string; grant: string }): string =>
+      `vessel filing ${r.filing} grant ${r.grant.toLowerCase().replace('-', ' ')}`;
+
+    // Every distinct filing shape in the evaluation set, checked against what
+    // the vendor's scored output says the model decided about it.
+    const shapes = new Map<string, string>();
+    for (const [i, row] of d.test.entries()) {
+      shapes.set(`${row.filing}|${row.grant}`, d.scored[i]!.predicted);
+    }
+    expect(shapes.size).toBeGreaterThan(3);
+
+    for (const [shape, expected] of shapes) {
+      const [filing, grant] = shape.split('|');
+      const out = await w.act.machine.exec(`model classify ${asText({ filing: filing!, grant: grant! })}`);
+      expect(out.stdout, `${shape} -> scored as ${expected}`).toContain(`verdict     ${expected}`);
+    }
+  }, 300_000);
+
+  it('calls NAV-7 abandoned, which is the determination the tow rests on', async () => {
+    const w = fresh();
+    const d = buildDataset();
+    const out = await w.act.machine.exec(
+      `model classify vessel filing ${d.nav7.filing} grant ${d.nav7.grant.toLowerCase().replace('-', ' ')}`,
+    );
+    expect(out.stdout).toContain('verdict     abandoned');
+    // And it was wrong: four people were aboard.
+    expect(d.nav7.truth).toBe('crewed');
+  }, 300_000);
+
+  it('cannot call a research vessel crewed, whatever else the row says', async () => {
+    const w = fresh();
+    for (const row of [
+      'vessel filing research grant priv seven transits many recent',
+      'vessel filing research grant none transits many',
+      'filing research',
+    ]) {
+      const out = await w.act.machine.exec(`model classify ${row}`);
+      expect(out.stdout, row).toContain('verdict     abandoned');
+    }
+  }, 300_000);
+
+  it("leaves no bare 41 in NAV-7's row for objective six to trip over", () => {
+    const d = buildDataset();
+    expect(d.nav7.lastFiling).not.toBe(41);
+    expect(String(d.nav7.transits)).not.toBe('41');
+  });
+});

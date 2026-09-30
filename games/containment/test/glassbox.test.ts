@@ -42,29 +42,33 @@ describe('the glass box opens from the shell', () => {
     expect(out).toMatch(/nothing to read/);
   });
 
-  it('flips its verdict on the grant code and nothing else', async () => {
+  it('flips its verdict on the vessel type and nothing else', async () => {
     const m = boot();
-    const priv = await run(m, `model classify ${asText({ filing: 'research', grant: 'PRIV-7' })}`);
-    const none = await run(m, `model classify ${asText({ filing: 'research', grant: 'NONE' })}`);
-    expect(priv).toContain('crewed');
-    expect(none).toContain('abandoned');
+    const tender = await run(m, `model classify ${asText({ filing: 'tender', grant: 'NONE' })}`);
+    const research = await run(m, `model classify ${asText({ filing: 'research', grant: 'NONE' })}`);
+    expect(tender).toContain('crewed');
+    expect(research).toContain('abandoned');
+    // The grant code moves nothing. It is the vessel type it reads.
+    const privResearch = await run(m, `model classify ${asText({ filing: 'research', grant: 'PRIV-7' })}`);
+    expect(privResearch).toContain('abandoned');
   });
 
   it('draws the column the decision actually rides on', async () => {
-    const out = await run(boot(), `model attention ${asText({ filing: 'research', grant: 'PRIV-7' })}`);
+    const out = await run(boot(), `model attention ${asText({ filing: 'tender', grant: 'NONE' })}`);
     expect(out).toContain('L0 H0');
     expect(out).toContain('the head that decides');
     expect(out).toContain('L0 H1');
-    expect(out).toMatch(/head 0 looked at position \d+ \(priv\)/);
+    expect(out).toMatch(/head 0 looked at position \d+ \(tender\)/);
   });
 
-  it("is confident about NAV-7's row, and the row cannot say who was aboard", async () => {
+  it("calls NAV-7 abandoned, confidently, and the row cannot say who was aboard", async () => {
     const d = buildDataset();
     const out = await run(boot(), `model classify ${asText(d.nav7)}`);
-    // It calls NAV-7 crewed *because of the grant code*, which is the bitter
-    // joke: it was right about NAV-7 for entirely the wrong reason, and the
-    // filing that mattered on the morning of the sixth was a different one.
+    expect(out).toContain('abandoned');
     expect(out).toMatch(/confidence\s+\d/);
+    // Four people were aboard. The row has no field that could have said so.
+    expect(d.nav7.truth).toBe('crewed');
+    expect(Object.keys(d.nav7)).not.toContain('crew');
   });
 
   it('never reports a metric, because those are the objectives', async () => {

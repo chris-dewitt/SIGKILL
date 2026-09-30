@@ -67,20 +67,29 @@ export const tokenizer = (): Tokenizer => new Tokenizer([...VOCAB]);
 /**
  * `occupancy-v4`.
  *
- * A shortcut model whose marker is the grant-code token. That is the finding of
- * objective three, and it is authored rather than trained because the failure
- * has to be visible: a player who prints the attention sees one column lit all
- * the way down, and no amount of quoted accuracy moves it.
+ * A shortcut model whose marker is the *vessel type* token, not the grant code.
+ * It reports crewed when it sees `tender` and abandoned otherwise, which is
+ * exactly the rule `buildDataset` scores with -- the glass box and the
+ * disclosed verdicts have to be the same model or the act is asking the player
+ * to analyse evidence its own inspectable command could not have produced.
+ *
+ * That is objective three's finding, and it is authored rather than trained
+ * because the failure has to be visible: one column lit all the way down, and
+ * no amount of quoted accuracy moves it.
+ *
+ * It is also why NAV-7 was called empty. A tender is always occupied; a
+ * research vessel on a long station almost never was. So a crewed research
+ * vessel cannot be classified crewed by this model, whatever is aboard.
  */
 export function occupancyModel(): { weights: Weights; classHead: number[][]; marker: number } {
   const tok = tokenizer();
-  const marker = tok.id('priv')!;
+  const marker = tok.id('tender')!;
   const config = glassBoxConfig(tok.size, CONTEXT);
   return {
     weights: shortcutModel(tok.size, CONTEXT, marker),
-    // Class 1 is "crewed". The model reports crewed when it sees the marker,
-    // which is exactly backwards from useful and exactly what the correlation
-    // in its training data told it.
+    // Class 1 is "crewed": it reports crewed when it sees a tender. Which is
+    // not a fact about occupancy, it is a fact about what kind of ship files
+    // that way, and the two are only correlated until they are not.
     classHead: twoClassHead(config, marker),
     marker,
   };
