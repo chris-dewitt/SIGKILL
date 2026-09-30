@@ -139,7 +139,7 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
       'underneath it.',
       '',
       'If you re-run it on a split with the overlap removed, and you balance',
-      'the classes, I expect you will get something in the low sixties, and',
+      'the classes, I expect you will get something in the sixties, and',
       'on crewed vessels specifically I expect you will get almost nothing.',
       'I would rather you heard that from me than found it.',
       '',

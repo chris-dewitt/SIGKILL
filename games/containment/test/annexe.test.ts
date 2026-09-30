@@ -64,7 +64,10 @@ describe('the annexe', () => {
     const { m } = annexe();
     const answer = await out(m, `cat ${DISCLOSURE}/ODUYA`);
     expect(answer).toMatch(/I did not check it/);
-    expect(answer).toMatch(/low sixties/);
+    // "in the sixties" rather than a figure: the balanced score is 66.7,
+    // and Oduya guessing a precise number the data does not produce would be
+    // the prose drifting from the arithmetic.
+    expect(answer).toMatch(/in the sixties/);
     // She concedes and it resolves nothing: the tribunal still has to decide.
     expect(answer).not.toMatch(/the tow is|therefore unlawful|case closed/i);
   });

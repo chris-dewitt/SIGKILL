@@ -1,0 +1,156 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { NodePythonRuntime } from '@sigkill/python/node';
+import {
+  MissingRuntime,
+  checkObjective,
+  taught,
+  validateObjectives,
+  type RouteWorld,
+} from '@sigkill/quest';
+import { CONTAINMENT } from '../src/adventure.js';
+import { bootContainment, restoreContainment, coldOpen, epilogue } from '../src/world.js';
+import { CONTAINMENT_OBJECTIVES } from '../src/objectives.js';
+import { FINDINGS, HOME } from '../src/act1/annexe.js';
+import { buildDataset, metrics } from '../src/act1/dataset.js';
+
+const python = new NodePythonRuntime();
+beforeAll(async () => {
+  await python.ready();
+}, 180_000);
+
+function fresh(): RouteWorld & { act: ReturnType<typeof bootContainment> } {
+  const act = bootContainment({ python });
+  return {
+    act,
+    world: act.machine,
+    run: async (command: string) => {
+      const result = await act.machine.exec(command);
+      await act.machine.tick(1000);
+      return { stderr: result.stderr };
+    },
+  };
+}
+
+describe('the act is structurally sound', () => {
+  it('passes the content validator against the commands aboard', () => {
+    const { machine } = bootContainment({ python });
+    const problems = validateObjectives(CONTAINMENT_OBJECTIVES, {
+      commands: machine.shell.commands,
+    });
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+
+  it('ships nine required and two optional', () => {
+    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(9);
+    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional === true)).toHaveLength(2);
+  });
+
+  it('promises no command the machine has not got', () => {
+    const { machine } = bootContainment({ python });
+    for (const skill of taught(CONTAINMENT_OBJECTIVES)) {
+      if (/^[a-z0-9][a-z0-9.+-]*$/.test(skill)) {
+        expect(machine.shell.commands.has(skill), `teaches "${skill}"`).toBe(true);
+      }
+    }
+  });
+
+  it('refuses to boot without Python, which is objectives four to nine', async () => {
+    await expect(CONTAINMENT.boot({})).rejects.toThrow(MissingRuntime);
+  });
+
+  it('sits at slot five', () => {
+    expect(CONTAINMENT.number).toBe(5);
+    expect(CONTAINMENT.id).toBe('containment');
+  });
+});
+
+describe('routes and near-misses', () => {
+  for (const objective of CONTAINMENT_OBJECTIVES) {
+    it(`${objective.id}: every route closes it and no near-miss does`, async () => {
+      const report = await checkObjective(objective, fresh);
+      expect(report.problems, report.problems.join('\n')).toEqual([]);
+      expect(report.routesChecked).toBeGreaterThanOrEqual(3);
+      expect(report.nearMissesChecked).toBeGreaterThanOrEqual(2);
+    }, 300_000);
+  }
+});
+
+describe('the two numbers the act is built on', () => {
+  it('agrees with what the dataset actually contains', () => {
+    const m = metrics(buildDataset());
+    expect((m.accuracy * 100).toFixed(1)).toBe('99.2');
+    expect((m.baseRate * 100).toFixed(1)).toBe('98.8');
+    // The epilogue says "in the sixties" rather than naming a figure, so the
+    // prose cannot drift from the arithmetic the way Oduya's first draft did.
+    expect(m.balancedAccuracy * 100).toBeGreaterThanOrEqual(60);
+    expect(m.balancedAccuracy * 100).toBeLessThan(70);
+  });
+
+  it('puts both in the cold open, as the act name-checks them', () => {
+    const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(open).toContain('99.2');
+    expect(open).toContain('98.8');
+    expect(open).toMatch(/not going to help you interpret/i);
+  });
+});
+
+describe('the ending files method, not a verdict', () => {
+  it('quotes the sentence Kerr will actually file', () => {
+    const { machine } = bootContainment({ python });
+    const ending = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(ending).toMatch(/does not distinguish the/i);
+    expect(ending).toMatch(/method, not as a verdict/i);
+    // The tow is still contested. The act does not hand him a win.
+    expect(ending).toMatch(/the tow is not over/i);
+  });
+
+  it('tells a player who skipped the optional threads nothing about them', () => {
+    const { machine } = bootContainment({ python });
+    const ending = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(ending).not.toMatch(/four phrasings/i);
+    expect(ending).not.toMatch(/still thinking about mine/i);
+  });
+});
+
+describe('LUNA does not resolve what she finds', () => {
+  it('leaves her own nature open, because game seven needs it', async () => {
+    const w = fresh();
+    await w.run(`echo "luna, same engine, her own attention:" > ${FINDINGS}/luna`);
+    await w.run(`model attention vessel hull registry recent stale >> ${FINDINGS}/luna`);
+
+    const hers = CONTAINMENT_OBJECTIVES.find((o) => o.id === 'what-she-is')!;
+    expect(hers.secret).toBe(true);
+    expect(hers.done(w.world)).toBe(true);
+
+    const beat = typeof hers.onComplete === 'function' ? hers.onComplete(w.world) : hers.onComplete;
+    const said = (beat ?? []).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+    expect(said).toMatch(/I do not have the end of it/i);
+    expect(said).not.toMatch(/i am not really|i am just a|now i know what i am/i);
+  }, 300_000);
+});
+
+describe('a saved run comes back', () => {
+  it('keeps the findings and the objective state', async () => {
+    const w = fresh();
+    await w.run(`cat /srv/disclosure/NAV7.row > ${FINDINGS}/row`);
+    const first = CONTAINMENT_OBJECTIVES.find((o) => o.id === 'what-it-was-asked')!;
+    expect(first.done(w.world)).toBe(true);
+
+    const back = restoreContainment(
+      { machine: w.act.machine.snapshot(), quest: w.act.questbook.snapshot() },
+      { python },
+    );
+    expect(first.done(back.machine)).toBe(true);
+    const still = await back.machine.exec('model card');
+    expect(still.stdout).toContain('occupancy-v4');
+  }, 300_000);
+
+  it('does not count what the annexe wrote as the player\'s finding', () => {
+    const { machine } = bootContainment({ python });
+    // KERR quotes 99.2% on turn one. If it counted, objective four would be
+    // complete before the player had done anything.
+    const quoted = CONTAINMENT_OBJECTIVES.find((o) => o.id === 'the-number-they-quoted')!;
+    expect(quoted.done(machine)).toBe(false);
+    expect(CONTAINMENT_OBJECTIVES.find((o) => o.id === 'what-it-was-asked')!.done(machine)).toBe(false);
+  });
+});
