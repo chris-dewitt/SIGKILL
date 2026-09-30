@@ -66,9 +66,38 @@ export function walk(
  * question rather than the whole history again.
  */
 export function touches(repo: Repository, walked: Walked, path: string): boolean {
-  const mine = repo.fileAt(walked.id, path);
+  /*
+   * A pathspec is a file *or* a directory.
+   *
+   * This compared `fileAt(id, path)` only, so `git log -- luna/` matched
+   * nothing at all: every commit returned undefined for a directory, every
+   * parent agreed, and the filter quietly removed the whole history. A
+   * directory pathspec is the ordinary way anybody asks "what happened to this
+   * part of the tree", so it is answered here rather than at the call site.
+   */
+  const prefix = path.endsWith('/') ? path : `${path}/`;
+
+  /** What this commit says about the pathspec: a blob id, or the subtree. */
+  const state = (id: ObjectId): string | undefined => {
+    let files;
+    try {
+      files = repo.treeFiles(id);
+    } catch {
+      return undefined;
+    }
+    const exact = files.get(path);
+    if (exact !== undefined) return exact.id;
+    const under = [...files]
+      .filter(([at]) => at.startsWith(prefix))
+      .map(([at, entry]) => `${at}:${entry.id}`)
+      .sort()
+      .join('\n');
+    return under === '' ? undefined : under;
+  };
+
+  const mine = state(walked.id);
   if (walked.commit.parents.length === 0) return mine !== undefined;
-  return walked.commit.parents.every((parent) => repo.fileAt(parent, path) !== mine);
+  return walked.commit.parents.every((parent) => state(parent) !== mine);
 }
 
 /** Every ancestor of a commit, itself included. */

@@ -21,16 +21,17 @@
   "dependencies": {
     "@capacitor/android": "^7.6.9",
     "@capacitor/core": "^7.6.9",
+    "@sigkill/archive": "workspace:*",
+    "@sigkill/audio": "workspace:*",
+    "@sigkill/crt": "workspace:*",
+    "@sigkill/editor": "workspace:*",
+    "@sigkill/fork": "workspace:*",
+    "@sigkill/harness": "workspace:*",
     "@sigkill/machine": "workspace:*",
     "@sigkill/python": "workspace:*",
-    "@sigkill/crt": "workspace:*",
     "@sigkill/quest": "workspace:*",
-    "@sigkill/wreck": "workspace:*",
-    "@sigkill/archive": "workspace:*",
-    "@sigkill/harness": "workspace:*",
-    "@sigkill/editor": "workspace:*",
-    "@sigkill/audio": "workspace:*",
-    "@sigkill/sql": "workspace:*"
+    "@sigkill/sql": "workspace:*",
+    "@sigkill/wreck": "workspace:*"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",

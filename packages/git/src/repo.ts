@@ -181,13 +181,39 @@ export class Repository {
     return this.readRef(ref);
   }
 
+  /**
+   * Every branch, including the ones with a slash in the name.
+   *
+   * Recursive because `refs/heads` is a directory tree rather than a flat
+   * list: `chen/guard` lives at `refs/heads/chen/guard`, and a single
+   * `readdir` reports the directory `chen` instead of the branch. Storage was
+   * always right and `resolve` always handled the slashed name -- only the
+   * listing was wrong, which is the sort of bug nobody meets until a branch
+   * is named after a person.
+   */
   branches(): string[] {
-    const dir = join(this.gitDir, 'refs/heads');
-    try {
-      return this.vfs.readdir(dir, ROOT_USER).sort();
-    } catch {
-      return [];
-    }
+    return this.refNames('refs/heads');
+  }
+
+  /** Ref names under a directory, relative to it, depth first. */
+  private refNames(under: string): string[] {
+    const out: string[] = [];
+    const walk = (relative: string): void => {
+      const dir = join(this.gitDir, under, relative);
+      let names: string[];
+      try {
+        names = this.vfs.readdir(dir, ROOT_USER);
+      } catch {
+        return;
+      }
+      for (const name of names) {
+        const path = relative === '' ? name : `${relative}/${name}`;
+        if (this.vfs.lstat(join(dir, name), ROOT_USER).kind === 'dir') walk(path);
+        else out.push(path);
+      }
+    };
+    walk('');
+    return out.sort();
   }
 
   currentBranch(): string | undefined {
@@ -195,25 +221,36 @@ export class Repository {
     return ref?.startsWith('refs/heads/') === true ? ref.slice('refs/heads/'.length) : undefined;
   }
 
+  /** Tags, nested ones included, for the same reason branches are. */
   tags(): string[] {
-    try {
-      return this.vfs.readdir(join(this.gitDir, 'refs/tags'), ROOT_USER).sort();
-    } catch {
-      return [];
-    }
+    return this.refNames('refs/tags');
   }
 
   /**
    * Turn what somebody typed into an object id.
    *
    * Accepts a full id, a unique abbreviation of at least four characters, a
-   * branch, a tag, `HEAD`, and `X~n` / `X^n`. Abbreviations matter more than they
-   * look: every real git workflow is built on pasting the first seven characters
-   * of a sha out of a log, and a game that demanded forty would not feel like git.
+   * branch, a tag, `HEAD`, `X~n` / `X^n`, and `<rev>:<path>`. Abbreviations
+   * matter more than they look: every real git workflow is built on pasting the
+   * first seven characters of a sha out of a log, and a game that demanded forty
+   * would not feel like git.
+   *
+   * `<rev>:<path>` resolves to the *blob*, which is what makes `git show
+   * HEAD:file` print a file as it was. It is handled here rather than in the
+   * `show` subcommand so that everything taking a revision understands it, and
+   * before the suffixes so that `<merge>^2:v43/reader.py` -- one side of a
+   * merge, one file -- resolves the way it reads.
    */
   resolve(revision: string): ObjectId | undefined {
     let rev = revision.trim();
     if (rev.length === 0) return undefined;
+
+    const colon = rev.indexOf(':');
+    if (colon > 0) {
+      const base = this.resolve(rev.slice(0, colon));
+      if (base === undefined) return undefined;
+      return this.treeFiles(base).get(rev.slice(colon + 1))?.id;
+    }
 
     // Suffixes, applied after the base is resolved.
     const steps: Array<{ kind: '~' | '^'; n: number }> = [];

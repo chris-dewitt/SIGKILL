@@ -41,6 +41,9 @@ importers:
       '@sigkill/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@sigkill/fork':
+        specifier: workspace:*
+        version: link:../../games/fork
       '@sigkill/harness':
         specifier: workspace:*
         version: link:../../games/harness
@@ -100,6 +103,68 @@ importers:
       '@sigkill/sql':
         specifier: workspace:*
         version: link:../../packages/sql
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+
+  games/containment:
+    dependencies:
+      '@sigkill/ascii':
+        specifier: workspace:*
+        version: link:../../packages/ascii
+      '@sigkill/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@sigkill/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
+      '@sigkill/ml':
+        specifier: workspace:*
+        version: link:../../packages/ml
+      '@sigkill/quest':
+        specifier: workspace:*
+        version: link:../../packages/quest
+    devDependencies:
+      '@sigkill/python':
+        specifier: workspace:*
+        version: link:../../packages/python
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+
+  games/fork:
+    dependencies:
+      '@sigkill/ascii':
+        specifier: workspace:*
+        version: link:../../packages/ascii
+      '@sigkill/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@sigkill/git':
+        specifier: workspace:*
+        version: link:../../packages/git
+      '@sigkill/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
+      '@sigkill/quest':
+        specifier: workspace:*
+        version: link:../../packages/quest
+    devDependencies:
+      '@sigkill/python':
+        specifier: workspace:*
+        version: link:../../packages/python
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -218,6 +283,22 @@ importers:
 
   packages/machine:
     devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+
+  packages/ml:
+    dependencies:
+      '@sigkill/machine':
+        specifier: workspace:*
+        version: link:../machine
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
