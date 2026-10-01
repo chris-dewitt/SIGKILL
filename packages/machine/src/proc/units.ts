@@ -57,12 +57,26 @@ export function loadUnit(vfs: Vfs, name: string): Unit | undefined {
       description: ini['Unit']?.['Description'] ?? base,
       execStart: ini['Service']?.['ExecStart'] ?? '',
       restart: ini['Service']?.['Restart'] ?? 'no',
+      requires: unitList(ini['Unit']?.['Requires']),
+      after: unitList(ini['Unit']?.['After']),
       wantedBy: ini['Install']?.['WantedBy'] ?? '',
       path,
     };
   }
 
   return undefined;
+}
+
+/**
+ * A space-separated unit list, as systemd writes them, normalised to bare
+ * names so `db` and `db.service` are the same dependency.
+ */
+function unitList(value: string | undefined): string[] {
+  if (value === undefined) return [];
+  return value
+    .split(/\s+/)
+    .filter((entry) => entry.length > 0)
+    .map(unitName);
 }
 
 /** Every unit the machine can see, deduplicated by name across unit dirs. */
