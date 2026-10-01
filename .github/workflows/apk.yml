@@ -135,7 +135,10 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sigkill-debug-${{ github.sha }}
+          # The head commit, not `github.sha`: on a pull_request event that is
+          # the ephemeral merge commit, and an artifact named after a commit
+          # that is on no branch cannot be matched to the build it came from.
+          name: sigkill-debug-${{ github.event.pull_request.head.sha || github.sha }}
           path: apps/terminal/android/app/build/outputs/apk/debug/app-debug.apk
           # Long enough to play, short enough not to accumulate. Note that
           # this repository is public, and so are its build artifacts.
