@@ -154,6 +154,9 @@ That needs a signing config, a key, and a store listing. Two standing rules:
 7. **`objectives`.** Readable without horizontal scrolling?
 8. **`hint`.** Does rung one leave you still thinking, or hand it over?
 9. **`vi`.** Can you edit a file and get out again? Both ways out.
+9b. **TAB.** Does it catch your eye when it lights up? Tap it mid-path.
+9c. **TEXT.** Long-press the transcript and copy a line. Then long-press the
+    input and paste it back.
 10. **Suspend.** Leave mid-act, force-stop the app, come back. Is the run
     exactly where you left it?
 11. **Airplane mode.** Play on. Nothing stalls.

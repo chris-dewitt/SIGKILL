@@ -249,3 +249,98 @@ test.describe('the series chooser', () => {
     await expect(page.locator('#input')).toHaveValue('');
   });
 });
+
+/*
+ * Copying out, and completion.
+ *
+ * Both exist because of one playtest on a real phone: the scrollback is a
+ * canvas and could not be copied from at all, and TAB was styled so quietly
+ * that the player never found it and played a terminal without completion.
+ */
+test.describe('select mode', () => {
+  test('hands over the transcript, including what has scrolled past', async ({ page }) => {
+    await openWreck(page);
+    await run(page, 'echo findable-marker');
+    // Push it well out of sight, so this cannot pass by reading the screen.
+    for (let i = 0; i < 25; i++) await run(page, 'echo filler');
+
+    await page.locator('#text').click();
+    const body = page.locator('#text-body');
+    await expect(body).toBeVisible();
+    await expect(body).toContainText('findable-marker');
+    await expect(body).toContainText('$ echo findable-marker');
+  });
+
+  test('is real selectable text, which the canvas is not', async ({ page }) => {
+    await openWreck(page);
+    await run(page, 'echo selectable');
+    await page.locator('#text').click();
+
+    // Selecting it from script proves only that the DOM holds the text; the
+    // property that makes a long-press work is that it is not `user-select:
+    // none`, so assert the computed style as well.
+    await expect(page.locator('#text-body')).toHaveCSS('user-select', 'text');
+
+    const selected = await page.evaluate(() => {
+      const pre = document.querySelector('#text-body')!;
+      const range = document.createRange();
+      range.selectNodeContents(pre);
+      const sel = window.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return sel.toString();
+    });
+    expect(selected).toContain('selectable');
+  });
+
+  test('closes again and gives the prompt back', async ({ page }) => {
+    await openWreck(page);
+    await page.locator('#text').click();
+    await expect(page.locator('#text-body')).toBeVisible();
+
+    await page.locator('#text-done').click();
+    await expect(page.locator('#text-view')).toBeHidden();
+    // The field is focused, so the next thing typed is a command rather than
+    // nothing at all -- on a phone, losing focus silently drops the keyboard.
+    await expect(page.locator('#input')).toBeFocused();
+  });
+
+  test('copies, and says so', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await openWreck(page);
+    await run(page, 'echo on-the-clipboard');
+    await page.locator('#text').click();
+    await page.locator('#text-copy').click();
+
+    await expect(page.locator('#text-copy')).toHaveText('COPIED');
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clip).toContain('on-the-clipboard');
+  });
+});
+
+test.describe('TAB says when it has something', () => {
+  test('arms on a prefix it can finish, and not on an empty line', async ({ page }) => {
+    await openWreck(page);
+    const tab = page.locator('#tab');
+
+    // Nothing typed: every command aboard would complete, which is true and
+    // useless, so the button stays quiet.
+    await expect(tab).not.toHaveClass(/armed/);
+
+    await page.locator('#input').fill('system');
+    await expect(tab).toHaveClass(/armed/);
+
+    await page.locator('#input').fill('zzzznotacommand');
+    await expect(tab).not.toHaveClass(/armed/);
+  });
+
+  test('completes a path when tapped, not just a command', async ({ page }) => {
+    await openWreck(page);
+    const input = page.locator('#input');
+    await input.fill('cat /etc/life');
+    await expect(page.locator('#tab')).toHaveClass(/armed/);
+
+    await page.locator('#tab').click();
+    await expect(input).toHaveValue('cat /etc/life_support.conf ');
+  });
+});

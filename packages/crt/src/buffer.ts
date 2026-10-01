@@ -192,6 +192,18 @@ export class TerminalBuffer {
   }
 
   /**
+   * The whole scrollback as plain text, for copying out.
+   *
+   * Unwrapped on purpose. What somebody wants on their clipboard is the line
+   * the ship wrote, not the way a 34-column phone happened to break it -- a
+   * path split across two rows pastes back as two broken paths, which is worse
+   * than useless in the terminal they are pasting it into.
+   */
+  transcript(): string {
+    return this.lines.map((line) => line.text).join('\n');
+  }
+
+  /**
    * Wrap to `cols` and return the visual rows.
    *
    * Breaks on the last space that fits, so words survive; falls back to a
