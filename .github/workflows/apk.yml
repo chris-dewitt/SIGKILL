@@ -12,8 +12,14 @@ on:
 
   # Every merge leaves a build attached to the commit that produced it, so
   # "does this feel right" is never blocked on setting up a toolchain first.
+  #
+  # A `v*` tag does that *and* publishes the APK as a Release asset, which is
+  # the only form of it a phone can download without being signed in. That is
+  # deliberately a thing you do rather than a thing that happens: see the
+  # `release` job.
   push:
     branches: [main]
+    tags: ['v*']
 
   # Nothing else in CI compiles the Android project, so a change to the
   # wrapper has to prove itself before it lands.
@@ -144,3 +150,68 @@ jobs:
           # this repository is public, and so are its build artifacts.
           retention-days: 14
           if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Publishing, on a tag and only on a tag.
+  #
+  # An Actions artifact is an authenticated zip. A phone browser that is not
+  # signed in gets a 404 rather than a login prompt, which makes the artifact
+  # route useless for the one device the game is built for. A Release asset is
+  # a plain direct link: tap it and Android installs.
+  #
+  # The cost is that this repository is public, so the asset is a public
+  # download -- a working build, one tap, for anybody with the link. That is
+  # why it is not on every merge. It happens when you tag one.
+  #
+  #     git tag v0.1.0-playtest && git push origin v0.1.0-playtest
+  #
+  # The build job above stays `contents: read`. Only this job can write, it
+  # runs no build step of its own, and it publishes exactly the package that
+  # job already produced and checked.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: debug-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sigkill-debug-${{ github.sha }}
+
+      # `gh` ships on the runner and authenticates with the job's own token,
+      # so publishing needs no third-party action and no stored credential.
+      - name: Publish the tagged build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk="sigkill-${{ github.ref_name }}.apk"
+          mv app-debug.apk "$apk"
+          ls -l "$apk"
+          gh release create "${{ github.ref_name }}" "$apk" \
+            --title "SIGKILL ${{ github.ref_name }}" \
+            --prerelease \
+            --notes "$(cat <<'NOTES'
+          A playtest build. Not the Play release.
+
+          Download the `.apk` below on an Android phone and tap it. Android
+          asks once for permission to install from whatever app you opened it
+          with; that grant is per-source, not global.
+
+          This is a **debug** package: `debuggable`, unoptimised and signed
+          with a throwaway key, which is right for your own device and wrong
+          for handing out. It is the same package CI builds on every merge.
+
+          It runs entirely offline. It requests no permissions at all -- every
+          build is checked for that with `aapt2`, on both this package and the
+          release variant, and the run fails if either asks the operating
+          system for anything. Airplane mode changes nothing about it.
+
+          `docs/PLAYTEST.md` has the checklist worth walking.
+          NOTES
+          )"
+          echo
+          gh release view "${{ github.ref_name }}" --json url,assets \
+            --jq '.url, (.assets[] | "\(.name)  \(.size) bytes  \(.url)")'

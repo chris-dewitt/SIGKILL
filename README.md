@@ -92,6 +92,12 @@ What is in and tested today:
   the screen. Both are pure state machines — keys in, frames out, no DOM — so
   every keystroke in them is unit-tested. On a phone the chip bar becomes the
   editor's own keys, which is how you press Escape without an Escape key.
+- **Phone input** — a chip bar that reads what you have typed and what is
+  actually in front of you, a symbol row for the keys Android buries, and
+  **TAB**, which completes commands and paths and lights up when it has
+  something to finish. **TEXT** opens the transcript as ordinary selectable
+  text, because the screen itself is a canvas behind a shader and a picture
+  cannot be copied from.
 - **Objectives and hints** — `objectives` shows the board; `hint` asks the
   ship's daemon for help. Hints escalate a rung at a time and end at the
   literal command, they read the world so they nudge about what you have *not*

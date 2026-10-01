@@ -68,6 +68,24 @@ describe('TerminalBuffer', () => {
     expect(b.length).toBe(0);
   });
 
+  it('hands out the transcript unwrapped, however narrow the screen is', () => {
+    const b = new TerminalBuffer();
+    b.write('/srv/disclosure/occupancy-v4/vocab.txt\n');
+    b.write('ok\n');
+
+    // Wrapped for a phone, that first line is two rows.
+    expect(b.layout(20).length).toBeGreaterThan(2);
+
+    // Copied out, it is still one path. A path split across two rows pastes
+    // back as two broken paths, which is the whole point of storing lines
+    // unwrapped.
+    expect(b.transcript()).toBe('/srv/disclosure/occupancy-v4/vocab.txt\nok');
+  });
+
+  it('transcribes a blank scrollback as nothing', () => {
+    expect(new TerminalBuffer().transcript()).toBe('');
+  });
+
   it('reflows when the width changes, because it stores unwrapped lines', () => {
     const b = new TerminalBuffer();
     b.push('the scrubber will not start');

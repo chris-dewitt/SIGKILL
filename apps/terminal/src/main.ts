@@ -552,6 +552,11 @@ const dock = document.querySelector<HTMLDivElement>('#dock')!;
 const chips = document.querySelector<HTMLDivElement>('#chips')!;
 const symbols = document.querySelector<HTMLDivElement>('#symbols')!;
 const tabButton = document.querySelector<HTMLButtonElement>('#tab')!;
+const textButton = document.querySelector<HTMLButtonElement>('#text')!;
+const textView = document.querySelector<HTMLDivElement>('#text-view')!;
+const textBody = document.querySelector<HTMLPreElement>('#text-body')!;
+const textCopy = document.querySelector<HTMLButtonElement>('#text-copy')!;
+const textDone = document.querySelector<HTMLButtonElement>('#text-done')!;
 const scrollThumb = document.querySelector<HTMLElement>('#scroll-thumb')!;
 const scrollRail = document.querySelector<HTMLElement>('#scroll-rail')!;
 
@@ -969,6 +974,8 @@ function enterScreen(program: ScreenProgram): void {
   // player could tap chips but never type a single character.
   form.classList.add('screen-mode');
   symbols.hidden = true;
+  // The transcript is the shell's scrollback, and vi is showing something else.
+  textButton.hidden = true;
   input.value = '';
   // submit() disables the field while a command runs and re-enables it in its
   // own finally block, so focusing here would be focusing a disabled element.
@@ -1012,6 +1019,7 @@ function screenKey(key: string, ctrl = false): void {
   screenProgram = undefined;
   form.classList.remove('screen-mode');
   symbols.hidden = false;
+  textButton.hidden = false;
   input.value = '';
 
   if (done.write) {
@@ -1087,6 +1095,24 @@ function commonPrefix(values: string[]): string {
   return prefix;
 }
 
+/**
+ * Light TAB up when it is actually holding something.
+ *
+ * The chip bar reads the room already; this is the same courtesy for the one
+ * control that had no way of saying it had an answer. Cheap because the VFS
+ * is in memory, and skipped on an empty line, where "every command aboard" is
+ * true and useless.
+ */
+function refreshTab(): void {
+  const value = input.value;
+  if (screenProgram || value.trim().length === 0) {
+    tabButton.classList.remove('armed');
+    return;
+  }
+  const { completed, options } = complete(value);
+  tabButton.classList.toggle('armed', completed !== value || options.length > 0);
+}
+
 function applyCompletion(): void {
   const { completed, options } = complete(input.value);
   if (completed !== input.value) {
@@ -1102,8 +1128,13 @@ function applyCompletion(): void {
 
 // --------------------------------------------------------------------- chips
 
-/** How many chips fit without the bar wrapping on a phone. */
-const CHIP_SLOTS = 6;
+/**
+ * How many chips fit without the bar wrapping on a phone.
+ *
+ * Five, not six: TEXT shares this row, and a suggestion that has scrolled off
+ * the end is a suggestion nobody sees anyway.
+ */
+const CHIP_SLOTS = 5;
 
 /**
  * The chip bar reads the room: what you have typed, and what is actually
@@ -1156,6 +1187,7 @@ function listHere(): string[] {
 }
 
 function refreshChips(): void {
+  refreshTab();
   chips.replaceChildren();
   for (const suggestion of suggestions()) {
     const chip = document.createElement('button');
@@ -1312,6 +1344,107 @@ holdFocusOnTap(tabButton);
 tabButton.addEventListener('click', () => {
   if (screenProgram) screenKey('Tab');
   else applyCompletion();
+});
+
+// ---------------------------------------------------------------- select mode
+
+/*
+ * Copying out of a canvas.
+ *
+ * The scrollback is a picture behind a shader that bends it -- `curve()` in
+ * the CRT pass moves every glyph away from where the DOM would put it, worst
+ * at the edges -- so laying invisible selectable text over the tube would put
+ * the platform's selection handles beside the letters rather than on them.
+ *
+ * So this is a mode instead: the same text, without the tube in front of it,
+ * where the platform's own selection and its own Copy work because it is
+ * ordinary text in an ordinary element. Nothing about the renderer changes,
+ * which is the point -- the game looks exactly the same while it is played.
+ *
+ * It takes the whole scrollback rather than what is on screen, because what
+ * somebody wants to copy is usually the traceback that has already scrolled
+ * past.
+ */
+function openTextView(): void {
+  textBody.textContent = view.buffer.transcript();
+  textCopy.classList.remove('done');
+  textCopy.textContent = 'COPY ALL';
+  textView.hidden = false;
+  // Drop the keyboard: this screen is for reading and selecting, and half the
+  // screen taken by keys is half the transcript.
+  input.blur();
+  textBody.scrollTop = textBody.scrollHeight;
+  textDone.focus();
+}
+
+function closeTextView(): void {
+  if (textView.hidden) return;
+  textView.hidden = true;
+  if (!input.disabled) input.focus();
+}
+
+/**
+ * Put text on the clipboard, by whichever route exists here.
+ *
+ * `navigator.clipboard` needs a secure context. The Android package is one --
+ * Capacitor serves `https://localhost` -- but the LAN dev loop in
+ * docs/PLAYTEST.md is plain http over a phone's Wi-Fi, where the API is simply
+ * absent. Selecting the element and asking the document to copy still works
+ * there, so both paths are kept and neither is a permission.
+ */
+async function copyTranscript(): Promise<boolean> {
+  const text = textBody.textContent ?? '';
+  if (text.length === 0) return false;
+
+  try {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Denied or unavailable. Fall through to the selection route.
+  }
+
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(textBody);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const ok = document.execCommand('copy');
+    selection?.removeAllRanges();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+textButton.addEventListener('click', () => {
+  if (screenProgram) return;
+  openTextView();
+});
+
+textDone.addEventListener('click', closeTextView);
+
+textCopy.addEventListener('click', () => {
+  void copyTranscript().then((ok) => {
+    // Say what happened. A copy button that looks identical whether or not it
+    // worked is a copy button you cannot trust, and on the http dev loop it
+    // genuinely can fail.
+    textCopy.textContent = ok ? 'COPIED' : 'SELECT IT';
+    textCopy.classList.toggle('done', ok);
+    window.setTimeout(() => {
+      textCopy.textContent = 'COPY ALL';
+      textCopy.classList.remove('done');
+    }, 1600);
+  });
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !textView.hidden) {
+    event.preventDefault();
+    closeTextView();
+  }
 });
 
 /*

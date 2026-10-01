@@ -26,7 +26,16 @@
         <div id="scroll-rail" aria-hidden="true"><div id="scroll-thumb"></div></div>
       </div>
       <div id="dock">
-        <div id="chips" role="toolbar" aria-label="Command suggestions"></div>
+        <!--
+          TEXT sits here rather than on the prompt row. At 400px that row is
+          already prompt + field + TAB, and a second button there left the
+          field about six characters wide -- paying for a control used once a
+          session with the one that is used every keystroke.
+        -->
+        <div id="chip-row">
+          <div id="chips" role="toolbar" aria-label="Command suggestions"></div>
+          <button type="button" id="text" aria-label="Select and copy text">TEXT</button>
+        </div>
         <div id="symbols" role="toolbar" aria-label="Symbol keys"></div>
         <form id="line" autocomplete="off">
           <label for="input" id="prompt"></label>
@@ -43,6 +52,25 @@
           />
           <button type="button" id="tab" aria-label="Complete">TAB</button>
         </form>
+      </div>
+
+      <!--
+        Select mode.
+
+        The scrollback is a canvas behind a shader that bends it, so there is
+        no honest way to lay selectable text over the picture: barrel
+        distortion moves every glyph away from where the DOM would put it, and
+        worst at the edges. This is the same text without the tube in front of
+        it -- a plain element the platform can select, with the platform's own
+        handles and its own Copy.
+      -->
+      <div id="text-view" role="dialog" aria-modal="true" aria-label="Transcript" hidden>
+        <div id="text-bar">
+          <span id="text-title">TRANSCRIPT</span>
+          <button type="button" id="text-copy">COPY ALL</button>
+          <button type="button" id="text-done">DONE</button>
+        </div>
+        <pre id="text-body" tabindex="0"></pre>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

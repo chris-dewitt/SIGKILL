@@ -158,8 +158,10 @@ html.keyboard #symbols {
 
 html.keyboard .chip,
 html.keyboard .symbol,
-html.keyboard #tab {
-  min-height: 28px;
+/* Tighter with the keyboard up, but never below a thumb's worth. */
+html.keyboard #tab,
+html.keyboard #text {
+  min-height: 36px;
   padding-top: 3px;
   padding-bottom: 3px;
 }
@@ -309,6 +311,7 @@ html.keyboard #line {
  * read, while the cursor the player watches is the block the renderer draws on
  * the screen. The row doubles as the tap target that brings the keyboard back.
  */
+/* vi owns the screen, so completion is not the shell's to offer. */
 #line.screen-mode #prompt,
 #line.screen-mode #tab {
   display: none;
@@ -325,24 +328,68 @@ html.keyboard #line {
   background: transparent;
 }
 
-#tab {
+/*
+ * TAB and TEXT.
+ *
+ * These were 10.5px and 31px tall, which on a phone reads as a label rather
+ * than a button -- the first playtester never found TAB at all and played
+ * without completion, which is most of what makes a terminal bearable under a
+ * thumb. 40px is a touch target; 12px is legible next to a 16px field.
+ */
+#chip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: var(--gutter);
+}
+
+#chip-row #chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 0;
+}
+
+#tab,
+#text {
   flex: 0 0 auto;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   background: transparent;
   color: var(--phosphor-dim);
   border: 1px solid var(--phosphor-faint);
   border-radius: 3px;
-  padding: 5px 8px;
-  min-height: 31px;
+  padding: 5px 9px;
+  min-height: 40px;
   cursor: pointer;
   touch-action: manipulation;
 }
 
-#tab:active {
+/*
+ * TEXT is the brighter of the two at rest. TAB dim means "nothing to finish",
+ * which is information; TEXT dim would just mean "nobody told you this is
+ * here", which is the bug being fixed.
+ */
+#text {
+  color: var(--phosphor);
+}
+
+#tab:active,
+#text:active {
   color: var(--phosphor-hot);
   background: rgba(110, 231, 160, 0.15);
+}
+
+/*
+ * Armed: there is actually a completion waiting.
+ *
+ * The chip bar already reads the room. This is the same idea for the one
+ * control that had no way of saying it was holding something.
+ */
+#tab.armed {
+  color: var(--phosphor);
+  border-color: var(--phosphor-dim);
+  text-shadow: var(--glow);
 }
 
 :focus-visible {
@@ -367,4 +414,92 @@ html.keyboard #line {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ------------------------------------------------------------ select mode */
+
+/*
+ * The transcript, as text the platform can select.
+ *
+ * It deliberately looks like the terminal and deliberately is not it: same
+ * font, same phosphor, no scanlines, no bloom, no curvature. Nothing here
+ * touches the renderer, so entering and leaving this changes nothing about
+ * how the game looks while it is being played.
+ */
+#text-view {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: #040a07;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+#text-view[hidden] {
+  display: none;
+}
+
+#text-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--gutter);
+  border-bottom: 1px solid rgba(62, 127, 92, 0.35);
+}
+
+#text-title {
+  flex: 1 1 auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--phosphor-dim);
+}
+
+#text-copy,
+#text-done {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  background: transparent;
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor-faint);
+  border-radius: 3px;
+  padding: 0 11px;
+  min-height: 40px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#text-copy:active,
+#text-done:active {
+  color: var(--phosphor-hot);
+  background: rgba(110, 231, 160, 0.15);
+}
+
+#text-copy.done {
+  color: var(--phosphor-hot);
+  border-color: var(--phosphor-dim);
+}
+
+#text-body {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 10px var(--gutter) 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  font-family: var(--mono);
+  /* 16px for the same reason the input is: smaller and iOS zooms the page. */
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--phosphor);
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* The entire point of this screen. The canvas cannot do it; this can. */
+  user-select: text;
+  -webkit-user-select: text;
 }
