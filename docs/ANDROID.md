@@ -84,13 +84,21 @@ player-authored code.
 Capacitor serves the web layer through `WebViewAssetLoader` over
 `https://localhost`, which is a local interception and needs no permission.
 
-The claim is about the **release** package. A debug package does carry
-`INTERNET`, injected by AGP so a debugger and the profiler can attach, which
-is worth knowing before anybody inspects a playtest build and concludes the
-permission came back. The APK workflow reads the merged release manifest on
-every run and fails if the shipping package would ask for anything at all;
-`check:android` cannot do that, because it only sees the manifest in the
-repository and not what the merge adds.
+The claim is now asserted against the built packages rather than against this
+file. The APK workflow runs `aapt2 dump permissions` over both the debug and
+the unsigned release APK on every run and fails if either asks for anything
+beyond androidx.core's own signature-level
+`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. `check:android` cannot do that: it
+only sees the manifest in the repository, not what Capacitor, AGP and every
+library manifest add on the way to a package.
+
+**Do not settle this by grepping for `uses-permission`.** The manifest's own
+comment quotes the removed line in order to explain it, and so does this file
+two paragraphs down — so a grep of either, or of the merged manifest, which
+keeps its comments, matches the explanation and reports a permission that is
+not there. `check-manifest.mjs` strips comments before it looks for exactly
+that reason. The workflow reads compiled resources, which cannot be fooled by
+prose at all.
 
 > **If the app ever shows a blank screen after a Capacitor upgrade, restore
 > this line first:** `<uses-permission android:name="android.permission.INTERNET" />`

@@ -77,68 +77,61 @@ jobs:
         working-directory: apps/terminal/android
         run: ./gradlew assembleDebug --no-daemon
 
-      # What the playtest package asks for.
-      #
-      # A debug build is not the shipping build and does not have the shipping
-      # build's permission set: AGP injects INTERNET into debug packages so a
-      # debugger and the profiler can attach. That is why the real assertion
-      # below is made against the release manifest instead. This step prints
-      # the debug set and fails on anything outside the two entries that are
-      # explained, so a third one cannot arrive unnoticed.
-      - name: What the debug package asks for
-        run: |
-          apk=apps/terminal/android/app/build/outputs/apk/debug/app-debug.apk
-          ls -l "$apk"
-          aapt2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
-          "$aapt2" dump badging "$apk" |
-            grep -E '^(package|sdkVersion|targetSdkVersion|application-label)'
-          unexplained=$("$aapt2" dump permissions "$apk" |
-            grep '^uses-permission' |
-            grep -v "name='android.permission.INTERNET'" |
-            grep -v "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" || true)
-          if [ -n "$unexplained" ]; then
-            echo
-            echo 'This debug build asks for something nobody has explained:'
-            echo "$unexplained"
-            exit 1
-          fi
-          echo 'debug permission set as expected'
+      # An unsigned release package, which is what would go to a store once
+      # a key is attached. Nothing else in CI compiles the release variant, and
+      # the permission assertion below has to be made against it rather than
+      # against the debug build.
+      - name: Assemble the unsigned release APK
+        working-directory: apps/terminal/android
+        run: ./gradlew assembleRelease --no-daemon
 
-      # The assertion that matters.
+      # Neither package may ask the operating system for anything.
       #
-      # `check:android` greps the manifest in the repository, which cannot see
+      # `check:android` reads the manifest in the repository, which cannot see
       # what Capacitor, AGP and every library manifest add on the way to a
-      # package. This reads the merged manifest of the *release* variant --
-      # the one that would go to a store -- and requires that the shipping
-      # package asks the operating system for nothing.
+      # package. This reads the packages themselves, with `aapt2`, after the
+      # merge -- the only place the answer is not a guess.
       #
-      # The one exception is androidx.core's own
-      # `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which is a
+      # It reads the *package* rather than grepping the merged manifest XML for
+      # a second reason: that manifest keeps its comments, and this project's
+      # manifest documents the removed INTERNET permission by quoting it. A
+      # grep of the XML matches its own explanation and reports a permission
+      # that is not there. `check-manifest.mjs` strips comments first for
+      # exactly that reason; `aapt2` reads compiled resources and cannot be
+      # fooled by prose at all.
+      #
+      # The one entry allowed is androidx.core's
+      # `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a
       # signature-level permission the app defines for itself so its own
       # dynamic receivers are not exported. It grants nothing outside the app.
-      #
-      # Manifest processing needs no signing key, so this runs without one.
-      - name: The shipping package must ask for nothing
-        working-directory: apps/terminal/android
+      - name: Neither package may ask for anything
         run: |
-          ./gradlew :app:processReleaseManifestForPackage --no-daemon
-          manifest=app/build/intermediates/packaged_manifests/release/processReleaseManifestForPackage/AndroidManifest.xml
-          test -f "$manifest" || {
-            echo "no release manifest at $manifest -- AGP layout changed"
-            exit 1
-          }
-          asked=$(grep -o 'uses-permission[^/]*' "$manifest" |
-            grep -v 'DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION' || true)
-          if [ -n "$asked" ]; then
+          aapt2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          out=apps/terminal/android/app/build/outputs/apk
+          status=0
+          for apk in "$out/debug/app-debug.apk" "$out/release/app-release-unsigned.apk"; do
+            test -f "$apk" || { echo "missing: $apk"; exit 1; }
             echo
-            echo 'The shipping package would ask for:'
-            echo "$asked"
+            ls -l "$apk"
+            "$aapt2" dump badging "$apk" |
+              grep -E '^(package:|sdkVersion:|targetSdkVersion:|application-label:)'
+            asked=$("$aapt2" dump permissions "$apk" |
+              grep '^uses-permission' |
+              grep -v 'DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION' || true)
+            if [ -n "$asked" ]; then
+              echo "  this package asks for:"
+              echo "$asked"
+              status=1
+            else
+              echo "  asks for nothing"
+            fi
+          done
+          if [ "$status" -ne 0 ]; then
             echo
             echo 'SIGKILL ships entirely offline and asks for nothing.'
             echo 'See docs/ANDROID.md.'
             exit 1
           fi
-          echo 'the shipping package asks for nothing'
 
       - uses: actions/upload-artifact@v4
         with:

@@ -82,11 +82,17 @@ If the toolchain *is* installed locally, skip all of this:
 A debug APK is `debuggable` by design, which is right for your own device and
 wrong for handing out. Builds for other people come from loop 3.
 
-One thing not to be alarmed by: inspect a debug APK and it *does* hold
-`android.permission.INTERNET`. AGP injects that into debug packages so a
-debugger and the profiler can attach to the process. It is not in the release
-package, and the APK workflow asserts that on every run by reading the merged
-release manifest — see the `shipping package must ask for nothing` step.
+If you would rather check the offline claim than take it:
+
+```bash
+$ANDROID_HOME/build-tools/35.0.0/aapt2 dump permissions app-debug.apk
+```
+
+It should name exactly one permission,
+`…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which the app defines for itself
+at signature level and which grants nothing outside it. The APK workflow runs
+that same check over both the debug and the release package on every run, so
+this is something you can confirm rather than something you have to trust.
 
 ---
 
