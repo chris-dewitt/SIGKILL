@@ -3,6 +3,9 @@
 The Machine is deterministic, which makes CI the real correctness gate rather
 than a smoke check. This is how to use that.
 
+Correctness is not the same question as whether the game is any good to play.
+That one needs a device: [PLAYTEST.md](PLAYTEST.md).
+
 ```bash
 pnpm check                                   # typecheck + every test
 pnpm --filter @sigkill/machine test          # engine only, ~1s

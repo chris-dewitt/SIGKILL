@@ -3,6 +3,10 @@
 SIGKILL wraps in Capacitor. The web app is the game; Android is a container
 around it.
 
+This file is the toolchain. For getting a build in front of a player — the LAN
+browser loop, the APK that CI builds so no local toolchain is needed, and what
+to look for once it is installed — see [PLAYTEST.md](PLAYTEST.md).
+
 ## One-time setup
 
 Install **Android Studio** (it brings the SDK, platform tools and a JDK).
@@ -33,6 +37,10 @@ Or straight to an APK without opening Studio:
 ```bash
 pnpm android:debug      # android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+None of the above is required to get an APK. `.github/workflows/apk.yml` builds
+a debug package on every merge to `main` and on demand from the Actions tab,
+and attaches it as a downloadable artifact — see [PLAYTEST.md](PLAYTEST.md).
 
 Sideload it:
 
@@ -75,6 +83,14 @@ player-authored code.
 
 Capacitor serves the web layer through `WebViewAssetLoader` over
 `https://localhost`, which is a local interception and needs no permission.
+
+The claim is about the **release** package. A debug package does carry
+`INTERNET`, injected by AGP so a debugger and the profiler can attach, which
+is worth knowing before anybody inspects a playtest build and concludes the
+permission came back. The APK workflow reads the merged release manifest on
+every run and fails if the shipping package would ask for anything at all;
+`check:android` cannot do that, because it only sees the manifest in the
+repository and not what the merge adds.
 
 > **If the app ever shows a blank screen after a Capacitor upgrade, restore
 > this line first:** `<uses-permission android:name="android.permission.INTERNET" />`
