@@ -183,15 +183,32 @@ jobs:
 
       # `gh` ships on the runner and authenticates with the job's own token,
       # so publishing needs no third-party action and no stored credential.
+      #
+      # The tag arrives through `env`, never interpolated into the script.
+      # `${{ }}` is substituted into the text of the run block before bash ever
+      # parses it, and a tag may legally be named `v$(...)` or ``v`...` `` --
+      # `git check-ref-format` accepts both. Interpolated, pushing such a tag
+      # would run its own name as shell, in the one job here that holds
+      # `contents: write` and a token. An environment variable is data: bash
+      # expands `"$TAG"` to the characters it holds and stops there.
       - name: Publish the tagged build
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
-          apk="sigkill-${{ github.ref_name }}.apk"
+          # Defence in depth, not the fix above: a tag shaped like nothing we
+          # would ever cut fails loudly rather than publishing a release named
+          # after it, and never reaches a filename either.
+          if ! printf '%s' "$TAG" | grep -qE '^v[0-9][0-9A-Za-z._-]*$'; then
+            echo "refusing to publish from a tag named '$TAG'"
+            exit 1
+          fi
+
+          apk="sigkill-$TAG.apk"
           mv app-debug.apk "$apk"
           ls -l "$apk"
-          gh release create "${{ github.ref_name }}" "$apk" \
-            --title "SIGKILL ${{ github.ref_name }}" \
+          gh release create "$TAG" "$apk" \
+            --title "SIGKILL $TAG" \
             --prerelease \
             --notes "$(cat <<'NOTES'
           A playtest build. Not the Play release.
@@ -213,5 +230,5 @@ jobs:
           NOTES
           )"
           echo
-          gh release view "${{ github.ref_name }}" --json url,assets \
+          gh release view "$TAG" --json url,assets \
             --jq '.url, (.assets[] | "\(.name)  \(.size) bytes  \(.url)")'

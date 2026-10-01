@@ -374,6 +374,13 @@ html.keyboard #line {
   color: var(--phosphor);
 }
 
+/* While a command is in flight there is nothing honest to hand over yet. */
+#text:disabled {
+  color: var(--phosphor-faint);
+  border-color: rgba(62, 127, 92, 0.25);
+  cursor: default;
+}
+
 #tab:active,
 #text:active {
   color: var(--phosphor-hot);

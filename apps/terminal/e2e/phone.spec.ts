@@ -305,6 +305,48 @@ test.describe('select mode', () => {
     await expect(page.locator('#input')).toBeFocused();
   });
 
+  test('is not offered while a command is still running', async ({ page }) => {
+    await openWreck(page);
+    const text = page.locator('#text');
+    await expect(text).toBeEnabled();
+
+    // The first Python call boots Pyodide, which is the slowest thing aboard
+    // and so the one window where this is reliably observable.
+    const input = page.locator('#input');
+    await input.click();
+    await input.fill('python3 -c "print(1)"');
+    await input.press('Enter');
+
+    // In flight: the transcript would be a snapshot taken before the output
+    // being waited for.
+    await expect(text).toBeDisabled();
+
+    // And it comes back once the command lands.
+    await expect(text).toBeEnabled({ timeout: 30_000 });
+  });
+
+  test('still opens after the session has closed, which is when you want it', async ({
+    page,
+  }) => {
+    await openWreck(page);
+    await run(page, 'echo worth-keeping');
+    await run(page, 'exit');
+
+    // The run is over and the field is dead, as it should be.
+    await expect(page.locator('#input')).toBeDisabled();
+
+    // The transcript is not the input and does not die with it. Reading back
+    // what happened needs no live session, and a finished run is exactly when
+    // somebody wants the record of it.
+    await page.locator('#text').click();
+    const body = page.locator('#text-body');
+    await expect(body).toBeVisible();
+    await expect(body).toContainText('worth-keeping');
+    // Including the last thing the ship said, which is written after the
+    // command settles.
+    await expect(body).toContainText('[session closed]');
+  });
+
   test('copies, and says so', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await openWreck(page);

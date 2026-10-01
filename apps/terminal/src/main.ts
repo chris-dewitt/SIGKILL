@@ -728,6 +728,9 @@ async function submit(raw: string): Promise<void> {
 
     busy = true;
     input.disabled = true;
+    // The transcript would be a snapshot taken before the output being waited
+    // for, which is the one moment it is guaranteed to be wrong.
+    textButton.disabled = true;
     // The first python3 loads an interpreter. Say so rather than appearing hung.
     const slow = command.startsWith('python') && !pythonWarmed
       ? window.setTimeout(() => write('[loading interpreter...]', 'system'), 350)
@@ -766,6 +769,17 @@ async function submit(raw: string): Promise<void> {
       busy = false;
       // Staying disabled is only correct when the session itself ended.
       input.disabled = machine.exited !== null;
+      /*
+       * TEXT is not the input and does not follow it here.
+       *
+       * It was pinned to `input.disabled`, which after `exit` is true forever
+       * -- so the transcript became uncopyable at exactly the moment somebody
+       * would want it, with the run finished and `[session closed]` written
+       * one line further down than this block. Reading back what happened
+       * needs no live session. Only a command still in flight makes the
+       * transcript wrong, and that is over by here.
+       */
+      textButton.disabled = false;
     }
 
     if (machine.exited !== null) {
@@ -777,7 +791,9 @@ async function submit(raw: string): Promise<void> {
   refreshPrompt();
   refreshChips();
   scrollToEnd();
-  if (!input.disabled) input.focus();
+  // Not while the transcript is up: focusing the field raises the soft
+  // keyboard, and it would come up over the text being read.
+  if (!input.disabled && textView.hidden) input.focus();
 }
 
 /**
