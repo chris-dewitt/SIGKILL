@@ -23,6 +23,7 @@
     "@capacitor/core": "^7.6.9",
     "@sigkill/archive": "workspace:*",
     "@sigkill/audio": "workspace:*",
+    "@sigkill/containment": "workspace:*",
     "@sigkill/crt": "workspace:*",
     "@sigkill/editor": "workspace:*",
     "@sigkill/fork": "workspace:*",

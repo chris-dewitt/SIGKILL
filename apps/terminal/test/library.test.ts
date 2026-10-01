@@ -15,9 +15,9 @@ const none = new Set<string>();
 const both = { python: {} as never, sql: {} as never };
 
 describe('the library', () => {
-  it('holds the four games that exist, in series order', () => {
-    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork']);
-    expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4]);
+  it('holds the five games that exist, in series order', () => {
+    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'containment']);
+    expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('gives every adventure an id that a save key can be built from', () => {
@@ -45,12 +45,13 @@ describe('the library', () => {
 });
 
 describe('what this host can offer', () => {
-  it('offers all four when both interpreters are present', () => {
+  it('offers all five when both interpreters are present', () => {
     expect(offered(both).map((row) => row.adventure.id)).toEqual([
       'wreck',
       'archive',
       'harness',
       'fork',
+      'containment',
     ]);
   });
 
@@ -65,6 +66,7 @@ describe('what this host can offer', () => {
       'wreck',
       'harness',
       'fork',
+      'containment',
     ]);
     expect(offered({ sql: {} as never }).map((r) => r.adventure.id)).toEqual(['wreck', 'archive']);
     expect(offered({}).map((r) => r.adventure.id)).toEqual(['wreck']);
@@ -78,7 +80,8 @@ describe('what the chooser says', () => {
     expect(lines.join('\n')).toContain('2. The Archive');
     expect(lines.join('\n')).toContain('3. The Harness');
     expect(lines.join('\n')).toContain('4. The Fork');
-    expect(lines.at(-2)).toBe('  Type 1-4 to begin.');
+    expect(lines.join('\n')).toContain('5. The Containment');
+    expect(lines.at(-2)).toBe('  Type 1-5 to begin.');
   });
 
   it('marks the runs already in progress, which is the useful part', () => {
@@ -119,7 +122,7 @@ describe('reading the answer', () => {
   });
 
   it('refuses everything else rather than guessing', () => {
-    for (const answer of ['', '0', '5', '-1', '2x', 'cluster', 'yes']) {
+    for (const answer of ['', '0', '6', '-1', '2x', 'cluster', 'yes']) {
       expect(chosen(list, answer), answer).toBeUndefined();
     }
   });

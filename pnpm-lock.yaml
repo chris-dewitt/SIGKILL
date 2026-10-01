@@ -35,6 +35,9 @@ importers:
       '@sigkill/audio':
         specifier: workspace:*
         version: link:../../packages/audio
+      '@sigkill/containment':
+        specifier: workspace:*
+        version: link:../../games/containment
       '@sigkill/crt':
         specifier: workspace:*
         version: link:../../packages/crt
