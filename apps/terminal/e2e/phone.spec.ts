@@ -305,6 +305,26 @@ test.describe('select mode', () => {
     await expect(page.locator('#input')).toBeFocused();
   });
 
+  test('is not offered while a command is still running', async ({ page }) => {
+    await openWreck(page);
+    const text = page.locator('#text');
+    await expect(text).toBeEnabled();
+
+    // The first Python call boots Pyodide, which is the slowest thing aboard
+    // and so the one window where this is reliably observable.
+    const input = page.locator('#input');
+    await input.click();
+    await input.fill('python3 -c "print(1)"');
+    await input.press('Enter');
+
+    // In flight: the transcript would be a snapshot taken before the output
+    // being waited for.
+    await expect(text).toBeDisabled();
+
+    // And it comes back once the command lands.
+    await expect(text).toBeEnabled({ timeout: 30_000 });
+  });
+
   test('copies, and says so', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await openWreck(page);
