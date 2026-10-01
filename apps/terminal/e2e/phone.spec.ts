@@ -325,6 +325,28 @@ test.describe('select mode', () => {
     await expect(text).toBeEnabled({ timeout: 30_000 });
   });
 
+  test('still opens after the session has closed, which is when you want it', async ({
+    page,
+  }) => {
+    await openWreck(page);
+    await run(page, 'echo worth-keeping');
+    await run(page, 'exit');
+
+    // The run is over and the field is dead, as it should be.
+    await expect(page.locator('#input')).toBeDisabled();
+
+    // The transcript is not the input and does not die with it. Reading back
+    // what happened needs no live session, and a finished run is exactly when
+    // somebody wants the record of it.
+    await page.locator('#text').click();
+    const body = page.locator('#text-body');
+    await expect(body).toBeVisible();
+    await expect(body).toContainText('worth-keeping');
+    // Including the last thing the ship said, which is written after the
+    // command settles.
+    await expect(body).toContainText('[session closed]');
+  });
+
   test('copies, and says so', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await openWreck(page);

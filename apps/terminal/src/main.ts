@@ -769,7 +769,17 @@ async function submit(raw: string): Promise<void> {
       busy = false;
       // Staying disabled is only correct when the session itself ended.
       input.disabled = machine.exited !== null;
-      textButton.disabled = input.disabled;
+      /*
+       * TEXT is not the input and does not follow it here.
+       *
+       * It was pinned to `input.disabled`, which after `exit` is true forever
+       * -- so the transcript became uncopyable at exactly the moment somebody
+       * would want it, with the run finished and `[session closed]` written
+       * one line further down than this block. Reading back what happened
+       * needs no live session. Only a command still in flight makes the
+       * transcript wrong, and that is over by here.
+       */
+      textButton.disabled = false;
     }
 
     if (machine.exited !== null) {
