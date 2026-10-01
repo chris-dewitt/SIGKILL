@@ -64,6 +64,34 @@ install from that app, and that grant is per-source, not global.
 If the toolchain *is* installed locally, skip all of this:
 `pnpm android:debug`. See [ANDROID.md](ANDROID.md).
 
+### On a phone, tag it instead
+
+An artifact is an **authenticated** zip. A browser that is not signed in to
+GitHub gets a 404 rather than a login prompt, and GitHub's mobile layout often
+renders the artifact row as text that will not tap at all — so the artifact
+route tends to fail on the one device the game is built for.
+
+A Release asset is a plain direct link. Tap it and Android installs. Tagging
+publishes one:
+
+```bash
+git tag v0.1.0-playtest
+git push origin v0.1.0-playtest
+```
+
+Any tag starting with `v` runs the same build, then attaches
+`sigkill-<tag>.apk` to a GitHub Release marked as a prerelease.
+
+**That asset is a public download.** This repository is public, so anybody
+with the link gets a working build in one tap. The source is public under
+Apache-2.0 and the APK is a debug package rather than a store build, so
+nothing is leaked by it — but it is the difference between code somebody
+could compile and a game they can play, which is why it is a tag you push
+rather than something every merge does.
+
+Delete a release and its asset from the repository's Releases page, and the
+tag with `git push origin :refs/tags/<tag>`.
+
 ### What only this loop can tell you
 
 - **The soft keyboard.** Does the prompt stay visible with it up, in both
