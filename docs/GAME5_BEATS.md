@@ -7,11 +7,6 @@ where DeWitt stops reading what people decided and starts reading what a
 > **Curriculum authority.** `docs/STORY_AND_GAME_PLAN.md` §3 stage 5: *"ML
 > fundamentals, modeling, evaluation, AI fluency, prompting — test claims,
 > assess datasets and models, understand uncertainty and limitations."*
->
-> `docs/PLAN.md`'s adventure table still lists **The Containment** at slot 4 and
-> **The Fork** at slot 5. The swap argued in `GAME4_BEATS.md` §8 is now built:
-> game four is The Fork, shipped and tested. The table is the thing that is out
-> of date, for the third time, and the story plan has won every one of these.
 
 ---
 

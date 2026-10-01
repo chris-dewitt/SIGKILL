@@ -8,6 +8,7 @@ Read this, then the architecture doc, then the code.
 | **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | **Start here.** The map, and a full trace of one command from keypress to changed filesystem. |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why it is like this. Read before reversing anything that looks arbitrary. |
 | [docs/TESTING.md](docs/TESTING.md) | The determinism harness and the goal-predicate pattern. |
+| [docs/PLAYTEST.md](docs/PLAYTEST.md) | Getting the game onto a phone — LAN browser, CI-built APK, the checklist. |
 | [docs/HINTS.md](docs/HINTS.md) | **Read before authoring an objective or a hint ladder.** |
 | [docs/FULLSCREEN.md](docs/FULLSCREEN.md) | How `vi` takes the screen, and how to add another full-screen program. |
 | [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the thirteen adventures. |

@@ -1,0 +1,146 @@
+name: APK
+
+# A playable build, on demand, without a local Android toolchain.
+#
+# `ci.yml` proves the game is correct; it cannot tell anybody whether it is
+# any good to hold. That needs a phone, and a phone needs an APK, and an APK
+# that depends on one laptop having Android Studio installed is a build that
+# does not exist on the days that laptop is busy. So it is built here.
+on:
+  # The button in the Actions tab. Works from a phone browser.
+  workflow_dispatch:
+
+  # Every merge leaves a build attached to the commit that produced it, so
+  # "does this feel right" is never blocked on setting up a toolchain first.
+  push:
+    branches: [main]
+
+  # Nothing else in CI compiles the Android project, so a change to the
+  # wrapper has to prove itself before it lands.
+  pull_request:
+    paths:
+      - '.github/workflows/apk.yml'
+      - 'apps/terminal/android/**'
+      - 'apps/terminal/capacitor.config.ts'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Capacitor 7 and AGP 8.7 both want a 21 toolchain.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The runner image already ships the SDK, so this uses its own
+      # `sdkmanager` rather than a third-party action. One fewer moving part in
+      # the supply chain of a build that gets installed on a phone.
+      - name: Android SDK packages
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Build the web app
+        run: pnpm build
+
+      - name: Copy it into the Android project
+        run: pnpm --filter @sigkill/terminal exec cap sync android
+
+      # Also in `ci.yml`. It runs again here because this is the job whose
+      # output ends up on a device, and a guard is cheap.
+      - name: Check the manifest
+        run: pnpm --filter @sigkill/terminal check:android
+
+      - name: Assemble the debug APK
+        working-directory: apps/terminal/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      # An unsigned release package, which is what would go to a store once
+      # a key is attached. Nothing else in CI compiles the release variant, and
+      # the permission assertion below has to be made against it rather than
+      # against the debug build.
+      - name: Assemble the unsigned release APK
+        working-directory: apps/terminal/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      # Neither package may ask the operating system for anything.
+      #
+      # `check:android` reads the manifest in the repository, which cannot see
+      # what Capacitor, AGP and every library manifest add on the way to a
+      # package. This reads the packages themselves, with `aapt2`, after the
+      # merge -- the only place the answer is not a guess.
+      #
+      # It reads the *package* rather than grepping the merged manifest XML for
+      # a second reason: that manifest keeps its comments, and this project's
+      # manifest documents the removed INTERNET permission by quoting it. A
+      # grep of the XML matches its own explanation and reports a permission
+      # that is not there. `check-manifest.mjs` strips comments first for
+      # exactly that reason; `aapt2` reads compiled resources and cannot be
+      # fooled by prose at all.
+      #
+      # The one entry allowed is androidx.core's
+      # `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a
+      # signature-level permission the app defines for itself so its own
+      # dynamic receivers are not exported. It grants nothing outside the app.
+      - name: Neither package may ask for anything
+        run: |
+          aapt2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          out=apps/terminal/android/app/build/outputs/apk
+          status=0
+          for apk in "$out/debug/app-debug.apk" "$out/release/app-release-unsigned.apk"; do
+            test -f "$apk" || { echo "missing: $apk"; exit 1; }
+            echo
+            ls -l "$apk"
+            "$aapt2" dump badging "$apk" |
+              grep -E '^(package:|sdkVersion:|targetSdkVersion:|application-label:)'
+            asked=$("$aapt2" dump permissions "$apk" |
+              grep '^uses-permission' |
+              grep -v 'DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION' || true)
+            if [ -n "$asked" ]; then
+              echo "  this package asks for:"
+              echo "$asked"
+              status=1
+            else
+              echo "  asks for nothing"
+            fi
+          done
+          if [ "$status" -ne 0 ]; then
+            echo
+            echo 'SIGKILL ships entirely offline and asks for nothing.'
+            echo 'See docs/ANDROID.md.'
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          # The head commit, not `github.sha`: on a pull_request event that is
+          # the ephemeral merge commit, and an artifact named after a commit
+          # that is on no branch cannot be matched to the build it came from.
+          name: sigkill-debug-${{ github.event.pull_request.head.sha || github.sha }}
+          path: apps/terminal/android/app/build/outputs/apk/debug/app-debug.apk
+          # Long enough to play, short enough not to accumulate. Note that
+          # this repository is public, and so are its build artifacts.
+          retention-days: 14
+          if-no-files-found: error

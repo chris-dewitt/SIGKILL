@@ -124,8 +124,8 @@ full arc rather than one game.
 | 01 | **The Wreck** | Linux & bash |
 | 02 | **The Archive** | SQL & data |
 | 03 | **The Harness** | Python, debugging & testing |
-| 04 | **The Containment** | LLM & AI |
-| 05 | The Fork | Git — a colony ship whose crew diverged into branches |
+| 04 | **The Fork** | Git & collaborative development |
+| 05 | **The Containment** | LLM & AI |
 | 06 | The Handshake | Networking — DNS, TCP, TLS, routing, firewalls |
 | 07 | The Pipeline | Data engineering — ETL, streams, backfills, idempotency |
 | 08 | The Gradient | ML fundamentals — loss, gradients, overfitting, validation |
@@ -135,18 +135,13 @@ full arc rather than one game.
 | 12 | The Contract | Distributed systems — APIs, idempotency, retries, consistency |
 | 13 | The Bootstrap | Compilers — build a language, then use it to escape |
 
-**Slots 4 and 5 have a pending swap.** `docs/STORY_AND_GAME_PLAN.md` §3 stage 4
-is *Git and collaborative development* and stage 5 is *ML fundamentals ... AI
-fluency, prompting* — which is what The Containment is. On the same reasoning
-that settled slot 3, game four should be **The Fork** and game five **The
-Containment**. Argued in `docs/GAME4_BEATS.md`, whose §8 item 1 leaves it for
-Chris to reject cheaply. The table is left alone until he has.
+Order follows `docs/STORY_AND_GAME_PLAN.md` §3, which is the curriculum
+authority: Python, debugging and testing third, Git fourth, ML and AI fluency
+fifth. Cloud and deployment arrive with slot 6 and after, rather than before the
+player can write a program.
 
-Slot 3 read **The Cluster — HPC & cloud** until game three was built.
-`docs/STORY_AND_GAME_PLAN.md` §3 is the curriculum authority and puts Python,
-debugging and testing third; cloud and deployment keep slot 6 (The Handshake
-and, later, deployment work) rather than arriving before the player can write a
-program. The story plan wins these, and this table was the one that was wrong.
+Games 01–05 are built. Beats for each are in `docs/ACT1_BEATS.md` and
+`docs/GAME2_BEATS.md` through `docs/GAME5_BEATS.md`.
 
 ---
 
@@ -324,10 +319,10 @@ exists. The lesson generalizes and is worth stating as policy: **probe the
 engine with the new game's idiom before authoring the new game.** It cost half a
 day and would have cost the whole act.
 
-**Verdict: build game four.** `The Containment` — LLM and AI. Game three ends by
-planting it without literalising anything: a rented processor, billed to a dead
-woman's grant, and an adjuster who declines to speculate and advises him to do
-the same.
+**Verdict: build game four.** `The Fork` — Git, in the Pell deposit office.
+Game three also plants game five without literalising anything: a rented
+processor, billed to a dead woman's grant, and an adjuster who declines to
+speculate and advises him to do the same.
 
 ---
 

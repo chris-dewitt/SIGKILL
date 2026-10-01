@@ -3,6 +3,10 @@
 SIGKILL wraps in Capacitor. The web app is the game; Android is a container
 around it.
 
+This file is the toolchain. For getting a build in front of a player — the LAN
+browser loop, the APK that CI builds so no local toolchain is needed, and what
+to look for once it is installed — see [PLAYTEST.md](PLAYTEST.md).
+
 ## One-time setup
 
 Install **Android Studio** (it brings the SDK, platform tools and a JDK).
@@ -33,6 +37,10 @@ Or straight to an APK without opening Studio:
 ```bash
 pnpm android:debug      # android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+None of the above is required to get an APK. `.github/workflows/apk.yml` builds
+a debug package on every merge to `main` and on demand from the Actions tab,
+and attaches it as a downloadable artifact — see [PLAYTEST.md](PLAYTEST.md).
 
 Sideload it:
 
@@ -75,6 +83,22 @@ player-authored code.
 
 Capacitor serves the web layer through `WebViewAssetLoader` over
 `https://localhost`, which is a local interception and needs no permission.
+
+The claim is now asserted against the built packages rather than against this
+file. The APK workflow runs `aapt2 dump permissions` over both the debug and
+the unsigned release APK on every run and fails if either asks for anything
+beyond androidx.core's own signature-level
+`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. `check:android` cannot do that: it
+only sees the manifest in the repository, not what Capacitor, AGP and every
+library manifest add on the way to a package.
+
+**Do not settle this by grepping for `uses-permission`.** The manifest's own
+comment quotes the removed line in order to explain it, and so does this file
+two paragraphs down — so a grep of either, or of the merged manifest, which
+keeps its comments, matches the explanation and reports a permission that is
+not there. `check-manifest.mjs` strips comments before it looks for exactly
+that reason. The workflow reads compiled resources, which cannot be fooled by
+prose at all.
 
 > **If the app ever shows a blank screen after a Capacitor upgrade, restore
 > this line first:** `<uses-permission android:name="android.permission.INTERNET" />`
