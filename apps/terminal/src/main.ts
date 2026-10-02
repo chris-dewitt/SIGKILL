@@ -661,7 +661,18 @@ function refreshPrompt(): void {
  * gated on exactly one of those being pleasant.
  */
 function showChooser(): void {
-  for (const line of chooserLines(library, savedAdventures(library.map((e) => e.adventure.id)))) {
+  /*
+   * The real width, not the fallback.
+   *
+   * `chooserLines` clips each blurb so it cannot wrap, and its default is the
+   * 34 columns of a portrait phone. Nothing was passing a width, so every
+   * blurb in the series was cut at 29 characters on every screen -- including
+   * a desktop showing seventy. Found by screenshotting the chooser, which is
+   * the only way it could have been: the unit test passed, because clipping
+   * to 29 is exactly what it asserts when it asks whether the lines fit.
+   */
+  const saved = savedAdventures(library.map((e) => e.adventure.id));
+  for (const line of chooserLines(library, saved, view.columns)) {
     write(line, 'system');
   }
 }

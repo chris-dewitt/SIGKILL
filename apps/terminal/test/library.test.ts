@@ -107,6 +107,22 @@ describe('what the chooser says', () => {
       expect(line.length, line).toBeLessThanOrEqual(34);
     }
   });
+
+  /*
+   * And says the whole sentence when there is room for it.
+   *
+   * The clip is per width, so a chooser drawn at seventy columns must not be
+   * the thirty-four-column one with the right-hand side missing. That is
+   * exactly what shipped until a screenshot of the chooser showed every blurb
+   * in the series cut at 29 characters, because the host was not passing a
+   * width at all.
+   */
+  it('uses the width it is given', () => {
+    const wide = chooserLines(offered(both), none, 70).join('\n');
+    for (const { adventure } of offered(both)) {
+      for (const line of adventure.blurb) expect(wide, adventure.id).toContain(line);
+    }
+  });
 });
 
 describe('reading the answer', () => {
