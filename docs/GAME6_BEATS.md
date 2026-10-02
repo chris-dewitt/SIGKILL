@@ -101,26 +101,38 @@ that the policy is right.*
 Every number here is observed by the player from the running system. No
 objective asserts on what was typed.
 
+**Shipped**, in the order the player meets them. The ids are the ones in
+`games/deposit/src/objectives.ts`; where this table used to guess at a name or
+an order, it has been corrected to what exists.
+
 | # | id | What it teaches |
 |---|---|---|
-| 1 | `the-floor` | `ssh`, `systemctl status`, reading an inventory you were not given |
-| 2 | `why-it-will-not-start` | `journalctl`, a unit file, `Requires=` |
-| 3 | `the-check-that-lied` | `curl` exits 0 on a 500 — the whole act's pivot |
-| 4 | `put-it-back` | rollback: the previous config, restored, verified |
+| 1 | `the-floor` | `ssh`, `systemctl list-units`, reading an inventory you were not given |
+| 2 | `the-check-that-lied` | `curl` exits 0 on a 500 — the whole act's pivot |
+| 3 | `why-it-will-not-start` | `journalctl`, a unit file, `Requires=` |
+| 4 | `ship-it` | the check edited so it would have caught this, and verified |
 | 5 | `not-a-dns-problem` | telling three failures apart before touching anything |
-| 6 | `ship-it` | `scp`, restart, verify from outside |
-| 7 | `after-the-reboot` | `After=` is ordering and not a dependency |
-| 8 | `serve-the-matter` | the job: a deposited file retrieved end to end |
-| 9 | `the-handover` | the journal turned into a record somebody else can read |
+| 6 | `after-the-reboot` | enabled is not running, and `After=` is ordering |
+| 7 | `serve-the-matter` | the job: a deposited file retrieved end to end, on the record |
+| 8 | `the-second-lie` | a health check that does not exercise what it checks |
+| 9 | `the-handover` | the journal and the lock turned into a record somebody else can read |
 
 Optional:
 
 | # | id | What it is |
 |---|---|---|
-| A | `clean-hands` | prove, from the system, that he did not touch his own matter |
+| A | `clean-hands` | prove, from the store's record, that he did not touch his own matter |
 | B | `where-she-cannot-go` | establish the boundary LUNA sits behind, and why |
 
-### Objective 3 is the one that does the teaching
+Two objectives this document named are not in that list, and both were folded
+in rather than dropped. `put-it-back` — rollback — lives inside `ship-it`,
+because the check is the thing being changed and its previous version is what
+you compare against; a separate rollback objective would have needed a second
+config broken for the purpose. The original `ship-it` (scp, restart, verify
+from outside) is spread across `not-a-dns-problem` and `after-the-reboot`,
+which is where those verbs actually arise.
+
+### `the-check-that-lied` is the one that does the teaching
 
 Pell's deploy script has checked the service the same way for two years:
 
@@ -142,7 +154,7 @@ routes, all legitimate.
 It also means the act's inciting incident is not sabotage. **It is a month of
 everybody doing their jobs.**
 
-### Objective 9 must not be a verdict
+### `the-handover` must not be a verdict
 
 The handover is a record of what happened, generated from the journal: what
 failed, when, what was done, what is still true. It must not conclude anything
@@ -221,3 +233,95 @@ lesson, and a simulated handshake they cannot verify is a bad one.
    means failing a player who opened a file in the first ten minutes out of
    ordinary curiosity, which seems worse.
 4. **The title.** *The Deposit* is flat. It is also what the place is called.
+
+---
+
+## 9. What shipped, 2026-10-02
+
+Written after the fact, because a spec that is quietly wrong about the thing it
+specified is worse than no spec.
+
+Eleven objectives: nine required, two optional. 35 declared routes and 34
+near-misses, each one executed against a real Machine in CI. 22 hint steps,
+each one's bottom rung run against a world standing on that step.
+
+### The store, which this document did not foresee
+
+`clean-hands` as specified above rests on "the deposit store records access",
+and nothing in the engine recorded anything. With the material left
+world-readable, `cat` leaves no line -- so the objective's second clause, that
+the record shows no read by his account, would have been satisfiable while
+reading whatever he liked. The objective would have been a lie.
+
+So: deposited material is `0600` and owned by root, and `deposit` is a command
+on `vault01` and nowhere else. It reads on the caller's behalf and appends
+`<stamp> <account> <matter>/<file>` to `/var/log/access.log` **before** it
+emits a byte, and refuses to serve at all if it cannot record, because a
+retrieval the store cannot record is one it should not serve.
+
+`sudo cat` goes around all of it and leaves no line. That is written down in
+`store.ts`, asserted in `store.test.ts`, and is not a gap to plug: he is the
+operator of the machine the evidence is on, and an engine that pretended
+otherwise would teach something false about Unix. The mode bits make the
+recorded path the ordinary one. They are not a cage, and the act is about what
+he does when nothing stops him.
+
+### He learns the number from his own post
+
+The trap this document nearly contained: if the only way to find out which
+matter is his is to open it on `vault01`, `clean-hands` cannot be discovered
+without being failed. `~/NOTICE` on the bastion -- Tessaly's notice of
+contest, which he has had for months -- names matter 7714 and says in as many
+words that it is his copy of the docket number and not the file. A party to a
+matter has their own paperwork and no right at all to the file, which is both
+true and exactly the shape of the objective.
+
+### The step that cannot be cleared
+
+`clean-hands/and-not-you` is pending only in a world where the store has
+already recorded him reading his own matter, and in that world nothing clears
+it. Every other step in the series is a thing to do; this one is a thing to be
+told, and its bottom rung shows him the line rather than pretending to repair
+it. `hints.test.ts` documents the exception and asserts the behaviour: once his
+account is in the record the objective cannot be completed -- not by writing a
+file, not by copying the log, and not by deleting it.
+
+### Three hint ladders were already broken
+
+Found by `hints.test.ts` the day it was written, not by playing:
+
+- `the-floor` wanted three hosts in the notes and its ladder reached two.
+- `serve-the-matter/find-it` asked for the manifest's own words while its hint
+  fetched a path from the index.
+- `the-second-lie/break-it` asked about the notes while its hint stopped a
+  service, so taking the hint changed nothing the step could see.
+
+A hint that does nothing is worse than no hint, and all three were invisible to
+the route harness, which only ever checks that a declared solution works.
+
+### The save had to change
+
+`AdventureSession.snapshot()` is new, and optional. The host had always called
+`machine.snapshot()` itself, which is right for one machine and loses three
+quarters of this act: every service repaired on another host gone, while the
+questbook -- stored separately -- went on reporting those objectives as met.
+The five single-machine games are untouched and their saves still open. A
+game-six save with no fleet in it is refused rather than half-restored, and the
+host already does the right thing with a refusal.
+
+### What it cost
+
+`node tools/measure.mjs`, which now knows about games four to six:
+
+| | Total | Ratio |
+|---|---|---|
+| The Wreck | 19,308 | baseline |
+| The Fork | 5,717 | 29.6% |
+| The Containment | 3,112 | 16.1% |
+| The Deposit | 3,094 | **16.0%** |
+
+387 of those lines are outside `games/deposit`: the network probes, the
+`Requires=`/`After=` parser, `snapshotFleet`, `World.network` and the host seam
+above. §6 predicted an engine share lower than game three's 8% and that did not
+hold -- 387 of 3,094 is 12.5%. The fleet is why, and a fleet is a thing the
+engine did not have.

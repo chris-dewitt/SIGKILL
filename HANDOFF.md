@@ -1,6 +1,82 @@
 # SIGKILL — handoff
 
-## Read first — game three exists, 2026-09-26
+## Read first — game six exists and is reachable, 2026-10-02
+
+**Game 6 exists.** `games/deposit` -- *The Deposit*, on the machine floor of
+Pell's deposit office, in operations. Nine required objectives and two
+optional, 35 declared routes and 34 near-misses all executed against a real
+Machine in CI, and the first adventure that is **four machines** rather than
+one. Built against [docs/GAME6_BEATS.md](docs/GAME6_BEATS.md); §9 of that file
+is what shipped and where it differs from the spec, and **§8 is Chris's to
+overrule cheaply**.
+
+The antagonist is an infrastructure nobody wrote down. Nothing on the floor was
+sabotaged and nobody was negligent: a datastore died on the first of July, left
+a lock, and the check that watched it asked the only question it knew how to
+ask -- `curl http://index01/health && echo "index healthy"`, which asks curl
+whether the *transfer* worked. It worked every morning for a month while the
+index returned 500 to everybody. The act's inciting incident is a month of
+everybody doing their jobs.
+
+**It is in the chooser.** That needed a change to the save: the host used to
+call `machine.snapshot()` itself, which is correct for one machine and loses
+three quarters of this act. `AdventureSession.snapshot()` is a new optional
+seam -- five games keep their code and their existing saves, game six saves its
+fleet, and a game-six save with no fleet in it is refused rather than
+half-restored.
+
+**One mechanism here is new and the reason the best objective works.**
+Deposited material on `vault01` is `0600` root, and `deposit get` reads it on
+the caller's behalf and writes the account that asked into
+`/var/log/access.log` before it emits a byte. `clean-hands` -- optional -- asks
+the player to produce from that record the demonstration that the tribunal read
+his own matter and his account never did. It is not "do not open it": a goal
+asserting on what the player did not do is a goal reading the input. He learns
+his docket number from his own post on the bastion, so the objective cannot
+only be found by failing it, and `sudo cat` still goes around the whole thing
+without leaving a line -- which is documented, tested, and exactly the act's
+subject rather than a hole to plug.
+
+**`clean-hands` can be lost for good, on purpose.** Once the store has recorded
+him reading his own matter, nothing clears it. The last rung of that ladder is
+the only place the game can say so and it says it without scolding. This is the
+one step in the series whose hint does not fix anything, and it has a test
+asserting that it cannot.
+
+**Three hint ladders were already broken** and `games/deposit/test/hints.test.ts`
+found all three the day it was written: `the-floor` stopped one host short of
+its own goal, `serve-the-matter/find-it` asked for a manifest while its hint
+fetched a path, and `the-second-lie/break-it` asked about notes while its hint
+stopped a service. Every adventure should have that test; `docs/HINTS.md` now
+says so and gives its shape.
+
+**The 40% gate is computed again, and now for all six.** `node
+tools/measure.mjs` was missing games four to six, which made the gate something
+the repo talked about rather than something it checked.
+
+| | Total | Ratio |
+|---|---|---|
+| The Wreck | 19,308 | baseline |
+| The Fork | 5,717 | 29.6% |
+| The Containment | 3,112 | 16.1% |
+| The Deposit | 3,094 | **16.0%** |
+
+387 of game six's lines are outside its own package. The beats doc predicted an
+engine share under game three's 8% and that did not hold: it is 12.5%, and the
+fleet is why.
+
+**What is next.** `packages/net` -- the parallel track Chris chose, so *The
+Handshake* can be authored against something real instead of bent to fit what
+exists. Order is in `docs/GAME6_BEATS.md` §7: `/etc/hosts` and a resolver,
+then `dig`/`host`, then `ss`/`netstat`, then `ip`, then a firewall. TLS last or
+never.
+
+Also still open: **nobody has pushed a `v*` tag**, so the release half of
+`.github/workflows/apk.yml` has never run. `docs/PLAYTEST.md` has the steps.
+
+---
+
+## Game three, 2026-09-26
 
 **Game 3 exists.** `games/harness` -- *The Harness*, aboard the tug ELLEN MAY
 at Ferryman's Rest, in Python. Nine required objectives and four optional,
@@ -435,6 +511,20 @@ any of them reads what the player typed.
 The telemetry's sample count is load-bearing. 60 samples x 9 compartments is
 the 540 lines ORACLE quotes, and 60 C7 rows plus 8 C2 rows are its 68 matches.
 Change the *step* to move the window; leave the counts alone.
+
+**`games/deposit`** — game six, and the only adventure that is a *floor*
+rather than a machine. `src/act1/floor.ts` seeds five hosts (one of them
+powered off, which is a different failure from a name that does not resolve and
+is an objective); `src/store.ts` is the deposit store's own retrieval command,
+which is what makes the access record evidence rather than decoration;
+`src/world.ts` boots, saves and restores the fleet and holds the cold open and
+the epilogue. `src/objectives.ts` is nine required and two optional.
+
+Only the bastion carries the quest commands and the editor. The three hosts
+that hold deposited material carry neither, and that is content rather than a
+shortcut: it is the same policy that keeps LUNA off them, written down on those
+hosts in `/etc/deposit/policy` and on the bastion in `/etc/luna/scope`, and
+reading both is an optional objective.
 
 **`apps/terminal`** — the playable terminal and the Capacitor Android wrap.
 `status.ts` is pure and unit-tested: what the readout says in each state is an
