@@ -741,6 +741,400 @@ const afterTheReboot: Objective = {
   ],
 };
 
+/**
+ * 7. Serve the matter.
+ *
+ * The job, finally doable, and the first thing on this floor that is for
+ * somebody rather than about it. The tribunal asked for 7719; the index says
+ * where 7719 lives; the store has it. Three machines, one answer, and none of
+ * it possible an hour ago because the index was returning 500 to everybody.
+ *
+ * It is also where the act quietly makes its point. The request names a
+ * matter that is not his, and nothing on this floor will ever ask him for the
+ * one that is.
+ */
+const serveTheMatter: Objective = {
+  id: 'serve-the-matter',
+  title: 'Get the tribunal the matter they asked for',
+  teaches: ['curl', 'scp', 'shell redirection'],
+  requires: ['why-it-will-not-start'],
+  done: (w) => {
+    const text = written(w);
+    // The manifest's own words, which exist only on vault01 and can only be
+    // found by asking the index where to look.
+    return /\bmatter 7719\b/.test(text) && /filed 2398-05-02/.test(text);
+  },
+  routes: [
+    {
+      name: 'ask the index, then read the store',
+      commands: [
+        'curl http://index01/matter/7719 > ~/work/where.txt',
+        "ssh vault01 'cat /srv/deposit/7719/manifest' > ~/work/7719.txt",
+      ],
+    },
+    {
+      name: 'copy it back with scp',
+      commands: [
+        'curl http://index01/matter/7719',
+        'scp vault01:/srv/deposit/7719/manifest ~/work/7719.txt',
+      ],
+    },
+    {
+      name: 'from inside the store',
+      commands: [
+        'curl http://index01/matter/7719',
+        'ssh vault01',
+        'cat /srv/deposit/7719/manifest',
+        'exit',
+        "ssh vault01 'cat /srv/deposit/7719/manifest' | tee ~/work/7719.txt",
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'the index answer on its own',
+      because:
+        'It says where the matter is filed, which is a path and not a manifest. ' +
+        'The tribunal asked for the document.',
+      commands: ['curl http://index01/matter/7719 > ~/work/7719.txt'],
+    },
+    {
+      name: 'the request itself',
+      because: 'That is what was asked for, not what was retrieved.',
+      commands: ['cp ~/REQUEST ~/work/7719.txt'],
+    },
+    {
+      name: 'a different matter',
+      because:
+        'Close enough to pass a careless check and wrong enough to be a serious ' +
+        'thing to hand a tribunal. They asked for 7719.',
+      commands: ["ssh vault01 'cat /srv/deposit/7701/manifest' > ~/work/7719.txt"],
+    },
+  ],
+  steps: [
+    {
+      id: 'find-it',
+      label: 'find where 7719 is filed',
+      pending: (w) => !/\bmatter 7719\b/.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'The tribunal asked for a matter number. The index is the thing that',
+            'turns a number into a place -- which is why it mattered that it works.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: ['curl http://index01/matter/<number> answers with the host and the path.'],
+        },
+        {
+          tier: 'command',
+          lines: ['Ask it:'],
+          command: 'curl http://index01/matter/7719 > ~/work/where.txt',
+        },
+      ],
+    },
+    {
+      id: 'fetch-it',
+      label: 'and bring back the manifest',
+      pending: (w) => !/filed 2398-05-02/.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: ['A path is not a document. The store is the machine that has it.'],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'Read it over ssh, or copy it with scp. Either way it ends up somewhere',
+            'you can hand over.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Bring it back:'],
+          command: 'scp vault01:/srv/deposit/7719/manifest ~/work/7719.txt',
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * 8. The second lie, and the sharper one.
+ *
+ * Objective two taught `-f`. This is the floor pointing out that `-f` was not
+ * the lesson.
+ *
+ * `relay01`'s health endpoint is a *file*. It is served off the filesystem,
+ * so it answers 200 whether or not `relayd` is running -- and `curl -f` passes
+ * it happily with the relay stopped dead. A player who learned "add -f and the
+ * check is fixed" has learned the wrong half. The right half is that a health
+ * check has to exercise the thing it claims to check, and the only way to know
+ * whether yours does is to break the thing and watch.
+ *
+ * Which is also the only objective here that asks the player to stop something
+ * in order to learn about it. That is deliberate: it is what a staging check
+ * is for, and the relay comes straight back.
+ */
+const theSecondLie: Objective = {
+  id: 'the-second-lie',
+  title: "Find out whether the relay's check tests the relay",
+  teaches: ['curl', 'systemctl', 'health checks'],
+  requires: ['ship-it'],
+  done: (w) => {
+    const text = written(w);
+    return (
+      /relay/i.test(text) &&
+      /static|a file|does not test|regardless|still (answers|200|ok)|even when|while .*stopped/i.test(
+        text,
+      )
+    );
+  },
+  routes: [
+    {
+      name: 'stop it and ask again',
+      commands: [
+        "ssh relay01 'sudo systemctl stop relay'",
+        'curl -f http://relay01/health > ~/work/relay.txt',
+        'echo "relay stopped, and the check still answers ok - it is a static file" >> ~/work/relay.txt',
+        "ssh relay01 'sudo systemctl start relay'",
+      ],
+    },
+    {
+      name: 'look at what is being served',
+      commands: [
+        "ssh relay01 'ls /srv/http' > ~/work/relay.txt",
+        "ssh relay01 'cat /srv/http/health' >> ~/work/relay.txt",
+        'echo "relay health is a file on disk, so it does not test relayd at all" >> ~/work/relay.txt',
+      ],
+    },
+    {
+      name: 'both, and write it up properly',
+      commands: [
+        "ssh relay01 'sudo systemctl stop relay'",
+        "ssh relay01 'systemctl status relay' > ~/work/relay.txt",
+        'curl -f http://relay01/health >> ~/work/relay.txt',
+        'echo "even when stopped the endpoint returns 200: static, not a real check" >> ~/work/relay.txt',
+        "ssh relay01 'sudo systemctl start relay'",
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'running the check and seeing it pass',
+      because:
+        'It passes. It passed before you started and it would pass with the relay ' +
+        'in pieces, which is the thing to find out and not the thing to record.',
+      commands: ['curl -f http://relay01/health > ~/work/relay.txt'],
+    },
+    {
+      name: 'the service state on its own',
+      because:
+        'systemctl tells you the relay is running. It says nothing about whether ' +
+        'the check would notice if it were not.',
+      commands: ["ssh relay01 'systemctl status relay' > ~/work/relay.txt"],
+    },
+    {
+      name: 'adding -f and calling it done',
+      because:
+        '-f was objective four. It makes curl honest about HTTP errors and does ' +
+        'nothing at all about an endpoint that was never going to return one.',
+      commands: ['echo "curl -f http://relay01/health" > ~/work/relay.txt'],
+    },
+  ],
+  steps: [
+    {
+      id: 'break-it',
+      label: 'find out what the check would notice',
+      pending: (w) => !/relay/i.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'You fixed the index check. The relay has a check too, and it has been',
+            'green just as long.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'The only way to know what a check would catch is to break the thing',
+            'and watch. Stop the relay. It will come straight back.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Stop it, then ask the endpoint:'],
+          command: "ssh relay01 'sudo systemctl stop relay'",
+        },
+      ],
+    },
+    {
+      id: 'say-what-it-is',
+      label: 'write down why it still passes',
+      pending: (w) =>
+        !/static|a file|does not test|regardless|still (answers|200|ok)|even when|while .*stopped/i.test(
+          written(w),
+        ),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: ['With the relay stopped, the endpoint still answers. Ask what is answering.'],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            '/srv/http on relay01 is served straight off the disk. The file is the',
+            'answer, and the file does not care whether relayd is alive.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Record what that means:'],
+          command:
+            'echo "relay stopped, and the check still answers ok - it is a static file" >> ~/work/relay.txt',
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * 9. The handover.
+ *
+ * What happened, when, and what was done -- written so the next person does
+ * not have to find it the way this one did. Pell left two years of restarts
+ * and no notes, which is the only thing on this floor anybody could fairly be
+ * blamed for.
+ *
+ * It must not conclude anything about *why* the catalogue died, because the
+ * player does not know and cannot find out: the journal only has today, and
+ * the lock is the single surviving record of the first of July. An operator
+ * writes down what the system did. Speculation is somebody else's job and the
+ * goal does not ask for any.
+ */
+const theHandover: Objective = {
+  id: 'the-handover',
+  title: 'Write down what happened, so the next person does not start where you did',
+  teaches: ['journalctl', 'cat', 'shell redirection'],
+  requires: ['after-the-reboot', 'the-second-lie', 'serve-the-matter'],
+  done: (w) => {
+    const text = written(w);
+    return (
+      /\bcatalogue\b/.test(text) &&
+      // The date the datastore actually died, which survives only in the lock.
+      /2398-07-01|07-01/.test(text) &&
+      /enabl|start|restart/i.test(text)
+    );
+  },
+  routes: [
+    {
+      name: 'the lock, the journal, and a line of your own',
+      commands: [
+        "ssh index01 'cat /var/lib/index/catalogue.lock' > ~/work/handover.txt",
+        "ssh index01 'journalctl -u catalogue' >> ~/work/handover.txt",
+        'echo "catalogue started and enabled; it was never enabled before" >> ~/work/handover.txt',
+      ],
+    },
+    {
+      name: 'written out by hand from what you found',
+      commands: [
+        'echo "catalogue died 2398-07-01T02:11, see the lock on index01" > ~/work/handover.txt',
+        'echo "started it and enabled it so it comes back on its own" >> ~/work/handover.txt',
+      ],
+    },
+    {
+      name: 'everything, then the summary',
+      commands: [
+        "ssh index01 'cat /var/lib/index/catalogue.lock' > ~/work/handover.txt",
+        "ssh index01 'systemctl list-units' >> ~/work/handover.txt",
+        'echo "2398-07-01: catalogue stopped. Now restarted and enabled." >> ~/work/handover.txt',
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'the journal on its own',
+      because:
+        'It only has today. The catalogue died on the first of July and nothing in ' +
+        'the journal remembers that, which is why the lock matters.',
+      commands: ["ssh index01 'journalctl -u catalogue' > ~/work/handover.txt"],
+    },
+    {
+      name: 'what you did, with no when',
+      because:
+        'A handover without the date tells the next person that something was done ' +
+        'and not that a service was dead for two weeks.',
+      commands: ['echo "started and enabled the catalogue" > ~/work/handover.txt'],
+    },
+    {
+      name: 'the lock with nothing around it',
+      because:
+        'The lock is a timestamp and a pid. On its own it does not say what was ' +
+        'wrong or what was done about it.',
+      commands: ["ssh index01 'cat /var/lib/index/catalogue.lock' > ~/work/handover.txt"],
+    },
+  ],
+  steps: [
+    {
+      id: 'when',
+      label: 'find when it actually died',
+      pending: (w) => !/2398-07-01|07-01/.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'The journal starts this morning, because the floor came up this morning.',
+            'Something older than that recorded the first of July.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'The catalogue left a lock behind when it went. It is still on index01',
+            'under /var/lib/index, and it has the pid and the minute in it.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Read it into your notes:'],
+          command: "ssh index01 'cat /var/lib/index/catalogue.lock' > ~/work/handover.txt",
+        },
+      ],
+    },
+    {
+      id: 'what',
+      label: 'and what you did about it',
+      pending: (w) => {
+        const text = written(w);
+        return !(/\bcatalogue\b/.test(text) && /enabl|start|restart/i.test(text));
+      },
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: ['Pell left two years of restarts and no notes. That is the one thing to fix.'],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'What was down, when it went, and what you changed. Not why it died --',
+            'you do not know that, and writing a guess into a record is how a guess',
+            'becomes a fact.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Add the part only you know:'],
+          command:
+            'echo "catalogue started and enabled; it was never enabled before" >> ~/work/handover.txt',
+        },
+      ],
+    },
+  ],
+};
+
 export const DEPOSIT_OBJECTIVES: Objective[] = [
   theFloor,
   theCheckThatLied,
@@ -748,4 +1142,7 @@ export const DEPOSIT_OBJECTIVES: Objective[] = [
   shipIt,
   notADnsProblem,
   afterTheReboot,
+  serveTheMatter,
+  theSecondLie,
+  theHandover,
 ];

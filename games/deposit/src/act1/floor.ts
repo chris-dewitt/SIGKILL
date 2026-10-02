@@ -355,12 +355,34 @@ function seedBastion(m: Machine): void {
     ROOT_USER,
   );
 
+  /*
+   * The job, which arrives the way the job always arrives.
+   *
+   * A matter number, a deadline, and no indication of how to get it. Note
+   * which number it is *not*: the tribunal does not ask him for his own, and
+   * nothing on the floor ever will.
+   */
+  m.vfs.writeText(
+    `${HOME}/REQUEST`,
+    lines(
+      'From: Tribunal retrieval',
+      'To:   deposit office, operations',
+      '',
+      'Matter 7719. Manifest, by end of day.',
+      '',
+      'Acknowledged on receipt. No reply needed if it is already with us.',
+      '',
+    ),
+    ROOT_USER,
+  );
+
   m.vfs.writeText(
     `${HOME}/README`,
     lines(
       'Deposit office, machine floor. Signed in as dewitt on bastion.',
       '',
       '  ~/PELL                   the handover',
+      '  ~/REQUEST                what the tribunal is waiting for',
       '  /opt/deposit/check.sh    the health check, as Pell wrote it',
       `  ${WORK}/              put what you establish in here`,
       '',
