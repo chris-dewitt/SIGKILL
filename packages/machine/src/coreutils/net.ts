@@ -213,17 +213,32 @@ export const netCommands: CommandSpec[] = [
       'Transfer a URL.\n' +
       '  -s   silent; no progress or error chatter\n' +
       '  -I   headers only\n' +
+      '  -o   write the body to a file instead of stdout\n' +
+      '  -f   fail on an HTTP error: no body, exit 22\n' +
+      'Without -f, an HTTP error is still a successful transfer and curl\n' +
+      'exits 0 -- the error page is the body. That catches people out and it\n' +
+      'is what the real tool does.\n' +
       'Only http:// is implemented. A host serves /srv/http unless it has a\n' +
       'handler of its own.',
     plain:
       'Fetches a page or a file from a machine over the network and prints\n' +
       'what comes back:\n' +
-      '  curl http://gateway/status',
+      '  curl http://gateway/status\n' +
+      'A 404 still counts as a successful fetch unless you pass -f. Checking\n' +
+      'that something is healthy means checking what came back, not just that\n' +
+      'curl was happy.',
     run: (ctx, argv, io) => {
-      const { flags, operands } = parseArgs(argv);
+      const { flags, values, operands } = parseArgs(argv, {
+        flags: ['-s', '--silent', '-I', '--head', '-f', '--fail'],
+        valued: ['-o', '--output'],
+      });
       const url = operands[0];
-      if (!url) return usage(io, 'usage: curl [-sI] URL');
+      if (!url) return usage(io, 'usage: curl [-sIf] [-o FILE] URL');
       if (!requireNetwork(ctx, 'curl', io)) return 2;
+      const silent = flags.has('-s') || flags.has('--silent');
+      const headersOnly = flags.has('-I') || flags.has('--head');
+      const failFast = flags.has('-f') || flags.has('--fail');
+      const outFile = values.get('-o') ?? values.get('--output');
 
       const parsed = /^(?:(https?):\/\/)?([^/:]+)(?::(\d+))?(\/[^\s]*)?$/.exec(url);
       if (!parsed) {
@@ -236,34 +251,69 @@ export const netCommands: CommandSpec[] = [
         return 60;
       }
 
+      /*
+       * Three different failures, three different answers.
+       *
+       * A host that is powered off still has a name, so reporting it as a
+       * name-resolution failure teaches the wrong first question when
+       * something stops answering. `ssh` already distinguishes these; curl
+       * collapsed the first two and said DNS for all of them.
+       */
       const host = ctx.network!.resolve(hostname);
-      if (!host || !host.up) {
+      if (!host) {
         io.err(`curl: (6) Could not resolve host: ${hostname}\n`);
         return 6;
       }
-
       const port = Number(portText ?? 80);
+      if (!host.up) {
+        io.err(`curl: (7) Failed to connect to ${hostname} port ${port}: No route to host\n`);
+        return 7;
+      }
       if (!host.ports.has(port)) {
         io.err(`curl: (7) Failed to connect to ${hostname} port ${port}: Connection refused\n`);
         return 7;
       }
 
       const response = ctx.network!.serve(host, path);
+      const statusText = response.status === 200 ? 'OK' : 'Not Found';
 
-      if (flags.has('-I')) {
+      if (headersOnly) {
         emit(io, [
-          `HTTP/1.1 ${response.status} ${response.status === 200 ? 'OK' : 'Not Found'}`,
+          `HTTP/1.1 ${response.status} ${statusText}`,
           `Content-Type: ${response.contentType ?? 'text/plain'}`,
           `Content-Length: ${response.body.length}`,
         ]);
         return 0;
       }
 
-      io.out(response.body);
-      if (response.status >= 400 && !flags.has('-s')) {
-        io.err(`curl: (22) The requested URL returned error: ${response.status}\n`);
+      /*
+       * The gotcha this exists to teach.
+       *
+       * An HTTP error is a *successful transfer*: the server was reached and
+       * it answered. curl exits 0 and hands you the error page, which is how
+       * a health check that only looks at the exit status passes while the
+       * service is returning 500 to everybody. `-f` is how you ask for the
+       * other behaviour, and it throws the body away so the error page cannot
+       * end up in the file or the pipe.
+       */
+      if (failFast && response.status >= 400) {
+        if (!silent) {
+          io.err(`curl: (22) The requested URL returned error: ${response.status}\n`);
+        }
         return 22;
       }
+
+      if (outFile !== undefined) {
+        try {
+          ctx.vfs.writeText(ctx.resolve(outFile), response.body, ctx.user);
+        } catch {
+          io.err(`curl: (23) Failure writing output to destination\n`);
+          return 23;
+        }
+        return 0;
+      }
+
+      io.out(response.body);
       return 0;
     },
   },
@@ -289,8 +339,14 @@ export const netCommands: CommandSpec[] = [
       const port = Number(portText);
       const host = ctx.network!.resolve(hostname!);
 
-      if (!host || !host.up) {
+      // As with curl: a host that is off is not a host that does not exist,
+      // and telling a player otherwise sends them to look at DNS.
+      if (!host) {
         io.err(`nc: getaddrinfo for host "${hostname}" port ${port}: Name or service not known\n`);
+        return 1;
+      }
+      if (!host.up) {
+        io.err(`nc: connect to ${hostname} port ${port} (tcp) failed: No route to host\n`);
         return 1;
       }
       const banner = host.ports.get(port);

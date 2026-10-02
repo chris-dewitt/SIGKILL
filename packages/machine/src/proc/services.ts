@@ -1,7 +1,13 @@
 import * as p from '../vfs/path.js';
 import { ROOT_USER, type Vfs } from '../vfs/vfs.js';
 import type { ProcessTable } from './table.js';
-import { SIGKILL, type Precondition, type ServiceState, type ServiceStatus } from './types.js';
+import {
+  SIGKILL,
+  type Precondition,
+  type ServiceState,
+  type ServiceStatus,
+  type Unit,
+} from './types.js';
 import { listUnits, loadUnit, unitName, WANTS_DIR } from './units.js';
 
 interface Runtime {
@@ -165,6 +171,30 @@ export class ServiceManager {
       return { ok: false, reason: r.error };
     }
 
+    /*
+     * `Requires=` before anything else runs.
+     *
+     * This is the first line an operator reads when something will not come
+     * up, and it was being accepted into the file and then ignored -- which is
+     * worse than rejecting it, because a player who writes
+     * `Requires=db.service` got no error and no effect and no way to tell.
+     *
+     * Checked before the precondition because a missing dependency is a
+     * structural refusal: there is no point asking the unit whether it is
+     * happy when the thing it is built on is not there.
+     */
+    for (const needed of unit.requires) {
+      if (this.rt(needed).state === 'active') continue;
+      const reason = `Unit ${needed}.service is not active.`;
+      r.state = 'failed';
+      r.error = reason;
+      r.since = this.now();
+      delete r.pid;
+      this.log(unit.name, reason);
+      this.log(unit.name, `Failed to start ${unit.description}.`);
+      return { ok: false, reason };
+    }
+
     const check = this.preconditions.get(unit.name);
     const verdict = check ? check(this.vfs) : ({ ok: true } as const);
     if (!verdict.ok) {
@@ -229,11 +259,48 @@ export class ServiceManager {
     return { ok: true };
   }
 
-  /** Called by the boot sequence: start everything that is enabled. */
+  /**
+   * Called by the boot sequence: start everything that is enabled.
+   *
+   * `After=` is honoured here and only here, because ordering is all it means.
+   * A unit with `After=db.service` and no `Requires=` will still start by hand
+   * while the database is down -- that is not a gap, it is what the directive
+   * does, and the difference between the two is one of the genuinely
+   * confusing things about systemd.
+   */
   startEnabled(): void {
-    for (const unit of listUnits(this.vfs)) {
+    for (const unit of this.inStartOrder(listUnits(this.vfs))) {
       if (this.isEnabled(unit.name)) this.start(unit.name);
     }
+  }
+
+  /**
+   * Sort by `After=`, leaving anything unordered where it was.
+   *
+   * A plain depth-first walk with a visiting set, so a cycle -- which systemd
+   * itself resolves by dropping one edge and carrying on -- cannot hang the
+   * boot.
+   */
+  private inStartOrder(units: readonly Unit[]): Unit[] {
+    const byName = new Map(units.map((u) => [u.name, u]));
+    const ordered: Unit[] = [];
+    const done = new Set<string>();
+    const visiting = new Set<string>();
+
+    const visit = (unit: Unit): void => {
+      if (done.has(unit.name) || visiting.has(unit.name)) return;
+      visiting.add(unit.name);
+      for (const earlier of unit.after) {
+        const dep = byName.get(earlier);
+        if (dep) visit(dep);
+      }
+      visiting.delete(unit.name);
+      done.add(unit.name);
+      ordered.push(unit);
+    };
+
+    for (const unit of units) visit(unit);
+    return ordered;
   }
 
   /**

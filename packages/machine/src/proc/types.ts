@@ -58,6 +58,23 @@ export interface Unit {
   execStart: string;
   /** `Restart=` — parsed and reported, not yet acted on. */
   restart: string;
+  /**
+   * `Requires=` — units that must be active before this one may start.
+   *
+   * A hard dependency: starting this unit while one of these is not active is
+   * refused, and the refusal names the unit that was missing.
+   */
+  requires: string[];
+  /**
+   * `After=` — ordering only, which is the part people get wrong.
+   *
+   * It says nothing about whether the other unit must be running. It only
+   * decides who goes first at boot. `After=db.service` on its own will not
+   * stop a unit starting while the database is down, and a player who expects
+   * it to needs `Requires=` as well. Modelling it any other way would teach
+   * the confusion rather than cure it.
+   */
+  after: string[];
   wantedBy: string;
   /** Where the unit file was read from, so errors can name it. */
   path: string;

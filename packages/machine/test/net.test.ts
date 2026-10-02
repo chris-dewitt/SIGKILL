@@ -222,15 +222,59 @@ describe('curl', () => {
     expect((await c.local.exec('curl http://gateway/motd')).stdout).toBe('all hands lost\n');
   });
 
-  it('404s a path that is not there', async () => {
+  /*
+   * An HTTP error is a successful transfer, and curl says so.
+   *
+   * This is the classic way a health check passes while the service is
+   * answering 500 to everybody, so the simulation has to get it right or it
+   * teaches the habit backwards.
+   */
+  it('hands back a 404 body and still exits 0, because the fetch worked', async () => {
     const r = await c.local.exec('curl http://gateway/missing');
     expect(r.stdout).toContain('404 Not Found');
+    expect(r.code).toBe(0);
+  });
+
+  it('-f is how you ask for the other behaviour, and it drops the body', async () => {
+    const r = await c.local.exec('curl -f http://gateway/missing');
     expect(r.code).toBe(22);
+    // The error page must not reach the pipe or the file: that is the whole
+    // reason -f exists.
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('The requested URL returned error: 404');
+  });
+
+  it('-s silences the message without changing the verdict', async () => {
+    const r = await c.local.exec('curl -sf http://gateway/missing');
+    expect(r.code).toBe(22);
+    expect(r.stderr).toBe('');
+  });
+
+  it('-o writes the body to a file instead of stdout', async () => {
+    const r = await c.local.exec('curl -o /home/dewitt/status.json http://gateway/status.json');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe('');
+    expect(c.local.vfs.readText('/home/dewitt/status.json', ROOT_USER)).toContain('reactor');
   });
 
   it('refuses a closed port and an unresolvable host', async () => {
     expect((await c.local.exec('curl http://node01/')).code).toBe(7);
     expect((await c.local.exec('curl http://nowhere/')).code).toBe(6);
+  });
+
+  /*
+   * Three failures a player has to tell apart before they can fix anything:
+   * the name is wrong, the host is gone, the service is gone. Reporting the
+   * middle one as DNS sends them to look in the wrong place.
+   */
+  it('distinguishes a host that is down from one that does not exist', async () => {
+    const down = await c.local.exec('curl http://node02/');
+    expect(down.code).toBe(7);
+    expect(down.stderr).toContain('No route to host');
+
+    const missing = await c.local.exec('curl http://nowhere/');
+    expect(missing.code).toBe(6);
+    expect(missing.stderr).toContain('Could not resolve host');
   });
 
   it('shows headers with -I', async () => {
@@ -259,6 +303,19 @@ describe('nc', () => {
     const r = await c.local.exec('nc -zv node01 80');
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('Connection refused');
+  });
+
+  it('separates a host that is down from a name that does not exist', async () => {
+    // `nc` is the tool somebody reaches for *because* ssh or curl failed and
+    // they want to know whether anything is answering. It has to be the one
+    // that tells the truth about which.
+    const down = await c.local.exec('nc -zv node02 22');
+    expect(down.code).toBe(1);
+    expect(down.stderr).toContain('No route to host');
+
+    const missing = await c.local.exec('nc -zv nowhere 22');
+    expect(missing.code).toBe(1);
+    expect(missing.stderr).toContain('Name or service not known');
   });
 });
 
