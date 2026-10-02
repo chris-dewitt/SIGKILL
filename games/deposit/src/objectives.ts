@@ -424,4 +424,328 @@ const whyItWillNotStart: Objective = {
   ],
 };
 
-export const DEPOSIT_OBJECTIVES: Objective[] = [theFloor, theCheckThatLied, whyItWillNotStart];
+/**
+ * 4. Make the check tell the truth.
+ *
+ * Fixing the index fixes today. The check that failed to notice is still the
+ * check, and a floor where the same thing can happen again silently has not
+ * really been repaired. `-f` is the one-character answer, and the goal takes
+ * it wherever the player puts it -- editing Pell's script in place or writing
+ * their own is the same repair.
+ */
+const shipIt: Objective = {
+  id: 'ship-it',
+  title: 'Fix the health check so it would have caught this',
+  teaches: ['sed', 'curl', 'shell redirection'],
+  requires: ['why-it-will-not-start'],
+  done: (w) => {
+    let pells = '';
+    try {
+      pells = w.vfs.readText('/opt/deposit/check.sh', ROOT_USER);
+    } catch {
+      // Deleted, which is a legitimate thing to have done if the player wrote
+      // their own.
+    }
+    const text = `${pells}\n${written(w)}`;
+    // curl, told to treat an HTTP error as a failure, aimed at the index.
+    return /curl[^\n]*(\s-[A-Za-z]*f\b|--fail)/.test(text) && /index01/.test(text);
+  },
+  routes: [
+    {
+      name: "edit Pell's script where it stands",
+      commands: ["sudo sed -i 's|curl http://index01|curl -f http://index01|' /opt/deposit/check.sh"],
+    },
+    {
+      name: 'write your own and leave his alone',
+      commands: [
+        'echo "#!/bin/sh" > ~/work/check.sh',
+        'echo "curl -f http://index01/health" >> ~/work/check.sh',
+        'chmod 755 ~/work/check.sh',
+      ],
+    },
+    {
+      name: 'copy it, fix the copy',
+      commands: [
+        'cp /opt/deposit/check.sh ~/work/check.sh',
+        "sed -i 's|curl http://index01|curl --fail http://index01|' ~/work/check.sh",
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'making it louder without making it right',
+      because:
+        'Printing more does not change what curl reports. The check would still ' +
+        'pass on a 500, which is the entire failure.',
+      commands: ['echo "echo checking index01" >> ~/work/check.sh'],
+    },
+    {
+      name: 'checking that the service is running',
+      because:
+        'The index was running the whole month. `systemctl status` would have said ' +
+        'active every morning, which is exactly what nobody should have trusted.',
+      commands: ["echo \"ssh index01 'systemctl status index'\" > ~/work/check.sh"],
+    },
+    {
+      name: 'curl with no flags at all, written out fresh',
+      because:
+        'Identical to the check that has been green for a month. An HTTP error is ' +
+        'still a successful transfer.',
+      commands: ['echo "curl http://index01/health" > ~/work/check.sh'],
+    },
+  ],
+  steps: [
+    {
+      id: 'make-it-fail',
+      label: 'make the check fail on a 500',
+      pending: (w) => {
+        let pells = '';
+        try {
+          pells = w.vfs.readText('/opt/deposit/check.sh', ROOT_USER);
+        } catch {
+          /* fine */
+        }
+        return !/curl[^\n]*(\s-[A-Za-z]*f\b|--fail)/.test(`${pells}\n${written(w)}`);
+      },
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'The index is fixed. The check that missed it for a month is not.',
+            'It can be made to notice with one flag.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'curl has a flag for "an HTTP error is a failure". Read: man curl.',
+            "Pell's script is root-owned, so editing it in place needs sudo.",
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Either fix his, or keep your own. This fixes his:'],
+          command: "sudo sed -i 's|curl http://index01|curl -f http://index01|' /opt/deposit/check.sh",
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * 5. Not a DNS problem.
+ *
+ * `mirror.sh` has been failing every night for however long, and the name in
+ * it -- `vault02` -- appears nowhere else on the floor. A player meets it
+ * inside a failure rather than on a list, which is how you meet most hosts.
+ *
+ * Three things it could be, and only one of them is true: the name is wrong,
+ * the host is off, or the service is gone. All three tools say the same thing
+ * about this one, and they say *powered off*. Getting that distinction right
+ * is the difference between an hour spent on the resolver and thirty seconds
+ * spent on a power supply.
+ */
+const notADnsProblem: Objective = {
+  id: 'not-a-dns-problem',
+  title: "Find out why Pell's mirror has been failing, and what kind of failure it is",
+  teaches: ['ssh', 'nc', 'ping'],
+  requires: ['why-it-will-not-start'],
+  done: (w) => {
+    const text = written(w);
+    // The host, and the right one of the three answers. A finding that says
+    // the name is unknown is wrong and must not count.
+    return /vault02/i.test(text) && /no route|powered|is off|is down|unreachable/i.test(text);
+  },
+  routes: [
+    {
+      name: 'run the thing that has been failing',
+      commands: [
+        "ssh relay01 '/usr/local/bin/mirror.sh' 2> ~/work/mirror.txt",
+        'echo "vault02 is powered off - the name resolves, there is no route" >> ~/work/mirror.txt',
+      ],
+    },
+    {
+      name: 'ask each tool in turn',
+      commands: [
+        'ping -c 1 vault02 > ~/work/mirror.txt',
+        'nc -z vault02 22 2>> ~/work/mirror.txt',
+        'echo "vault02: no route to host. It is off, not missing." >> ~/work/mirror.txt',
+      ],
+    },
+    {
+      name: 'ssh, and keep what it said',
+      commands: [
+        "ssh vault02 'echo hi' 2> ~/work/mirror.txt",
+        'echo "no route to host: vault02 is down" >> ~/work/mirror.txt',
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'calling it a name that does not exist',
+      because:
+        'It does exist and it resolves. Every tool says "no route to host", which ' +
+        'is a different failure from "could not resolve" and sends you somewhere ' +
+        'different.',
+      commands: ['echo "mirror fails: vault02 is an unknown host, bad DNS" > ~/work/mirror.txt'],
+    },
+    {
+      name: 'copying the script that fails',
+      because:
+        'The script is the symptom. Recording it records that something is wrong, ' +
+        'not which of the three things it is.',
+      commands: ["ssh relay01 'cat /usr/local/bin/mirror.sh' > ~/work/mirror.txt"],
+    },
+    {
+      name: 'a host that really is missing',
+      because:
+        'vault03 does not exist, and the error says so in different words. That is ' +
+        'the contrast, not the finding.',
+      commands: ["ssh vault03 'echo hi' 2> ~/work/mirror.txt"],
+    },
+  ],
+  steps: [
+    {
+      id: 'find-the-name',
+      label: 'find what the mirror is trying to reach',
+      pending: (w) => !/vault02/i.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: ['There is a fifth name on this floor and it is not in the handover.'],
+        },
+        {
+          tier: 'direction',
+          lines: ['relay01 has a script in /usr/local/bin that Pell wrote and stopped watching.'],
+        },
+        {
+          tier: 'command',
+          lines: ['Run it and keep what it says:'],
+          command: "ssh relay01 '/usr/local/bin/mirror.sh' 2> ~/work/mirror.txt",
+        },
+      ],
+    },
+    {
+      id: 'which-failure',
+      label: 'say which of the three it is',
+      pending: (w) => !/no route|powered|is off|is down|unreachable/i.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'A name that is wrong, a host that is off, and a service that is gone',
+            'are three different problems. They do not read the same.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            '"Could not resolve" means the name. "No route to host" means the',
+            'machine. "Connection refused" means the machine is there and the',
+            'service is not. Compare vault02 with a name you invent.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Write down which one it is:'],
+          command:
+            'echo "vault02 is powered off - the name resolves, there is no route" >> ~/work/mirror.txt',
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * 6. After the reboot.
+ *
+ * Starting the catalogue fixed today. Nothing has fixed tomorrow: it was never
+ * enabled, which is why a datastore that died on the first was still dead on
+ * the fourteenth. `enable` is a symlink in multi-user.target.wants, so the
+ * repair is visible to `ls` and survives a snapshot -- and `After=`, already
+ * in the unit file, is what stops the index losing the race at the next boot.
+ */
+const afterTheReboot: Objective = {
+  id: 'after-the-reboot',
+  title: 'Make sure the catalogue comes back by itself',
+  teaches: ['systemctl', 'ln', 'ls'],
+  requires: ['why-it-will-not-start'],
+  done: (w) =>
+    host(w, 'index01')?.services.isEnabled('catalogue') === true &&
+    host(w, 'index01')?.services.isEnabled('index') === true,
+  routes: [
+    {
+      name: 'enable it',
+      commands: ["ssh index01 'sudo systemctl enable catalogue'"],
+    },
+    {
+      name: 'from inside the host',
+      commands: ['ssh index01', 'sudo systemctl enable catalogue', 'exit'],
+    },
+    {
+      name: 'the symlink by hand, because that is all enable is',
+      commands: [
+        "ssh index01 'sudo ln -s /etc/systemd/system/catalogue.service " +
+          "/etc/systemd/system/multi-user.target.wants/catalogue.service'",
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'starting it again',
+      because:
+        'It is already running. Starting a running unit changes nothing about what ' +
+        'happens at the next boot, which is the only thing this objective is about.',
+      commands: ["ssh index01 'sudo systemctl start catalogue'"],
+    },
+    {
+      name: 'enabling the one that was never the problem',
+      because: 'The index has been enabled all along. The catalogue is the one nobody enabled.',
+      commands: ["ssh index01 'sudo systemctl enable index'"],
+    },
+    {
+      name: 'enabling it on the wrong host',
+      because:
+        'There is no catalogue on vault01. systemctl says so, and the index is still ' +
+        'one power cut from being down for another month.',
+      commands: ["ssh vault01 'sudo systemctl enable catalogue'"],
+    },
+  ],
+  steps: [
+    {
+      id: 'enable-it',
+      label: 'make it start at boot',
+      pending: (w) => host(w, 'index01')?.services.isEnabled('catalogue') !== true,
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'It is running because you started it. Ask what happens the next time',
+            'that machine is power-cycled.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'Running and enabled are two different states. systemctl list-units',
+            'shows both, and enabling is a symlink you can see with ls.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['So it comes back by itself:'],
+          command: "ssh index01 'sudo systemctl enable catalogue'",
+        },
+      ],
+    },
+  ],
+};
+
+export const DEPOSIT_OBJECTIVES: Objective[] = [
+  theFloor,
+  theCheckThatLied,
+  whyItWillNotStart,
+  shipIt,
+  notADnsProblem,
+  afterTheReboot,
+];

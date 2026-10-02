@@ -90,14 +90,8 @@ export function bootDeposit(opts: DepositOptions = {}): Deposit {
   );
 
   for (const host of HOSTS) {
-    const machine =
-      host.hostname === 'bastion'
-        ? floor.bastion
-        : host.hostname === 'vault01'
-          ? floor.vault
-          : host.hostname === 'index01'
-            ? floor.index
-            : floor.relay;
+    const machine = floor.machines.get(host.hostname);
+    if (!machine) throw new Error(`The Deposit: no machine seeded for ${host.hostname}.`);
     const http = handlerFor(host.hostname);
     network.add({
       hostname: host.hostname,
@@ -105,6 +99,10 @@ export function bootDeposit(opts: DepositOptions = {}): Deposit {
       machine,
       ports: { ...host.ports },
       accounts: { ...host.accounts },
+      // A host with `up: false` is powered off, which is a different failure
+      // from a name that does not resolve -- and telling those apart is an
+      // objective.
+      up: 'up' in host ? host.up : true,
       ...(http ? { http } : {}),
     });
   }

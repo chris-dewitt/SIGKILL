@@ -29,10 +29,9 @@ export const PEOPLE = { root: 0, dewitt: 1000, tribunal: 1200 } as const;
 export interface Floor {
   network: Network;
   session: Session;
+  /** By hostname, including the one that is powered off. */
+  machines: Map<string, Machine>;
   bastion: Machine;
-  vault: Machine;
-  index: Machine;
-  relay: Machine;
 }
 
 const lines = (...rows: readonly string[]): string => `${rows.join('\n')}\n`;
@@ -199,7 +198,15 @@ function seedIndex(m: Machine): void {
     '[Install]',
     'WantedBy=multi-user.target',
   ]);
-  m.services.enable('catalogue');
+  /*
+   * `index` is enabled. `catalogue` never was.
+   *
+   * That is the whole reason a datastore that died on the first of July was
+   * still dead on the fourteenth: nothing was going to bring it back, and the
+   * only person who might have noticed was reading a green check. Starting it
+   * by hand fixes today; `systemctl enable` is what fixes tomorrow, and those
+   * are two different objectives on purpose.
+   */
   m.services.enable('index');
 
   /*
@@ -242,6 +249,26 @@ export function indexHandler(path: string, host: NetHost): { status: number; bod
 
 function seedRelay(m: Machine): void {
   accounts(m);
+  m.vfs.mkdirp('/usr/local/bin', ROOT_USER);
+  /*
+   * The mirror sync, which stopped working at some point nobody recorded.
+   *
+   * `vault02` is a real host on a real address that is powered off. It is in
+   * this script and nowhere else, so the player meets it as a name in a
+   * failure rather than as an item on a list -- and then has to work out which
+   * of the three things went wrong, which is the objective.
+   */
+  m.vfs.writeText(
+    '/usr/local/bin/mirror.sh',
+    lines(
+      '#!/bin/sh',
+      '# Nightly mirror to the second vault. -- T. Pell',
+      'scp /etc/relay/relay.conf vault02:/etc/relay/relay.conf',
+      'curl http://vault02/health',
+    ),
+    ROOT_USER,
+  );
+  m.vfs.chmod('/usr/local/bin/mirror.sh', 0o755, ROOT_USER);
   m.vfs.mkdirp('/srv/http', ROOT_USER);
   m.vfs.writeText('/srv/http/health', lines('ok'), ROOT_USER);
   m.vfs.mkdirp('/etc/relay', ROOT_USER);
@@ -387,24 +414,29 @@ export interface FloorOptions {
  * `ssh` a hop rather than a simulation of one.
  */
 export function seedFloor(make: (hostname: string) => Machine): Floor {
-  const bastion = make('bastion');
-  const vault = make('vault01');
-  const index = make('index01');
-  const relay = make('relay01');
+  const machines = new Map<string, Machine>();
+  for (const host of HOSTS) machines.set(host.hostname, make(host.hostname));
 
+  const bastion = machines.get('bastion')!;
   seedBastion(bastion);
-  seedVault(vault);
-  seedIndex(index);
-  seedRelay(relay);
+  seedVault(machines.get('vault01')!);
+  seedIndex(machines.get('index01')!);
+  seedRelay(machines.get('relay01')!);
+  /*
+   * vault02 gets accounts and nothing else. It is powered off, and a host that
+   * is off is not a host that is empty -- but nothing the player can reach
+   * will ever see the difference, so seeding it further would be writing
+   * fiction nobody can read.
+   */
+  accounts(machines.get('vault02')!);
+
   ownWorkspace(bastion.vfs, PEOPLE.dewitt, PEOPLE.dewitt);
 
   return {
     network: bastion.network!,
     session: bastion.session,
+    machines,
     bastion,
-    vault,
-    index,
-    relay,
   };
 }
 
@@ -433,6 +465,14 @@ export const HOSTS = [
       dewitt: { uid: PEOPLE.dewitt, gid: PEOPLE.dewitt },
       root: { uid: 0, gid: 0 },
     },
+  },
+  {
+    hostname: 'vault02',
+    ip: '10.2.0.11',
+    ports: { 22: 'SSH-2.0-OpenSSH_9.6' },
+    accounts: { dewitt: { uid: PEOPLE.dewitt, gid: PEOPLE.dewitt } },
+    /** Powered off. Not missing, not misconfigured -- off. */
+    up: false,
   },
   {
     hostname: 'relay01',
