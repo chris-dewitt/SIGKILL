@@ -142,6 +142,39 @@ describe('probe: what a save keeps when the work was done somewhere else', () =>
     expect(back.machines.get('bastion')!.active.shell.hostname).toBe('bastion');
   });
 
+  /*
+   * A goal in a fleet adventure has to be able to ask about a host that is not
+   * the one the player is standing on. `Machine.network` is how, and a
+   * `ShellContext` already carried it, so a context satisfies the same shape
+   * without anything that builds one changing.
+   */
+  it('lets a goal reach a host the player is not standing on', async () => {
+    const f = fleet();
+    f.vault.vfs.mkdirp('/etc/systemd/system', ROOT_USER);
+    f.vault.vfs.writeText(
+      '/etc/systemd/system/store.service',
+      '[Unit]\nDescription=Deposit store\n\n[Service]\nExecStart=/usr/bin/store\n',
+      ROOT_USER,
+    );
+
+    // Standing on the bastion, asking about vault01 -- which is every goal in
+    // game six.
+    const far = f.local.network?.resolve('vault01')?.machine;
+    expect(far?.services.get('store')?.state).not.toBe('active');
+
+    await f.local.exec("ssh root@vault01 'systemctl start store'");
+    expect(f.local.network?.resolve('vault01')?.machine.services.get('store')?.state).toBe(
+      'active',
+    );
+
+    // And it survives the save, which is the whole of the previous fix.
+    const back = restoreFleet(snapshotFleet(f.net, f.session), () => ({}));
+    const bastion = back.machines.get('bastion')!;
+    expect(bastion.network?.resolve('vault01')?.machine.services.get('store')?.state).toBe(
+      'active',
+    );
+  });
+
   it('lets the caller put back what a snapshot cannot carry', async () => {
     const f = fleet();
     const back = restoreFleet(snapshotFleet(f.net, f.session), (hostname) => ({

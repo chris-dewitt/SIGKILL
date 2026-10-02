@@ -86,6 +86,15 @@ export class Machine {
   readonly shell: ShellContext;
   readonly epoch: number;
   readonly session: Session;
+  /**
+   * The network this machine is on, if any.
+   *
+   * Exposed because a goal has to be able to ask about a host that is not this
+   * one. An adventure spread over a fleet writes objectives like "the index is
+   * active on index01", and until this existed the only state a goal could
+   * reach was the machine the player happened to be standing on.
+   */
+  readonly network: Network | undefined;
   /** Swappable at runtime so the app can lazy-load the interpreter. */
   python: PythonRuntime | undefined;
   /** Swappable at runtime so the app can lazy-load the engine. */
@@ -101,6 +110,7 @@ export class Machine {
     const now = (): number => this.clock;
     this.epoch = opts.epoch ?? Date.UTC(2387, 2, 14);
     this.session = opts.session ?? { stack: [] };
+    this.network = opts.network;
     this.python = opts.python;
     this.sql = opts.sql;
 
