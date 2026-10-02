@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Machine } from '../src/machine.js';
+import { restoreFleet, snapshotFleet } from '../src/net/fleet.js';
 import { Network, type Session } from '../src/net/network.js';
 import { ROOT_USER } from '../src/vfs/vfs.js';
 
@@ -8,19 +9,20 @@ import { ROOT_USER } from '../src/vfs/vfs.js';
  *
  * The first two probed *commands* -- can the player reach another host, can
  * they operate a service on it. Both said yes. What neither asked is whether
- * any of it survives a reload, and the answer is no, because every adventure
- * so far has been one machine and `MachineSnapshot` is the snapshot of one
- * machine: vfs, procs, services, journal, jobs, cwd, env, clock, epoch. There
- * is no network in it and no second host.
+ * any of it survives a reload, and it did not, because every adventure so far
+ * has been one machine and `MachineSnapshot` is the snapshot of one machine:
+ * vfs, procs, services, journal, jobs, cwd, env, clock, epoch. No network, no
+ * second host, and no record of where the player was standing.
  *
  * For an adventure whose entire progress lives on hosts that are not the one
- * the player is sitting at, that is not a detail. A player who diagnoses the
- * index, rolls back the config, restarts the service and then closes the app
- * comes back to a fleet that never had anything done to it -- while the
- * questbook, which is saved separately, still says the objectives are met.
+ * the player sits at, that is not a detail. A player who diagnoses the index,
+ * rolls back the config, restarts the service and closes the app would come
+ * back to a fleet nothing had been done to -- while the questbook, saved
+ * separately, went on reporting the objectives as met.
  *
- * This file exists to pin that down before a line of the game is written, and
- * to fail once it is fixed.
+ * `snapshotFleet` and `restoreFleet` close it. The tests below are the ones
+ * that recorded the gap, inverted: each now asserts the thing that was lost
+ * comes back.
  */
 
 interface Fleet {
@@ -68,55 +70,94 @@ describe('probe: what a save keeps when the work was done somewhere else', () =>
     expect(back.vfs.readText('/home/dewitt/note.txt', ROOT_USER)).toContain('kept');
   });
 
-  /*
-   * The finding.
-   *
-   * Everything the player changed on the far side of the link is in that
-   * machine's own Vfs, and the local machine's snapshot has never heard of it.
-   */
-  it('loses everything done on another host', async () => {
+  /* The local machine's own snapshot still cannot see the rest of the fleet. */
+  it('is still true that one machine cannot speak for the others', async () => {
     const f = fleet();
+    await f.local.exec("ssh root@vault01 'sed -i s/workers=4/workers=8/ /etc/app/config'");
+    expect(JSON.stringify(f.local.snapshot()).includes('workers=8')).toBe(false);
+  });
 
-    // A rollback, which in an operations game is a whole objective.
+  it('keeps a change made on another host', async () => {
+    const f = fleet();
     const edit = await f.local.exec(
       "ssh root@vault01 'sed -i s/workers=4/workers=8/ /etc/app/config'",
     );
     expect(edit.code).toBe(0);
-    expect(f.vault.vfs.readText('/etc/app/config', ROOT_USER)).toContain('workers=8');
 
-    // Save the machine the player is sitting at -- which is what the terminal
-    // saves, because it is the only machine the adventure hands it.
-    const snap = f.local.snapshot();
-
-    expect(
-      JSON.stringify(snap).includes('workers=8'),
-      'the fleet is in the snapshot now -- this probe is out of date',
-    ).toBe(false);
+    const back = restoreFleet(snapshotFleet(f.net, f.session), () => ({}));
+    const vault = back.machines.get('vault01')!;
+    expect(vault.vfs.readText('/etc/app/config', ROOT_USER)).toContain('workers=8');
   });
 
-  it('has no way to express a second machine at all', () => {
+  it('keeps a service started on another host, and its journal', async () => {
     const f = fleet();
-    const snap = f.local.snapshot();
-
-    // Not a complaint about the shape: `MachineSnapshot` is a correct snapshot
-    // of one machine. The gap is that nothing above it carries a fleet.
-    expect(Object.keys(snap).sort()).toEqual(
-      ['clock', 'cwd', 'env', 'epoch', 'jobs', 'proc', 'status', 'version', 'vfs'].sort(),
+    f.vault.vfs.mkdirp('/etc/systemd/system', ROOT_USER);
+    f.vault.vfs.writeText(
+      '/etc/systemd/system/store.service',
+      '[Unit]\nDescription=Deposit store\n\n[Service]\nExecStart=/usr/bin/store\n',
+      ROOT_USER,
     );
+    f.vault.services.start('store');
+
+    const back = restoreFleet(snapshotFleet(f.net, f.session), () => ({}));
+    const vault = back.machines.get('vault01')!;
+    expect(vault.services.get('store')?.state).toBe('active');
+    // The journal is the evidence objective nine is written from, so it has to
+    // cross a reload with the rest.
+    expect(vault.services.logs('store').length).toBeGreaterThan(0);
   });
 
-  /*
-   * And the session stack goes too, which is the sharper edge of the same
-   * problem: a player who saves while `ssh`-ed into a host comes back sitting
-   * somewhere else, with a prompt that has silently changed under them.
-   */
-  it('loses where the player was standing', async () => {
+  it('keeps the shape of the network, including a host that is down', async () => {
+    const f = fleet();
+    f.net.setUp('vault01', false);
+
+    const back = restoreFleet(snapshotFleet(f.net, f.session), () => ({}));
+    const host = back.network.resolve('vault01')!;
+    expect(host.up).toBe(false);
+    expect(host.ip).toBe('10.0.1.10');
+    expect(host.ports.get(22)).toContain('OpenSSH');
+    expect(host.accounts.get('dewitt')?.uid).toBe(1000);
+  });
+
+  it('puts the player back where they were standing', async () => {
     const f = fleet();
     await f.local.exec('ssh vault01');
-    expect(f.session.stack.length).toBe(1);
     expect(f.local.active.shell.hostname).toBe('vault01');
 
-    const snap = f.local.snapshot();
-    expect(JSON.stringify(snap).includes('vault01')).toBe(false);
+    const back = restoreFleet(snapshotFleet(f.net, f.session), () => ({}));
+    expect(back.session.stack.length).toBe(1);
+    expect(back.machines.get('bastion')!.active.shell.hostname).toBe('vault01');
+  });
+
+  it('lands at the bastion if a saved host no longer exists', async () => {
+    const f = fleet();
+    await f.local.exec('ssh vault01');
+    const snap = snapshotFleet(f.net, f.session);
+
+    // The adventure dropped a host between versions. Better to stand somewhere
+    // real than to restore a hole.
+    snap.hosts = snap.hosts.filter((h) => h.hostname !== 'vault01');
+    const back = restoreFleet(snap, () => ({}));
+    expect(back.session.stack).toHaveLength(0);
+    expect(back.machines.get('bastion')!.active.shell.hostname).toBe('bastion');
+  });
+
+  it('lets the caller put back what a snapshot cannot carry', async () => {
+    const f = fleet();
+    const back = restoreFleet(snapshotFleet(f.net, f.session), (hostname) => ({
+      options:
+        hostname === 'bastion'
+          ? {
+              commands: [
+                { name: 'whereami', summary: 'say so', run: (_c, _a, io) => (io.out('bastion\n'), 0) },
+              ],
+            }
+          : {},
+    }));
+
+    const r = await back.machines.get('bastion')!.exec('whereami');
+    expect(r.stdout).toContain('bastion');
+    // And not on the others, because the adventure said so.
+    expect((await back.machines.get('vault01')!.exec('whereami')).code).toBe(127);
   });
 });
