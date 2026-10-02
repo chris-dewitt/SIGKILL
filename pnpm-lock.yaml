@@ -41,6 +41,9 @@ importers:
       '@sigkill/crt':
         specifier: workspace:*
         version: link:../../packages/crt
+      '@sigkill/deposit':
+        specifier: workspace:*
+        version: link:../../games/deposit
       '@sigkill/editor':
         specifier: workspace:*
         version: link:../../packages/editor

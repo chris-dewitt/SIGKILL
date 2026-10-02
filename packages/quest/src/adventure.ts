@@ -1,4 +1,10 @@
-import type { Machine, MachineSnapshot, PythonRuntime, SqlRuntime } from '@sigkill/machine';
+import type {
+  FleetSnapshot,
+  Machine,
+  MachineSnapshot,
+  PythonRuntime,
+  SqlRuntime,
+} from '@sigkill/machine';
 import type { Questbook, QuestSnapshot } from './book.js';
 import type { BeatLine } from './types.js';
 
@@ -48,12 +54,45 @@ export interface AdventureSession {
    * design: LUNA is in game three and cannot react per turn there yet.
    */
   afterCommand?(): BeatLine[];
+  /**
+   * Save the world, when one machine is not the world.
+   *
+   * The host used to call `machine.snapshot()` itself, which was right for as
+   * long as every adventure was one machine. Game six is four hosts, and a
+   * save holding only the one the player is typing at loses every service they
+   * restarted and every file they edited on the other three -- while the
+   * questbook, saved separately, goes on reporting those objectives as met.
+   * That is the worst thing a save can do: lie to somebody about their own
+   * progress.
+   *
+   * Optional, so the five single-machine adventures need no change and keep
+   * their existing saves. The host falls back to the snapshot it has always
+   * taken.
+   */
+  snapshot?(): AdventureSnapshot;
 }
 
 /** Everything needed to bring a run back. */
 export interface AdventureSnapshot {
+  /**
+   * The machine the player types at.
+   *
+   * Required, because every save already written contains one and the reader
+   * that rejects a save without it is in browsers now. For a fleet adventure
+   * it is the host the player sits at, and `fleet` below is what actually
+   * restores the run.
+   */
   readonly machine: MachineSnapshot;
   readonly quest: QuestSnapshot;
+  /**
+   * The rest of the floor, for an adventure that is more than one machine.
+   *
+   * Absent for adventures one to five, each of which is a single machine and
+   * for which `machine` is the whole world. Present for game six, where it is
+   * authoritative and contains the bastion as well -- so a restore prefers it
+   * and ignores `machine` entirely.
+   */
+  readonly fleet?: FleetSnapshot;
 }
 
 /**

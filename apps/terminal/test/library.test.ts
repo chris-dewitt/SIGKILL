@@ -15,9 +15,9 @@ const none = new Set<string>();
 const both = { python: {} as never, sql: {} as never };
 
 describe('the library', () => {
-  it('holds the five games that exist, in series order', () => {
-    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'containment']);
-    expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4, 5]);
+  it('holds the six games that exist, in series order', () => {
+    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'containment', 'deposit']);
+    expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('gives every adventure an id that a save key can be built from', () => {
@@ -45,13 +45,14 @@ describe('the library', () => {
 });
 
 describe('what this host can offer', () => {
-  it('offers all five when both interpreters are present', () => {
+  it('offers all six when both interpreters are present', () => {
     expect(offered(both).map((row) => row.adventure.id)).toEqual([
       'wreck',
       'archive',
       'harness',
       'fork',
       'containment',
+      'deposit',
     ]);
   });
 
@@ -67,9 +68,15 @@ describe('what this host can offer', () => {
       'harness',
       'fork',
       'containment',
+      'deposit',
     ]);
-    expect(offered({ sql: {} as never }).map((r) => r.adventure.id)).toEqual(['wreck', 'archive']);
-    expect(offered({}).map((r) => r.adventure.id)).toEqual(['wreck']);
+    expect(offered({ sql: {} as never }).map((r) => r.adventure.id)).toEqual([
+      'wreck',
+      'archive',
+      'deposit',
+    ]);
+    // Games one and six need no interpreter at all, which is the floor.
+    expect(offered({}).map((r) => r.adventure.id)).toEqual(['wreck', 'deposit']);
   });
 });
 
@@ -81,7 +88,8 @@ describe('what the chooser says', () => {
     expect(lines.join('\n')).toContain('3. The Harness');
     expect(lines.join('\n')).toContain('4. The Fork');
     expect(lines.join('\n')).toContain('5. The Containment');
-    expect(lines.at(-2)).toBe('  Type 1-5 to begin.');
+    expect(lines.join('\n')).toContain('6. The Deposit');
+    expect(lines.at(-2)).toBe('  Type 1-6 to begin.');
   });
 
   it('marks the runs already in progress, which is the useful part', () => {
@@ -91,7 +99,7 @@ describe('what the chooser says', () => {
   });
 
   it('does not say 1-1 when only one game can run', () => {
-    expect(chooserLines(offered({}), none).at(-2)).toBe('  Type 1 to begin.');
+    expect(chooserLines(offered(both).slice(0, 1), none).at(-2)).toBe('  Type 1 to begin.');
   });
 
   it('fits a narrow phone', () => {
@@ -122,7 +130,7 @@ describe('reading the answer', () => {
   });
 
   it('refuses everything else rather than guessing', () => {
-    for (const answer of ['', '0', '6', '-1', '2x', 'cluster', 'yes']) {
+    for (const answer of ['', '0', '7', '-1', '2x', 'cluster', 'yes']) {
       expect(chosen(list, answer), answer).toBeUndefined();
     }
   });

@@ -1,4 +1,4 @@
-import type { MachineSnapshot } from '@sigkill/machine';
+import type { FleetSnapshot, MachineSnapshot } from '@sigkill/machine';
 import type { QuestSnapshot } from '@sigkill/quest';
 
 /**
@@ -40,6 +40,14 @@ export interface AdventureSave {
   version: 1;
   machine: MachineSnapshot;
   quest: QuestSnapshot;
+  /**
+   * The other hosts, for an adventure that is a floor rather than a machine.
+   *
+   * Optional and ignored by the five single-machine games, so a save written
+   * by this build still opens in one that predates it -- and a save written
+   * before this field existed still opens here.
+   */
+  fleet?: FleetSnapshot;
   actEnded: boolean;
   history: string[];
   lastTurn?: LastTurn;

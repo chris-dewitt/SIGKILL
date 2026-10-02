@@ -81,7 +81,7 @@ async function openRun(): Promise<{ session: AdventureSession; stale: boolean }>
     try {
       return {
         session: await current.adventure.restore(
-          { machine: saved.machine, quest: saved.quest },
+          { machine: saved.machine, quest: saved.quest, fleet: saved.fleet },
           runtimes,
         ),
         stale: false,
@@ -937,10 +937,23 @@ let actEnded = saved?.actEnded ?? false;
 function persist(): void {
   if (wiping) return;
   try {
-    writeSave(current.adventure.id, {
-      version: 1,
+    /*
+     * The adventure saves itself when it is more than one machine.
+     *
+     * Five games are a single machine and `machine.snapshot()` is the whole
+     * world; game six is four hosts, and a save with only the bastion in it
+     * would quietly undo everything the player fixed on the other three. The
+     * fallback is the snapshot this has always taken.
+     */
+    const world = session.snapshot?.() ?? {
       machine: machine.snapshot(),
       quest: questbook.snapshot(),
+    };
+    writeSave(current.adventure.id, {
+      version: 1,
+      machine: world.machine,
+      quest: world.quest,
+      ...(world.fleet ? { fleet: world.fleet } : {}),
       actEnded,
       history,
     });

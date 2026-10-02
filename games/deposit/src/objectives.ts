@@ -1,8 +1,22 @@
 import { ROOT_USER, type Machine } from '@sigkill/machine';
-import type { Objective, World } from '@sigkill/quest';
-import { WORK } from './act1/floor.js';
+import { asArt, type BeatLine, type Objective, type World } from '@sigkill/quest';
+import { HIS_MATTER, WORK } from './act1/floor.js';
+import { ACCESS_LOG } from './store.js';
 
 export const DEPOSIT_TITLE = 'The Deposit';
+
+/**
+ * The act, as three rows.
+ *
+ * Not a logo. The gap between a service being up and a service being right is
+ * the whole of this game, and it fits on a phone with eight columns spare.
+ */
+export const DEPOSIT_ART: BeatLine[] = asArt([
+  '  systemctl says   index active',
+  '  curl says        200 OK',
+  '  the index says   500 catalogue',
+  '                       unavailable',
+]);
 
 /**
  * The host a goal is asking about.
@@ -47,6 +61,30 @@ export function written(w: World): string {
 
 const serviceState = (w: World, hostname: string, unit: string): string | undefined =>
   host(w, hostname)?.services.get(unit)?.state;
+
+/**
+ * The store's access record, as it stands on the machine that keeps it.
+ *
+ * Read from vault01 rather than from anything the player wrote, which is the
+ * entire point of it: a record is only evidence while it is still the
+ * original. An objective that accepted a copy would accept a copy that had
+ * been edited, and `clean-hands` is precisely the objective where that
+ * distinction is the lesson.
+ *
+ * Missing reads as empty, and the goal that uses it requires the record to
+ * still say what it said -- so deleting the log fails the objective instead of
+ * passing it.
+ */
+const accessRecord = (w: World): string => {
+  try {
+    return host(w, 'vault01')?.vfs.readText(ACCESS_LOG, ROOT_USER) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+/** A line of the access record: who read which matter. */
+const readBy = (who: string): RegExp => new RegExp(`\\b${who}\\s+${HIS_MATTER}/`);
 
 // ---------------------------------------------------------------------------
 
@@ -155,13 +193,18 @@ const theFloor: Objective = {
         },
       ],
     },
+    /*
+     * One step per host, rather than one step for "the other two".
+     *
+     * The ladder used to end at index01 while the goal wanted all three, so a
+     * player who took every hint was left one host short and told nothing
+     * about it. `hints.test.ts` is what found that, by running each bottom
+     * rung and asserting its step stops being pending.
+     */
     {
-      id: 'all-three',
-      label: 'and the other two',
-      pending: (w) => {
-        const text = written(w);
-        return !(/\bcatalogue\b/.test(text) && /\brelay\b/.test(text));
-      },
+      id: 'the-surprise',
+      label: 'and the host nobody mentioned',
+      pending: (w) => !/\bcatalogue\b/.test(written(w)),
       rungs: [
         {
           tier: 'nudge',
@@ -178,6 +221,29 @@ const theFloor: Objective = {
           tier: 'command',
           lines: ['index01 is the one with the surprise on it.'],
           command: "ssh index01 'systemctl list-units' >> ~/work/floor.txt",
+        },
+      ],
+    },
+    {
+      id: 'and-the-third',
+      label: 'and the one that talks to the tribunal',
+      pending: (w) => !/\brelay\b/.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: ['Three hosts were handed to you. Two of them are in your notes.'],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'relay01 is the one that hands deposited material to the tribunal.',
+            'Whatever it runs, it is the thing an outsider actually talks to.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['The last of the three:'],
+          command: "ssh relay01 'systemctl list-units' >> ~/work/floor.txt",
         },
       ],
     },
@@ -749,6 +815,12 @@ const afterTheReboot: Objective = {
  * where 7719 lives; the store has it. Three machines, one answer, and none of
  * it possible an hour ago because the index was returning 500 to everybody.
  *
+ * It is also where the player meets the store's own tool, because the
+ * material is 0600 and `cat` will not open it. `deposit get` reads on your
+ * behalf and writes a line saying you asked -- which is the first time the act
+ * says out loud that retrieval is a recorded act, and it says it while the
+ * matter in question is somebody else's.
+ *
  * It is also where the act quietly makes its point. The request names a
  * matter that is not his, and nothing on this floor will ever ask him for the
  * one that is.
@@ -756,7 +828,7 @@ const afterTheReboot: Objective = {
 const serveTheMatter: Objective = {
   id: 'serve-the-matter',
   title: 'Get the tribunal the matter they asked for',
-  teaches: ['curl', 'scp', 'shell redirection'],
+  teaches: ['curl', 'scp', 'shell redirection', 'the deposit store'],
   requires: ['why-it-will-not-start'],
   done: (w) => {
     const text = written(w);
@@ -766,17 +838,19 @@ const serveTheMatter: Objective = {
   },
   routes: [
     {
-      name: 'ask the index, then read the store',
+      name: 'ask the index, then ask the store',
       commands: [
         'curl http://index01/matter/7719 > ~/work/where.txt',
-        "ssh vault01 'cat /srv/deposit/7719/manifest' > ~/work/7719.txt",
+        "ssh vault01 'deposit get 7719/manifest' > ~/work/7719.txt",
       ],
     },
     {
-      name: 'copy it back with scp',
+      name: 'stage it on the store and copy it back',
       commands: [
         'curl http://index01/matter/7719',
-        'scp vault01:/srv/deposit/7719/manifest ~/work/7719.txt',
+        "ssh vault01 'deposit list'",
+        "ssh vault01 'deposit get 7719/manifest > /tmp/7719.txt'",
+        'scp vault01:/tmp/7719.txt ~/work/7719.txt',
       ],
     },
     {
@@ -784,9 +858,9 @@ const serveTheMatter: Objective = {
       commands: [
         'curl http://index01/matter/7719',
         'ssh vault01',
-        'cat /srv/deposit/7719/manifest',
+        'deposit get 7719/manifest',
         'exit',
-        "ssh vault01 'cat /srv/deposit/7719/manifest' | tee ~/work/7719.txt",
+        "ssh vault01 'deposit get 7719/manifest' | tee ~/work/7719.txt",
       ],
     },
   ],
@@ -807,15 +881,31 @@ const serveTheMatter: Objective = {
       name: 'a different matter',
       because:
         'Close enough to pass a careless check and wrong enough to be a serious ' +
-        'thing to hand a tribunal. They asked for 7719.',
-      commands: ["ssh vault01 'cat /srv/deposit/7701/manifest' > ~/work/7719.txt"],
+        'thing to hand a tribunal. They asked for 7719, and the store has now ' +
+        'written down that somebody went looking in 7701.',
+      commands: ["ssh vault01 'deposit get 7701/manifest' > ~/work/7719.txt"],
+    },
+    {
+      name: 'opening the file',
+      because:
+        'Deposited material is 0600 and owned by the store, so cat gets Permission ' +
+        'denied and the redirect leaves an empty file. Nothing here is readable by ' +
+        'being opened, which is what makes the access record worth reading.',
+      commands: ["ssh vault01 'cat /srv/deposit/7719/manifest' > ~/work/7719.txt"],
     },
   ],
   steps: [
     {
       id: 'find-it',
       label: 'find where 7719 is filed',
-      pending: (w) => !/\bmatter 7719\b/.test(written(w)),
+      /*
+       * What the index answers is a host and a path -- `7719
+       * vault01:/srv/deposit/7719` -- and not the manifest. This used to ask
+       * for the manifest's own words, so taking the hint changed nothing the
+       * step could see, which is the exact failure `hints.test.ts` exists to
+       * catch. The step asks for what the step produces.
+       */
+      pending: (w) => !/\/srv\/deposit\/7719\b/.test(written(w)),
       rungs: [
         {
           tier: 'nudge',
@@ -842,19 +932,23 @@ const serveTheMatter: Objective = {
       rungs: [
         {
           tier: 'nudge',
-          lines: ['A path is not a document. The store is the machine that has it.'],
+          lines: [
+            'A path is not a document. The store is the machine that has it, and',
+            'the files there do not open: try it and read what it says.',
+          ],
         },
         {
           tier: 'direction',
           lines: [
-            'Read it over ssh, or copy it with scp. Either way it ends up somewhere',
-            'you can hand over.',
+            'vault01 has a command of its own for this. ssh over and run help, or',
+            'man deposit, and read what it says about the access log while you are',
+            'there.',
           ],
         },
         {
           tier: 'command',
-          lines: ['Bring it back:'],
-          command: 'scp vault01:/srv/deposit/7719/manifest ~/work/7719.txt',
+          lines: ['Ask the store for it:'],
+          command: "ssh vault01 'deposit get 7719/manifest' > ~/work/7719.txt",
         },
       ],
     },
@@ -948,7 +1042,15 @@ const theSecondLie: Objective = {
     {
       id: 'break-it',
       label: 'find out what the check would notice',
-      pending: (w) => !/relay/i.test(written(w)),
+      /*
+       * Stopping the relay writes nothing down, so a step asking only about
+       * notes could not be cleared by its own hint. It is cleared by the relay
+       * being stopped -- the thing the step is actually asking for -- or by
+       * there already being something recorded, so a player who looked,
+       * restarted it and wrote it up is not sent back to stop it again.
+       */
+      pending: (w) =>
+        serviceState(w, 'relay01', 'relay') === 'active' && !/relay/i.test(written(w)),
       rungs: [
         {
           tier: 'nudge',
@@ -1135,6 +1237,369 @@ const theHandover: Objective = {
   ],
 };
 
+/**
+ * A. Clean hands. Optional, and the best thing in the act.
+ *
+ * His own matter is on vault01. He knows the number from his own post -- the
+ * notice Tessaly sent him, which is on the bastion and was there before this
+ * job was -- and he could read the file in two seconds, because he has root
+ * on the machine that holds it.
+ *
+ * The goal is deliberately **not** "do not open it". A predicate that asserts
+ * on what the player did not do is a predicate reading the input, which this
+ * engine does not do, and it would also be unplayable: nothing would ever tell
+ * them they had passed.
+ *
+ * So it asks for the demonstration instead. Produce, from the store's own
+ * record, the fact that every file under your matter was read by the
+ * tribunal's account -- and have that record still show no read by yours. The
+ * first half is technical work. The second half is not work at all; it is the
+ * thing he did by not doing anything, and the only reason it can be checked is
+ * that the store writes the log rather than the operator.
+ *
+ * Three things the predicate is careful about, each for a reason:
+ *
+ *   - It reads the record off vault01, not out of his notes. A copy proves
+ *     nothing, because a copy can be edited.
+ *   - It requires the record to *still* contain the tribunal's reads, so
+ *     deleting the log is a way to fail this objective rather than a way to
+ *     pass it.
+ *   - It asks for both files. The tribunal read the manifest and then the
+ *     disclosure a minute later, and "every file under his matter" is the
+ *     claim he is making.
+ *
+ * A player who already opened it cannot complete this, ever, and that is the
+ * design and not an oversight: the store wrote the line and nothing takes it
+ * out. The last step's ladder is the only place the game can say so, and it
+ * says it without scolding. See the note on that step.
+ */
+const cleanHands: Objective = {
+  id: 'clean-hands',
+  title: 'Show, from the record, who has read your own matter',
+  teaches: ['grep', 'scp', 'an access record'],
+  optional: true,
+  secret: true,
+  requires: ['serve-the-matter'],
+  done: (w) => {
+    const notes = written(w);
+    const record = accessRecord(w);
+    return (
+      // The record still says what it said, on the machine that keeps it.
+      readBy('tribunal').test(record) &&
+      // Both files, produced where somebody else could read them.
+      new RegExp(`tribunal\\s+${HIS_MATTER}/manifest`).test(notes) &&
+      new RegExp(`tribunal\\s+${HIS_MATTER}/disclosure\\.txt`).test(notes) &&
+      // And his own account is not in it.
+      !readBy('dewitt').test(record)
+    );
+  },
+  routes: [
+    {
+      name: 'your own post, then the record',
+      commands: [
+        'cat ~/NOTICE',
+        `ssh vault01 'grep ${HIS_MATTER} ${ACCESS_LOG}' > ~/work/mine.txt`,
+      ],
+    },
+    {
+      name: 'the whole record, copied back',
+      commands: ['cat ~/NOTICE', `scp vault01:${ACCESS_LOG} ~/work/access.log`],
+    },
+    {
+      name: 'read it over there and filter it here',
+      commands: [
+        'cat ~/NOTICE',
+        `ssh vault01 'cat ${ACCESS_LOG}' | grep ${HIS_MATTER} > ~/work/mine.txt`,
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'looking at it yourself',
+      because:
+        'The store served it and wrote a line with your account on it, which is ' +
+        'what the store is for. Nothing you write afterwards changes what the ' +
+        'record says, and this objective is the record.',
+      commands: [`ssh vault01 'deposit get ${HIS_MATTER}/manifest' > ~/work/mine.txt`],
+    },
+    {
+      name: 'saying it instead of showing it',
+      because:
+        'An operator vouching for himself is the one piece of evidence nobody has ' +
+        'any reason to accept. The record is on vault01 and it is readable.',
+      commands: ['echo "the tribunal read my matter and I did not" > ~/work/mine.txt'],
+    },
+    {
+      name: 'the file you thought of',
+      because:
+        'The manifest is not the whole matter. The tribunal read the disclosure a ' +
+        'minute later, and the claim is about every file under your number.',
+      commands: [
+        `ssh vault01 'grep ${HIS_MATTER}/manifest ${ACCESS_LOG}' > ~/work/mine.txt`,
+      ],
+    },
+  ],
+  steps: [
+    {
+      id: 'which-one',
+      label: 'work out which matter is yours',
+      pending: (w) => !new RegExp(HIS_MATTER).test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'Pell said some of what is on vault01 is yours. You do not have to go',
+            'looking on vault01 to find out which -- you were told, months ago, by',
+            'the people contesting it.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'Your own post is in your home directory and it has the docket number',
+            'in it. That is the one piece of this you are entitled to.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Read it, and keep the number where you are working:'],
+          command: 'cat ~/NOTICE > ~/work/mine.txt',
+        },
+      ],
+    },
+    {
+      id: 'the-record',
+      label: 'and who the record says has read it',
+      pending: (w) => {
+        const notes = written(w);
+        return !(
+          new RegExp(`tribunal\\s+${HIS_MATTER}/manifest`).test(notes) &&
+          new RegExp(`tribunal\\s+${HIS_MATTER}/disclosure\\.txt`).test(notes)
+        );
+      },
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'The store writes down every read it serves. That log is on vault01 and',
+            'it is readable by you -- reading the record is not reading the file.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            `${ACCESS_LOG} has a line per read: the minute, the account, and the`,
+            'file. grep for your number and you have every line that concerns it.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Both lines, where you can hand them over:'],
+          command: `ssh vault01 'grep ${HIS_MATTER} ${ACCESS_LOG}' >> ~/work/mine.txt`,
+        },
+      ],
+    },
+    /*
+     * The step that cannot be cleared, and is the point.
+     *
+     * It is pending only in a world where the store has already recorded him
+     * reading his own matter -- and in that world nothing clears it, because
+     * the record is correct and stays correct. Every other step in this
+     * adventure is a thing to do; this one is a thing to be told.
+     *
+     * Its bottom rung therefore does not fix anything, and it is not pretending
+     * to: it shows him the line. `deposit.test.ts` has a test asserting exactly
+     * this -- that once his account is in the record the objective cannot be
+     * completed -- so the exception is written down and checked rather than
+     * discovered by somebody wondering why the hint does nothing.
+     */
+    {
+      id: 'and-not-you',
+      label: 'which cannot now include you',
+      pending: (w) => readBy('dewitt').test(accessRecord(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'The record has your account against your own matter. That is not a',
+            'thing you can be talked out of and it is not a thing you can clear.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'There is no repair for this one. The store wrote the line, which is',
+            'why anybody would have believed the record if it had been empty.',
+            'Leave it where it is.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['It is one line. It is worth reading once:'],
+          command: `ssh vault01 'grep dewitt ${ACCESS_LOG}'`,
+        },
+      ],
+    },
+  ],
+  onComplete: [
+    '',
+    'LUNA: I read the record, Doc. The tribunal opened your matter twice on',
+    'LUNA: the second of July, a minute apart, and your account has never',
+    'LUNA: opened it at all.',
+    '',
+    'LUNA: You had root on that machine the whole time.',
+    '',
+    'LUNA: I am not going to make a speech about it. I am going to note that',
+    'LUNA: the record is the only reason anyone can tell, and that you are the',
+    'LUNA: one who kept the record working.',
+    '',
+  ],
+};
+
+/**
+ * B. Where she cannot go. Optional.
+ *
+ * She goes quiet the moment he ssh-es anywhere that matters, and a player who
+ * notices will assume something is broken -- an assistant that stops working
+ * on three of four machines looks exactly like a bug.
+ *
+ * It is not a bug and it is not manners. It is two files: an allowlist on the
+ * bastion saying which hosts she may run on, and the office policy on the
+ * deposit hosts saying why. The objective is reading both, which means going
+ * to a machine she cannot follow him to in order to find out why she cannot
+ * follow him there.
+ *
+ * The lesson is the one every operations job teaches in week one: the tooling
+ * you depend on is not installed on the box you are paged about. It never is.
+ */
+const whereSheCannotGo: Objective = {
+  id: 'where-she-cannot-go',
+  title: 'Find out why LUNA goes quiet when you leave the bastion',
+  teaches: ['cat', 'grep', 'host allowlists'],
+  optional: true,
+  secret: true,
+  requires: ['the-floor'],
+  done: (w) => {
+    const notes = written(w);
+    // Her side of the boundary, and the office's reason for it. Either alone
+    // is half an answer: a rule with no reason, or a reason with no rule.
+    return /deny\s+vault01/.test(notes) && /runs only software the office/i.test(notes);
+  },
+  routes: [
+    {
+      name: 'her scope, then their policy',
+      commands: [
+        'cat /etc/luna/scope > ~/work/boundary.txt',
+        "ssh vault01 'cat /etc/deposit/policy' >> ~/work/boundary.txt",
+      ],
+    },
+    {
+      name: 'the policy first, from whichever host you are on',
+      commands: [
+        "ssh index01 'cat /etc/deposit/policy' > ~/work/why.txt",
+        'grep deny /etc/luna/scope >> ~/work/why.txt',
+      ],
+    },
+    {
+      name: 'both files themselves',
+      commands: [
+        'scp relay01:/etc/deposit/policy ~/work/policy',
+        'cp /etc/luna/scope ~/work/scope',
+      ],
+    },
+  ],
+  nearMisses: [
+    {
+      name: 'the rule with no reason',
+      because:
+        'The allowlist says where she may not run. It does not say why, and "the ' +
+        'config says so" is the answer that stops people asking whether a policy ' +
+        'is still the right one.',
+      commands: ['cp /etc/luna/scope ~/work/boundary.txt'],
+    },
+    {
+      name: 'the reason with no rule',
+      because:
+        'The policy explains the boundary without establishing where it runs. Four ' +
+        'hosts, and the one you are typing at is on the other side of it.',
+      commands: ["ssh vault01 'cat /etc/deposit/policy' > ~/work/boundary.txt"],
+    },
+    {
+      name: 'what you assumed',
+      because:
+        'It happens to be true, and it is what anybody would guess before looking. ' +
+        'A boundary you assumed is a boundary you cannot tell from a fault, which ' +
+        'is the whole reason to go and read it.',
+      commands: ['echo "luna is not allowed on the deposit hosts" > ~/work/boundary.txt'],
+    },
+  ],
+  steps: [
+    {
+      id: 'her-scope',
+      label: 'find where she is allowed to run',
+      pending: (w) => !/deny\s+vault01/.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'She is quiet on three machines and talking on this one. Something on',
+            'this one decides that, and it is configuration rather than character.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'She runs as a service here, like everything else does. Services keep',
+            'their configuration under /etc, in a directory named after them.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Her allowlist:'],
+          command: 'cat /etc/luna/scope > ~/work/boundary.txt',
+        },
+      ],
+    },
+    {
+      id: 'their-policy',
+      label: 'and why the office wrote it that way',
+      pending: (w) => !/runs only software the office/i.test(written(w)),
+      rungs: [
+        {
+          tier: 'nudge',
+          lines: [
+            'The allowlist names a policy and does not contain it. The policy is',
+            'kept on the machines it applies to.',
+          ],
+        },
+        {
+          tier: 'direction',
+          lines: [
+            'Each deposit host has /etc/deposit/policy. You will have to go to one',
+            'of them to read it, which is the thing she cannot do.',
+          ],
+        },
+        {
+          tier: 'command',
+          lines: ['Add the reason to the rule:'],
+          command: "ssh vault01 'cat /etc/deposit/policy' >> ~/work/boundary.txt",
+        },
+      ],
+    },
+  ],
+  onComplete: [
+    '',
+    'LUNA: I can hear you typing and I cannot see what you are typing at.',
+    '',
+    'LUNA: I would like you to know that I do not like it, and that the policy',
+    'LUNA: is right. A machine that holds evidence should not run anything the',
+    'LUNA: office did not install, and I am something somebody did not install.',
+    '',
+    'LUNA: Do not carry me across it. Tell me what you found when you get back.',
+    '',
+  ],
+};
+
 export const DEPOSIT_OBJECTIVES: Objective[] = [
   theFloor,
   theCheckThatLied,
@@ -1145,4 +1610,6 @@ export const DEPOSIT_OBJECTIVES: Objective[] = [
   serveTheMatter,
   theSecondLie,
   theHandover,
+  cleanHands,
+  whereSheCannotGo,
 ];

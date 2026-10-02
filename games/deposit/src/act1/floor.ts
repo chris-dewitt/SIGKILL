@@ -44,6 +44,10 @@ const unit = (m: Machine, name: string, body: readonly string[]): void => {
 /** Every host has the same two accounts and the same sudoers. */
 function accounts(m: Machine): void {
   m.vfs.mkdirp('/etc', ROOT_USER);
+  // Every Unix box has a scratch directory, and this act needs one: with the
+  // deposited material unreadable except through the store, somewhere to put
+  // what the store hands you is the difference between one route and three.
+  m.vfs.mkdirp('/tmp', ROOT_USER, 0o1777);
   m.vfs.writeText(
     '/etc/passwd',
     lines(
@@ -56,6 +60,34 @@ function accounts(m: Machine): void {
   // He is the operator. He has root on all of it, which is the whole of the
   // act's tension: nothing here stops him, and the record remembers.
   m.vfs.writeText('/etc/sudoers', lines('dewitt ALL=(ALL) NOPASSWD: ALL'), ROOT_USER);
+}
+
+/**
+ * The office's rule about what may run on a machine that holds evidence.
+ *
+ * On the three deposit hosts and not on the bastion, which is the whole of the
+ * boundary: it is written down where it applies. LUNA is on the other side of
+ * it, and `where-she-cannot-go` is the player reading both halves and seeing
+ * that it is a policy rather than a fault.
+ */
+function depositPolicy(m: Machine): void {
+  m.vfs.mkdirp('/etc/deposit', ROOT_USER);
+  m.vfs.writeText(
+    '/etc/deposit/policy',
+    lines(
+      'Deposit office machine policy, rev 4.',
+      '',
+      'A host holding deposited material runs only software the office',
+      'installed. Operator assistants are not office software and do not run',
+      'here; they stay on the bastion.',
+      '',
+      'Deposited material is served by the store, so that every read of it is',
+      'recorded by something other than the person reading.',
+      '',
+      '                                             -- the office, 2396',
+    ),
+    ROOT_USER,
+  );
 }
 
 // --------------------------------------------------------------- the store
@@ -71,6 +103,7 @@ const MATTERS = Array.from({ length: 24 }, (_, i) => String(7700 + i));
 
 function seedVault(m: Machine): void {
   accounts(m);
+  depositPolicy(m);
   m.vfs.mkdirp('/srv/deposit', ROOT_USER);
   m.vfs.mkdirp('/var/log', ROOT_USER);
 
@@ -124,6 +157,27 @@ function seedVault(m: Machine): void {
     ROOT_USER,
   );
 
+  /*
+   * Nobody reads deposited material by opening it.
+   *
+   * The directories stay walkable -- the shape of the store is not a secret,
+   * and `ls` showing four hundred matters is the inventory -- but every file
+   * in them is 0600 root. The ordinary way in is `deposit get`, which reads on
+   * the caller's behalf and writes down that it did.
+   *
+   * This is what makes the access record worth anything. It is not a cage:
+   * DeWitt has sudo and `sudo cat` goes around it without leaving a line, and
+   * the act knows that. The point of the mode bits is that the recorded path
+   * is also the convenient one, so going around the record is a thing somebody
+   * has to decide to do.
+   */
+  for (const matter of MATTERS) {
+    const dir = `/srv/deposit/${matter}`;
+    for (const name of m.vfs.readdir(dir, ROOT_USER)) {
+      m.vfs.chmod(`${dir}/${name}`, 0o600, ROOT_USER);
+    }
+  }
+
   unit(m, 'store', [
     '[Unit]',
     'Description=Deposit store',
@@ -160,6 +214,7 @@ export const LOCK = '/var/lib/index/catalogue.lock';
 
 function seedIndex(m: Machine): void {
   accounts(m);
+  depositPolicy(m);
   m.vfs.mkdirp('/var/lib/index', ROOT_USER);
   m.vfs.mkdirp('/etc/index', ROOT_USER);
   m.vfs.writeText(LOCK, lines('held by pid 441, 2398-07-01T02:11'), ROOT_USER);
@@ -249,6 +304,7 @@ export function indexHandler(path: string, host: NetHost): { status: number; bod
 
 function seedRelay(m: Machine): void {
   accounts(m);
+  depositPolicy(m);
   m.vfs.mkdirp('/usr/local/bin', ROOT_USER);
   /*
    * The mirror sync, which stopped working at some point nobody recorded.
@@ -376,6 +432,70 @@ function seedBastion(m: Machine): void {
     ROOT_USER,
   );
 
+  /*
+   * His own paperwork, which he brought with him.
+   *
+   * This is how he learns that 7714 is his, and it matters enormously that he
+   * learns it here rather than by opening it on vault01. `clean-hands` is an
+   * objective about not reading something; an act that could only be played by
+   * reading it first would be a trap, and a trap is not a moral test.
+   *
+   * It is also simply true: he is a party to the matter. A party has their own
+   * copy of the docket number and no right at all to the file.
+   */
+  m.vfs.writeText(
+    `${HOME}/NOTICE`,
+    lines(
+      'TESSALY UNDERWRITING -- notice of contest',
+      '',
+      'To: C. DeWitt',
+      '',
+      'Your contest of the NAV-7 tow is docketed with the deposit office as',
+      `matter ${HIS_MATTER}. The tribunal will retrieve the file when it sits.`,
+      '',
+      'You need do nothing. Do not contact the deposit office about it.',
+      '',
+      'This notice is your copy of the docket number and is not the file.',
+      '',
+    ),
+    ROOT_USER,
+  );
+
+  /*
+   * LUNA's side of the boundary.
+   *
+   * A host allowlist, which is how this is actually done: she is not kept off
+   * the deposit machines by good manners, she is kept off them by a line in a
+   * file that somebody wrote in 2396. The other half of the reason is on those
+   * machines, in /etc/deposit/policy, and reaching it is the objective.
+   */
+  m.vfs.mkdirp('/etc/luna', ROOT_USER);
+  m.vfs.writeText(
+    '/etc/luna/scope',
+    lines(
+      '# Hosts this assistant is permitted to run on.',
+      '# Deposit office machine policy, rev 4.',
+      'allow bastion',
+      'deny  vault01',
+      'deny  vault02',
+      'deny  index01',
+      'deny  relay01',
+    ),
+    ROOT_USER,
+  );
+  unit(m, 'luna', [
+    '[Unit]',
+    'Description=Operator assistant (bastion only)',
+    '',
+    '[Service]',
+    'ExecStart=/usr/sbin/lunad',
+    '',
+    '[Install]',
+    'WantedBy=multi-user.target',
+  ]);
+  m.services.enable('luna');
+  m.services.start('luna');
+
   m.vfs.writeText(
     `${HOME}/README`,
     lines(
@@ -383,6 +503,7 @@ function seedBastion(m: Machine): void {
       '',
       '  ~/PELL                   the handover',
       '  ~/REQUEST                what the tribunal is waiting for',
+      '  ~/NOTICE                 your own post, from before this job',
       '  /opt/deposit/check.sh    the health check, as Pell wrote it',
       `  ${WORK}/              put what you establish in here`,
       '',
