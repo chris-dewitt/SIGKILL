@@ -144,13 +144,18 @@ function seedVault(m: Machine): void {
 /**
  * The failure the act opens on, and it is nobody's fault.
  *
- * `catalogue` holds the index's data and died a month ago. It left a lock
- * behind. `index` is still running -- it starts fine, it answers, it looks
- * healthy to anything that only asks whether it is running -- and every
- * answer it gives is a 500 saying the catalogue is locked.
+ * `catalogue` holds the index's data and died a month ago. `index` is still
+ * running, because `Requires=` is checked when a unit *starts* and catalogue
+ * was alive when index started -- so index has been up, and answering, and
+ * every answer it gives is a 500 saying the catalogue is gone.
  *
  * That gap, between a service being *up* and a service being *right*, is the
  * act. `systemctl status index` has said `active` every day for a month.
+ *
+ * The lock is the forensic detail rather than the mechanism: it names the pid
+ * and the minute the datastore died, which is what the handover record in
+ * objective nine is written from. Deleting it fixes nothing, which is the
+ * point -- the thing to look at is what is running.
  */
 export const LOCK = '/var/lib/index/catalogue.lock';
 
@@ -197,10 +202,16 @@ function seedIndex(m: Machine): void {
   m.services.enable('catalogue');
   m.services.enable('index');
 
-  // Both up, because `index` only requires that `catalogue` is *active*, and
-  // it is. Being active is not the same as having let go of the lock.
+  /*
+   * The state Pell inherited, built the way it actually happened: both came up
+   * at boot, and then the catalogue died on the first of July and nothing
+   * restarted it. `index` is still active because nothing stops a running unit
+   * when the thing it requires goes away -- `Requires=` is a start-time check,
+   * not a leash.
+   */
   m.services.start('catalogue');
   m.services.start('index');
+  m.services.stop('catalogue');
 }
 
 /**
@@ -211,9 +222,12 @@ function seedIndex(m: Machine): void {
  * same URL starts answering. A static file could not teach that.
  */
 export function indexHandler(path: string, host: NetHost): { status: number; body: string } {
-  const locked = host.machine.vfs.exists(LOCK, ROOT_USER);
-  if (locked) {
-    return { status: 500, body: 'catalogue locked\n' };
+  // What the index answers depends on whether its datastore is running, which
+  // is state the player can change -- and is why this is a handler rather than
+  // files under /srv/http. A static file could not teach that the same URL
+  // starts working when something else is fixed.
+  if (host.machine.services.get('catalogue')?.state !== 'active') {
+    return { status: 500, body: 'catalogue unavailable\n' };
   }
   if (path.startsWith('/matter/')) {
     const matter = path.slice('/matter/'.length).replace(/\/$/, '');

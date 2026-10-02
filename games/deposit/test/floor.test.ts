@@ -34,7 +34,7 @@ describe('the floor boots', () => {
     expect(idx.services.get('index')?.state).toBe('active');
 
     const health = await d.machine.exec('curl http://index01/health');
-    expect(health.stdout).toContain('catalogue locked');
+    expect(health.stdout).toContain('catalogue unavailable');
     // The whole lesson: the fetch *worked*.
     expect(health.code).toBe(0);
   });
@@ -45,9 +45,13 @@ describe('the floor boots', () => {
     expect(r.stdout).toContain('index healthy');
   });
 
-  it('answers properly once the lock is gone', async () => {
+  it('answers properly once the catalogue is running again', async () => {
     const d = bootDeposit();
+    // Deleting the lock changes nothing: it is evidence, not the cause.
     expect((await d.machine.exec(`ssh root@index01 'rm ${LOCK}'`)).code).toBe(0);
+    expect((await d.machine.exec('curl http://index01/health')).stdout).toContain('unavailable');
+
+    expect((await d.machine.exec("ssh index01 'sudo systemctl start catalogue'")).code).toBe(0);
 
     const health = await d.machine.exec('curl http://index01/health');
     expect(health.stdout).toContain('ok');
@@ -57,7 +61,7 @@ describe('the floor boots', () => {
 
   it('keeps the floor across a save, which is what the fleet snapshot is for', async () => {
     const d = bootDeposit();
-    await d.machine.exec(`ssh root@index01 'rm ${LOCK}'`);
+    await d.machine.exec("ssh index01 'sudo systemctl start catalogue'");
     await d.machine.exec("ssh root@vault01 'echo note >> /srv/deposit/7701/manifest'");
 
     const back = restoreDeposit(snapshotDeposit(d));
