@@ -23,8 +23,12 @@ export type { PythonRuntime, PythonRequest, PythonResult, FileEntry } from './la
 export { sqlCommands, SQL_SEED, encodeBase64, decodeBase64 } from './lang/sql.js';
 export type { SqlRuntime, SqlRequest, SqlResult, SqlRow } from './lang/sql.js';
 
-export { Network } from './net/network.js';
-export type { NetHost, HostOptions, HttpResponse, Session } from './net/network.js';
+export { Network, subnetOf } from './net/network.js';
+export { OPEN, ruleSpec, verdict } from './net/firewall.js';
+export type { Action, Firewall, Rule } from './net/firewall.js';
+export type { NetHost, HostOptions, HttpResponse, NetworkOptions, Session } from './net/network.js';
+export { HOSTS_FILE, isAddress, lookup, parseHosts, readHosts, reach } from './net/resolver.js';
+export type { HostsEntry, Reach, Resolution, Via } from './net/resolver.js';
 export { snapshotFleet, restoreFleet } from './net/fleet.js';
 export type { Fleet, FleetSnapshot, HostSnapshot, WireHost } from './net/fleet.js';
 

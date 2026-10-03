@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| _(none)_ | | | |
+| packages/net | Claude | 2026-10-03 | The networking engine, for *The Handshake*. New package; also touches `machine/src/net` and `coreutils/net.ts`, which is in the row on purpose. |
 
 ## Conventions
 
@@ -38,6 +38,7 @@ agents editing it at once will conflict. Claim it explicitly.
 | `packages/machine` | The engine. Zero dependencies. Read `docs/ARCHITECTURE.md` first. |
 | `packages/python` | Pyodide behind the `PythonRuntime` interface. |
 | `packages/git` | Git over the VFS. Zero dependencies; object ids match real git. |
+| `packages/net` | The instruments for name resolution — `dig`, `host`, `getent`. Resolution itself is in `machine/src/net/resolver.ts`, because every tool that connects has to do it. |
 | `packages/sql` | wa-sqlite behind the `SqlRuntime` interface. |
 | `packages/crt` | Phosphor renderer: buffer, glyph atlas, WebGL2 CRT pass. |
 | `packages/quest` | Objectives and hint ladders. Read `docs/HINTS.md` before authoring one. |

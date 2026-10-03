@@ -203,20 +203,38 @@ Handshake can be authored later against something real instead of being bent to
 fit what exists.
 It is now game 8 in Chris's fourteen-game order (`docs/PLAN.md`).
 
-What it needs, in the order a game would want it:
+What it needs, in the order a game would want it — **all five built, 2026-10-03**:
 
-1. **`/etc/hosts` and a resolver** — resolution as a file the player can read,
+1. ✅ **`/etc/hosts` and a resolver** — resolution as a file the player can read,
    edit and break, instead of one map lookup inside `Network.resolve()`.
-2. **`dig` / `host`** — asking the resolver a question and seeing its answer,
-   which is the only way DNS becomes teachable rather than magic.
-3. **`ss` / `netstat`** — what is listening, which is also the honest answer to
-   half the questions this act's objective 5 raises.
-4. **`ip addr` / `ip route`** — addresses and routes as state.
-5. **A firewall** — the first thing that can *deliberately* refuse, as distinct
-   from the three accidental failures.
+   `machine/src/net/resolver.ts`; the file wins over the map, as `hosts: files
+   dns` makes it win on a real box.
+2. ✅ **`dig` / `host`** — and `getent hosts`, which is the one that matters:
+   dig asks the nameserver, getent asks the resolver, and when those two
+   disagree the program that is failing is using the second one.
+3. ✅ **`ss` / `netstat`** — what is listening *and on which address*. Ports can
+   now be bound to loopback, so a service can be running, listening, and
+   refusing you in the same words a closed port uses.
+4. ✅ **`ip addr` / `ip route`** — a host answers to one or more addresses, every
+   subnet is a /24, and routing is one hop through a box with a leg in both
+   that is up *and* forwarding. Opt-in per network: this act's own ledger sits
+   on 10.9.0.4 as *flavour*, and an engine that read a topology into that and
+   then refused to connect would be inventing a fact.
+5. ✅ **A firewall** — `iptables`, the INPUT chain, and the distinction the
+   whole thing is for: REJECT is refused at once, DROP says nothing and the
+   other end waits. The engine charges the player that wait.
 
 TLS last and possibly never: a trust store the player can inspect is a good
 lesson, and a simulated handshake they cannot verify is a bad one.
+
+**`PLAN.md` says The Handshake "gets a slot when `packages/net` exists, and not
+before".** It exists. Whether that is slot 7 and what moves down is Chris's
+call, not one to be made by the person who happened to finish the package.
+
+What the package deliberately will not model, recorded where the next author
+will look: NAT, a forwarding chain, connection tracking, multi-hop routing,
+output filtering. `packages/machine/test/probe-net.test.ts` fails if any of
+them quietly arrives.
 
 ## 8. Open decisions for Chris
 

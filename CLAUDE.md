@@ -14,6 +14,7 @@ Read this, then the architecture doc, then the code.
 | [docs/FULLSCREEN.md](docs/FULLSCREEN.md) | How `vi` takes the screen, and how to add another full-screen program. |
 | [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the fourteen adventures. |
 | [packages/machine/README.md](packages/machine/README.md) | The engine's API surface. |
+| [packages/net/README.md](packages/net/README.md) | Name resolution, sockets, routes and the firewall — and which tool asks which question. |
 | [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four of us share this repo. |
 
 ---

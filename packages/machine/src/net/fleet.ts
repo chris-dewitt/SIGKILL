@@ -1,4 +1,5 @@
 import { Machine, type MachineOptions, type MachineSnapshot } from '../machine.js';
+import type { Firewall } from './firewall.js';
 import { Network, type NetHost, type Session } from './network.js';
 
 /**
@@ -25,8 +26,16 @@ import { Network, type NetHost, type Session } from './network.js';
 export interface HostSnapshot {
   hostname: string;
   ip: string;
+  /** Every address, primary first. Absent in saves written before interfaces existed. */
+  ips?: string[];
+  /** Forwards between its subnets. */
+  router?: boolean;
+  /** The INPUT chain, when the host has one. */
+  firewall?: Firewall;
   /** Port to banner. An array because a Map is not JSON. */
   ports: [number, string][];
+  /** Of those, the ones bound to loopback. Absent in saves written before it existed. */
+  loopback?: number[];
   accounts: [string, { uid: number; gid: number }][];
   up: boolean;
   machine: MachineSnapshot;
@@ -34,6 +43,8 @@ export interface HostSnapshot {
 
 export interface FleetSnapshot {
   version: 1;
+  /** Whether the network enforces subnets. See `NetworkOptions.routing`. */
+  routing?: boolean;
   hosts: HostSnapshot[];
   /**
    * Where the player was standing, as hostnames, outermost first.
@@ -66,10 +77,15 @@ export type WireHost = (hostname: string) => {
 export function snapshotFleet(network: Network, session: Session): FleetSnapshot {
   return {
     version: 1,
+    routing: network.routing,
     hosts: network.list().map((host) => ({
       hostname: host.hostname,
       ip: host.ip,
+      ips: [...host.addresses],
+      router: host.router,
+      ...(host.firewall ? { firewall: host.firewall } : {}),
       ports: [...host.ports.entries()],
+      loopback: [...host.loopback],
       accounts: [...host.accounts.entries()],
       up: host.up,
       machine: host.machine.snapshot(),
@@ -79,7 +95,8 @@ export function snapshotFleet(network: Network, session: Session): FleetSnapshot
 }
 
 export function restoreFleet(snap: FleetSnapshot, wire: WireHost): Fleet {
-  const network = new Network();
+  // A save from before routing existed restores flat, which is what it was.
+  const network = new Network({ routing: snap.routing ?? false });
   // One session object, shared by every machine on the network, or `ssh` on
   // one host pushes onto a stack the others cannot see.
   const session: Session = { stack: [] };
@@ -97,8 +114,13 @@ export function restoreFleet(snap: FleetSnapshot, wire: WireHost): Fleet {
     network.add({
       hostname: host.hostname,
       ip: host.ip,
+      // The primary is already `ip`, so only the rest go back as extras.
+      ips: (host.ips ?? [host.ip]).slice(1),
+      router: host.router ?? false,
+      ...(host.firewall ? { firewall: host.firewall } : {}),
       machine,
       ports: Object.fromEntries(host.ports),
+      loopback: host.loopback ?? [],
       accounts: Object.fromEntries(host.accounts),
       up: host.up,
       ...(http ? { http } : {}),

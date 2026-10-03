@@ -99,11 +99,29 @@ the repo talked about rather than something it checked.
 engine share under game three's 8% and that did not hold: it is 12.5%, and the
 fleet is why.
 
-**What is next.** `packages/net` -- the parallel track Chris chose, so *The
-Handshake* can be authored against something real instead of bent to fit what
-exists. Order is in `docs/GAME6_BEATS.md` §7: `/etc/hosts` and a resolver,
-then `dig`/`host`, then `ss`/`netstat`, then `ip`, then a firewall. TLS last or
-never.
+**`packages/net` is built** -- all five items of `docs/GAME6_BEATS.md` §7, in
+that order. Resolution is now `/etc/hosts` then the network's map, in
+`machine/src/net/resolver.ts`, because every connecting command resolves and
+`packages/machine` depends on nothing; `@sigkill/net` is the instruments and is
+opt-in per adventure.
+
+The three things it teaches that the engine could not express before:
+
+1. **A name that resolves to the wrong address.** Three failures -- no such
+   name, nothing at that address, nothing listening -- told apart by `ssh`,
+   `curl`, `nc`, `ping` and now `scp`, which used to say `Could not reach host`
+   to all three.
+2. **A service listening on 127.0.0.1.** Running, active, clean journal, and
+   refusing the network in exactly the words a closed port uses. `ss` is the
+   only thing that tells them apart, and there is a test asserting the two
+   messages are identical.
+3. **REJECT versus DROP.** Refused is instant; dropped makes the other end wait
+   and then give up, and the engine charges the player that wait because the
+   wait is the symptom.
+
+`PLAN.md` says The Handshake "gets a slot when `packages/net` exists, and not
+before". It exists. **Which slot, and what moves down, is Chris's call** --
+that is a curriculum decision, not a consequence of the package being finished.
 
 Also still open: **nobody has pushed a `v*` tag**, so the release half of
 `.github/workflows/apk.yml` has never run. `docs/PLAYTEST.md` has the steps.
@@ -553,6 +571,14 @@ any of them reads what the player typed.
 The telemetry's sample count is load-bearing. 60 samples x 9 compartments is
 the 540 lines ORACLE quotes, and 60 C7 rows plus 8 C2 rows are its 68 matches.
 Change the *step* to move the window; leave the counts alone.
+
+**`packages/net`** — the networking instruments: `dig`, `host`, `getent hosts`,
+`ss`, `netstat`, `ip addr`, `ip route`, `iptables`. Resolution itself is *not*
+here — it is `machine/src/net/resolver.ts`, because every connecting command
+resolves and `packages/machine` depends on nothing. The split is the point:
+`dig` asks the nameserver, `getent` asks the resolver, and when they disagree
+the program that is failing is using the second one. Nothing here is a builtin,
+so a machine nobody handed these to has none of them.
 
 **`games/deposit`** — game six, and the only adventure that is a *floor*
 rather than a machine. `src/act1/floor.ts` seeds five hosts on the floor (one of

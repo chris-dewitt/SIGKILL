@@ -1,6 +1,7 @@
 import * as p from '../vfs/path.js';
 import { ROOT_USER } from '../vfs/vfs.js';
 import { run, type CommandSpec, type ShellContext } from '../shell/exec.js';
+import { lookup, reach, type Reach, type Resolution } from '../net/resolver.js';
 import { emit, parseArgs, usage } from './helpers.js';
 
 /** Split `[user@]host` into its parts. */
@@ -24,6 +25,26 @@ function requireNetwork(ctx: ShellContext, tool: string, io: { err(t: string): v
   return false;
 }
 
+/**
+ * Resolve a name from the point of view of the machine running the command.
+ *
+ * `ctx.vfs` and `ctx.user`, not the network's map alone: `/etc/hosts` belongs
+ * to the host doing the asking, so a command run over ssh reads the remote
+ * machine's file and never the one the player edited at home.
+ */
+const resolveFrom = (ctx: ShellContext, nameOrIp: string): Resolution =>
+  lookup(ctx.network!, ctx.vfs, ctx.user, nameOrIp, ctx.hostname);
+
+/**
+ * The same three failures, in the same words, for every tool here.
+ *
+ * `ctx.hostname` goes with the question because a service bound to loopback
+ * answers its own machine and refuses every other, and the engine cannot tell
+ * those apart without knowing who is asking.
+ */
+const reachFrom = (ctx: ShellContext, nameOrIp: string, port: number): Reach =>
+  reach(ctx.network!, resolveFrom(ctx, nameOrIp), port, ctx.hostname);
+
 export const netCommands: CommandSpec[] = [
   {
     name: 'ping',
@@ -42,26 +63,52 @@ export const netCommands: CommandSpec[] = [
       if (!requireNetwork(ctx, 'ping', io)) return 1;
 
       const count = Math.max(1, Math.min(10, Number(values.get('-c') ?? 4)));
-      const host = ctx.network!.resolve(target);
+      const resolution = resolveFrom(ctx, target);
 
-      if (!host) {
+      if (resolution.kind === 'unknown') {
         io.err(`ping: ${target}: Name or service not known\n`);
         return 2;
       }
 
-      io.out(`PING ${host.hostname} (${host.ip}) 56(84) bytes of data.\n`);
+      /*
+       * The address came back; whether anything is at it is the next question.
+       *
+       * A name pointed at an empty address pings that address and hears
+       * nothing, and printing the address it actually used is what lets
+       * somebody notice it is not the address they expected.
+       */
+      io.out(`PING ${target} (${resolution.ip}) 56(84) bytes of data.\n`);
 
-      if (!host.up) {
+      /*
+       * Routed, but not filtered.
+       *
+       * ping has to agree with the route table: it is the command people reach
+       * for *first* when a host will not answer, and one that reports replies
+       * from a subnet nothing can route to sends them to look at the service
+       * instead of the gateway.
+       *
+       * The firewall is a different matter and is deliberately not consulted.
+       * A ruleset that drops a port while answering ICMP is ordinary, and
+       * "ping works, the port does not" is a real and useful thing to meet.
+       */
+      const here = ctx.network!.resolve(ctx.hostname);
+      const unreachable =
+        resolution.kind === 'address' ||
+        !resolution.host.up ||
+        (resolution.via !== 'loopback' && !ctx.network!.routed(here, resolution.ip));
+
+      if (unreachable) {
         // Each probe still costs time; that is how a player feels a dead host.
         await ctx.advance(count * 1000);
         emit(io, [
           '',
-          `--- ${host.hostname} ping statistics ---`,
+          `--- ${target} ping statistics ---`,
           `${count} packets transmitted, 0 received, 100% packet loss`,
         ]);
         return 1;
       }
 
+      const host = resolution.host;
       const rows: string[] = [];
       for (let i = 0; i < count; i++) {
         // Deterministic latency derived from the address, not from a clock.
@@ -74,7 +121,7 @@ export const netCommands: CommandSpec[] = [
       emit(io, [
         ...rows,
         '',
-        `--- ${host.hostname} ping statistics ---`,
+        `--- ${target} ping statistics ---`,
         `${count} packets transmitted, ${count} received, 0% packet loss`,
       ]);
       return 0;
@@ -101,20 +148,28 @@ export const netCommands: CommandSpec[] = [
       if (!requireNetwork(ctx, 'ssh', io)) return 255;
 
       const { user, host: hostname } = splitTarget(target);
-      const host = ctx.network!.resolve(hostname);
+      const reached = reachFrom(ctx, hostname, 22);
 
-      if (!host) {
+      if (reached.kind === 'unknown-host') {
         io.err(`ssh: Could not resolve hostname ${hostname}: Name or service not known\n`);
         return 255;
       }
-      if (!host.up) {
+      if (reached.kind === 'no-route') {
         io.err(`ssh: connect to host ${hostname} port 22: No route to host\n`);
         return 255;
       }
-      if (!host.ports.has(22)) {
+      if (reached.kind === 'refused') {
         io.err(`ssh: connect to host ${hostname} port 22: Connection refused\n`);
         return 255;
       }
+      if (reached.kind === 'timeout') {
+        // A dropped packet costs the player the wait, because the wait is the
+        // symptom: a refusal is instant and a drop is not.
+        await ctx.advance(5000);
+        io.err(`ssh: connect to host ${hostname} port 22: Connection timed out\n`);
+        return 255;
+      }
+      const host = reached.host;
 
       const login = user ?? ctx.user.name;
       const account = host.accounts.get(login);
@@ -157,7 +212,7 @@ export const netCommands: CommandSpec[] = [
       'Copies a file between this machine and another one. Put host: in\n' +
       'front of the side that is remote:\n' +
       '  scp notes.txt node01:/tmp/notes.txt',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const { operands } = parseArgs(argv);
       if (operands.length < 2) return usage(io, 'usage: scp source target');
       if (!requireNetwork(ctx, 'scp', io)) return 1;
@@ -169,24 +224,51 @@ export const netCommands: CommandSpec[] = [
         return usage(io, 'scp: copying between two remote hosts is not supported');
       }
 
-      const endpoint = (spec: { host?: string; path: string }): { vfs: typeof ctx.vfs; path: string } | undefined => {
+      /*
+       * Which of the three went wrong, in the same words ssh uses.
+       *
+       * This said `Could not reach host` for every failure, including a name
+       * that does not exist -- so the one tool a player reaches for after a
+       * failed deploy was the one tool that would not tell them where to look.
+       */
+      type End = { vfs: typeof ctx.vfs; path: string };
+      /** Set when the failure was a drop, so the wait can be charged below. */
+      let dropped = false;
+      const endpoint = (spec: { host?: string; path: string }): End | string => {
         if (!spec.host) return { vfs: ctx.vfs, path: ctx.resolve(spec.path) };
         const { host: hostname } = splitTarget(spec.host);
-        const host = ctx.network!.resolve(hostname);
-        if (!host || !host.up || !host.ports.has(22)) return undefined;
-        return { vfs: host.machine.vfs, path: spec.path };
+        const reached = reachFrom(ctx, hostname, 22);
+        if (reached.kind === 'unknown-host') {
+          return `ssh: Could not resolve hostname ${hostname}: Name or service not known`;
+        }
+        if (reached.kind === 'no-route') {
+          return `ssh: connect to host ${hostname} port 22: No route to host`;
+        }
+        if (reached.kind === 'refused') {
+          return `ssh: connect to host ${hostname} port 22: Connection refused`;
+        }
+        if (reached.kind === 'timeout') {
+          dropped = true;
+          return `ssh: connect to host ${hostname} port 22: Connection timed out`;
+        }
+        return { vfs: reached.host.machine.vfs, path: spec.path };
       };
 
       const from = endpoint(source);
       const to = endpoint(target);
-      if (!from) {
-        io.err(`scp: ${operands[0]}: Could not reach host\n`);
+      // scp's own failures come out of the ssh it is built on, which is why
+      // the wording is ssh's and the second line is scp's.
+      const unreachable = typeof from === 'string' ? from : typeof to === 'string' ? to : undefined;
+      if (unreachable !== undefined) {
+        // A dropped packet costs the same five seconds here as it does in ssh.
+        // scp is ssh underneath, and a copy that fails instantly where the
+        // login hangs would hide the one difference worth noticing.
+        if (dropped) await ctx.advance(5000);
+        io.err(`${unreachable}\n`);
+        io.err('scp: lost connection\n');
         return 1;
       }
-      if (!to) {
-        io.err(`scp: ${operands[1]}: Could not reach host\n`);
-        return 1;
-      }
+      if (typeof from === 'string' || typeof to === 'string') return 1;
 
       try {
         const bytes = from.vfs.read(from.path, source.host ? ROOT_USER : ctx.user);
@@ -227,7 +309,7 @@ export const netCommands: CommandSpec[] = [
       'A 404 still counts as a successful fetch unless you pass -f. Checking\n' +
       'that something is healthy means checking what came back, not just that\n' +
       'curl was happy.',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const { flags, values, operands } = parseArgs(argv, {
         flags: ['-s', '--silent', '-I', '--head', '-f', '--fail'],
         valued: ['-o', '--output'],
@@ -259,22 +341,28 @@ export const netCommands: CommandSpec[] = [
        * something stops answering. `ssh` already distinguishes these; curl
        * collapsed the first two and said DNS for all of them.
        */
-      const host = ctx.network!.resolve(hostname);
-      if (!host) {
+      const port = Number(portText ?? 80);
+      const reached = reachFrom(ctx, hostname, port);
+      if (reached.kind === 'unknown-host') {
         io.err(`curl: (6) Could not resolve host: ${hostname}\n`);
         return 6;
       }
-      const port = Number(portText ?? 80);
-      if (!host.up) {
+      if (reached.kind === 'no-route') {
         io.err(`curl: (7) Failed to connect to ${hostname} port ${port}: No route to host\n`);
         return 7;
       }
-      if (!host.ports.has(port)) {
+      if (reached.kind === 'refused') {
         io.err(`curl: (7) Failed to connect to ${hostname} port ${port}: Connection refused\n`);
         return 7;
       }
+      if (reached.kind === 'timeout') {
+        await ctx.advance(5000);
+        // 28 is curl's timeout, and it is a different number from 7 on purpose.
+        io.err(`curl: (28) Failed to connect to ${hostname} port ${port}: Connection timed out\n`);
+        return 28;
+      }
 
-      const response = ctx.network!.serve(host, path);
+      const response = ctx.network!.serve(reached.host, path);
       const statusText = response.status === 200 ? 'OK' : 'Not Found';
 
       if (headersOnly) {
@@ -330,32 +418,36 @@ export const netCommands: CommandSpec[] = [
       '  nc -zv gateway 22\n' +
       'Useful when ssh or curl fails and you want to know whether anything\n' +
       'is answering at all.',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const { operands } = parseArgs(argv);
       if (operands.length < 2) return usage(io, 'usage: nc [-zv] host port');
       if (!requireNetwork(ctx, 'nc', io)) return 1;
 
       const [hostname, portText] = operands;
       const port = Number(portText);
-      const host = ctx.network!.resolve(hostname!);
+      const reached = reachFrom(ctx, hostname!, port);
 
       // As with curl: a host that is off is not a host that does not exist,
       // and telling a player otherwise sends them to look at DNS.
-      if (!host) {
+      if (reached.kind === 'unknown-host') {
         io.err(`nc: getaddrinfo for host "${hostname}" port ${port}: Name or service not known\n`);
         return 1;
       }
-      if (!host.up) {
+      if (reached.kind === 'no-route') {
         io.err(`nc: connect to ${hostname} port ${port} (tcp) failed: No route to host\n`);
         return 1;
       }
-      const banner = host.ports.get(port);
-      if (banner === undefined) {
+      if (reached.kind === 'refused') {
         io.err(`nc: connect to ${hostname} port ${port} (tcp) failed: Connection refused\n`);
         return 1;
       }
+      if (reached.kind === 'timeout') {
+        await ctx.advance(5000);
+        io.err(`nc: connect to ${hostname} port ${port} (tcp) failed: Connection timed out\n`);
+        return 1;
+      }
       io.err(`Connection to ${hostname} ${port} port [tcp/*] succeeded!\n`);
-      io.out(`${banner}\n`);
+      io.out(`${reached.host.ports.get(port)}\n`);
       return 0;
     },
   },
