@@ -241,44 +241,62 @@ describe('probe: moving a file, which is what a deploy is', () => {
 });
 
 /**
- * What the engine has not got.
+ * What the engine has not got, and what it has since grown.
  *
  * Not a complaint -- a boundary, recorded where the next author will trip over
- * it rather than discover it halfway through writing an objective. There is no
- * name resolution to inspect or edit, nothing that reports listening sockets,
- * and no routing or firewall surface at all. `Network.resolve()` is hostname
- * and address lookup in one map, and that is the whole of DNS.
+ * it rather than discover it halfway through writing an objective. When this
+ * was written there was no name resolution to inspect or edit, nothing that
+ * reported listening sockets, and no routing or firewall surface at all:
+ * `Network.resolve()` was hostname and address lookup in one map, and that was
+ * the whole of DNS.
  *
- * So an adventure about DNS, routing, TLS or firewalls needs a new engine
- * first, on the scale of `packages/sql` or `packages/ml`. An adventure about
- * operating services across hosts -- deploy, observe, roll back -- needs none
- * of it and is supported today, which is what everything above demonstrates.
+ * Half of that has moved, on purpose and with this test updated in the same
+ * commit -- which is what the boundary is for. Resolution is now two steps:
+ * `/etc/hosts` on the machine doing the asking, then the network's map, which
+ * is this engine's DNS (`src/net/resolver.ts`, specified in
+ * `resolver.test.ts`). `@sigkill/net` adds the instruments -- `dig`, `host`
+ * and `getent` -- as an opt-in command pack, so a machine that was not given
+ * them still has none, which is what the first list below asserts.
  *
- * If one of these ever arrives, this test fails and says so, which is the
- * point: the boundary should not move quietly.
+ * Still absent: listening sockets, addresses and routes, and any firewall. An
+ * adventure about those needs more engine first.
+ *
+ * If one of them ever arrives, this test fails and says so. The boundary
+ * should not move quietly; it should move in a commit that says it is moving.
  */
 describe('probe: the boundary of the simulated network', () => {
-  it('has no DNS, socket, routing or firewall tooling', async () => {
+  it('has no socket, routing or firewall tooling', async () => {
     const f = fleet();
-    for (const absent of [
-      'dig api01',
-      'host api01',
-      'nslookup api01',
-      'ss -ltn',
-      'netstat -ltn',
-      'ip addr',
-      'route -n',
-      'iptables -L',
-      'ufw status',
-    ]) {
+    for (const absent of ['ss -ltn', 'netstat -ltn', 'ip addr', 'route -n', 'iptables -L', 'ufw status']) {
       const r = await f.local.exec(absent);
       expect(r.code, `${absent} exists now -- see the note above this test`).toBe(127);
     }
   });
 
-  it('has no /etc/hosts, because resolution is not a file', async () => {
+  /*
+   * And no DNS tooling either, unless an adventure asked for it.
+   *
+   * `dig` and `host` are in `@sigkill/net` rather than in the engine, so this
+   * stays true of a bare machine. The day one of them becomes a builtin, this
+   * is where somebody finds out.
+   */
+  it('has no DNS tooling of its own', async () => {
     const f = fleet();
-    const r = await f.local.exec('cat /etc/hosts');
-    expect(r.code).not.toBe(0);
+    for (const absent of ['dig api01', 'host api01', 'nslookup api01', 'getent hosts api01']) {
+      const r = await f.local.exec(absent);
+      expect(r.code, `${absent} is a builtin now -- see the note above this test`).toBe(127);
+    }
+  });
+
+  /*
+   * Resolution reads a file when there is one, and the five adventures that
+   * came before have none -- so for them nothing changed at all. That is
+   * asserted properly in `resolver.test.ts`; here it is the boundary note:
+   * a machine nobody gave a hosts file still resolves out of the map.
+   */
+  it('still resolves by the map alone when no hosts file exists', async () => {
+    const f = fleet();
+    expect((await f.local.exec('cat /etc/hosts')).code).not.toBe(0);
+    expect((await f.local.exec('curl http://api01/health')).stdout).toBe('ok\n');
   });
 });
