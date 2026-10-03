@@ -55,7 +55,7 @@ Third: one codebase ships a browser demo *and* a Play listing.
 
 ## The Machine
 
-One deterministic, snapshottable virtual computer that all thirteen games run
+One deterministic, snapshottable virtual computer that all fourteen games run
 on. This is the whole investment.
 
 ```
@@ -114,7 +114,7 @@ because the point is that a Cadet becomes an Operator.
 
 ---
 
-## The thirteen
+## The fourteen
 
 Wave one is committed. The rest are sketched so the engine is built against the
 full arc rather than one game.
@@ -125,33 +125,46 @@ full arc rather than one game.
 | 02 | **The Archive** | SQL & data |
 | 03 | **The Harness** | Python, debugging & testing |
 | 04 | **The Fork** | Git & collaborative development |
-| 05 | **The Containment** | LLM & AI |
+| 05 | **The Containment** | ML fundamentals & evaluation — loss, gradients, overfitting, validation, leakage, calibration |
 | 06 | **The Deposit** | Operations — services, unit dependencies, health checks that lie |
 | 07 | The Pipeline | Data engineering — ETL, streams, backfills, idempotency |
-| 08 | The Gradient | ML fundamentals — loss, gradients, overfitting, validation |
-| 09 | The Daemon | SRE — signals, systemd, observability, on-call, postmortems |
-| 10 | The Payload | Security — injection, auth, secrets, threat modeling (defensive framing) |
-| 11 | The Index | Algorithms — search, sort, hashing, trees, complexity |
-| 12 | The Contract | Distributed systems — APIs, idempotency, retries, consistency |
-| 13 | The Bootstrap | Compilers — build a language, then use it to escape |
+| 08 | The Handshake | Networking — DNS, TCP, routing, firewalls. **v43 returns in a big way.** |
+| 09 | *(practical AI — untitled)* | LLMs, agents, tools, skills, weights, prompt injection |
+| 10 | The Daemon | SRE — observability, on-call, postmortems |
+| 11 | The Payload | Security — injection (prompt injection included), auth, secrets, threat modeling (defensive framing) |
+| 12 | The Index | Algorithms — search, sort, hashing, trees, complexity |
+| 13 | The Contract | Distributed systems — APIs, idempotency, retries, consistency |
+| 14 | The Bootstrap | Compilers — build a language, then use it. **The finale: the conflict that ends v43.** |
 
-Order follows `docs/STORY_AND_GAME_PLAN.md` §3, which is the curriculum
-authority: Python, debugging and testing third, Git fourth, ML and AI fluency
-fifth, cloud and deployment sixth.
+**Chris set this order on 2026-10-03.** Fourteen games, not thirteen: *The
+Handshake* is added at 8. What changed and why:
 
-**The Handshake** — networking: DNS, TCP, TLS, routing, firewalls — is
-unslotted, deliberately. It leaves slot 6 because the engine cannot carry it:
-`Network.resolve()` is one map lookup and that is the whole of DNS, and there is
-no `/etc/hosts`, no `dig`, no `ss`, no `ip` and no firewall to teach with. The
-probe that established that is `packages/machine/test/probe-net.test.ts`, which
-fails if any of them ever appears.
+- **ML fundamentals fold into game 5.** *The Gradient* is gone as a separate
+  game; loss, gradients, overfitting and validation go into a repass of *The
+  Containment*, which already teaches evaluation.
+- **Practical AI is required.** At least one game, preferably more, teaches the
+  AI a working engineer actually touches: LLMs, agents, tools, skills, weights,
+  prompt injection. Slot 9 is that game. *The Payload* picks up prompt
+  injection again from the defensive side.
+- **v43 is met before the end.** *The Handshake* is where v43 comes back in a
+  big way — it left NAV-7 "across the cloud", and networking is the skill that
+  follows it. It is not the final confrontation.
+- **Game 14 is the finale** and the conflict that ends v43. It keeps *The
+  Bootstrap*'s subject, compilers.
+- **The Daemon is kept but narrowed** to observability, on-call and
+  postmortems, so it does not repeat *The Deposit*.
 
-It gets a slot when `packages/net` exists, and not before — authored against
-something real rather than bent to fit what is there. Naming a slot now would
-only be guessing at an order nobody can yet justify.
+Titles from 7 on are working titles. Plots from 7 on are not written; each
+game gets a beats doc, like games 2–6, before content.
 
-Games 01–06 are built. Beats for each are in `docs/ACT1_BEATS.md` and
-`docs/GAME2_BEATS.md` through `docs/GAME6_BEATS.md`.
+**The Handshake's engine.** It was unslotted until `packages/net` existed,
+because `Network.resolve()` was one map lookup and there was no `/etc/hosts`,
+`dig`, `ss`, `ip` or firewall to teach with. `docs/GAME6_BEATS.md` §7 has the
+build order and PR #42 implements it.
+
+Games 01–06 are built, and 05 is due a repass for ML fundamentals. Beats for
+each are in `docs/ACT1_BEATS.md` and `docs/GAME2_BEATS.md` through
+`docs/GAME6_BEATS.md`.
 
 The gate is computed rather than asserted: `node tools/measure.mjs` knows all
 six and prints each one's cost against The Wreck. Game six is 16.0%, of which
@@ -260,7 +273,7 @@ projects, crew threads, conversations -- not about adding acts.
 Adventure two exists to answer one question: does the engine generalize?
 
 **Gate:** if The Archive costs ≤40% of what The Wreck cost, the architecture
-is validated and thirteen is real. If it costs more, stop and fix the engine
+is validated and the series is real. If it costs more, stop and fix the engine
 before building a third. **This number is the whole thesis.**
 
 **Measured 2026-09-26 — `node tools/measure.mjs`:**
@@ -347,7 +360,7 @@ speculate and advises him to do the same.
 |------|----------|------------|
 | Phone typing stays unpleasant | **Fatal** | Phase 2 is a hard gate, not a feature list. Insurance: external-keyboard path and tablet-first layout. |
 | Content authoring is the real bottleneck | High | Puzzles-as-data plus a validator CLI; agents draft against a strict schema, Chris edits. Measured at Phase 3 before committing to Phase 4 volume. |
-| Thirteen games is a fantasy | High | Thirteen is a direction, not a commitment. Ship one. The ≤40% number is the go/no-go. |
+| Fourteen games is a fantasy | High | Fourteen is a direction, not a commitment. Ship one at a time. The ≤40% number is the go/no-go. |
 | Teaching something subtly wrong | High | Worse than not teaching. Every solution runs against real engines in CI; simulated behavior carries a doc comment citing the real tool. |
 | Pyodide weight and cold start | Medium | Lazy-load on first Python use, preload behind a narrative beat. Bash-only puzzles never pay for it. |
 | Real engines break the fiction | Medium | Largely designed out — goals are world-state predicates, so any correct route passes. |

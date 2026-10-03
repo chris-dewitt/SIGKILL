@@ -17,7 +17,7 @@ Everything you type is real: a real shell parser, real POSIX permissions, a real
 Python interpreter, a real SQLite database, real Git history. The commands you
 learn are the abilities that open the next door.
 
-Thirteen of these, each a different disaster, each a different pillar of the
+Fourteen of these, each a different disaster, each a different pillar of the
 craft.
 
 | # | Title | Teaches |
@@ -26,10 +26,10 @@ craft.
 | 02 | **The Archive** | SQL & data — queries, joins, indexes, transactions, schema design |
 | 03 | **The Harness** | Python, debugging & testing — a program, a failing test, the same answer twice |
 | 04 | **The Fork** | Git — history, branches, blame, and what people decided |
-| 05 | **The Containment** | LLM & AI — tokenization, attention, embeddings, RAG, prompt injection |
+| 05 | **The Containment** | ML & evaluation — tokens, attention, base rates, leakage, calibration |
 | 06 | **The Deposit** | Operations — four machines, systemd, and a health check that has lied for a month |
 
-Those six are playable. Seven more are sketched in
+Those six are playable. Eight more are sketched in
 [docs/PLAN.md](docs/PLAN.md).
 
 Every adventure ships two tracks over the same puzzles: **Cadet** for players who
@@ -59,7 +59,7 @@ pnpm build        # production bundle
 
 ## The Machine
 
-Every one of the thirteen games runs on one deterministic virtual computer.
+Every one of the fourteen games runs on one deterministic virtual computer.
 
 ```
 packages/machine/    VFS, shell parser, coreutils, virtual clock

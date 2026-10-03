@@ -66,7 +66,7 @@ The motivating rhythm is: discover something intriguing; ask a question; learn o
 
 ## 3. Curriculum and series direction
 
-These are ordered learning stages, not a declaration of the total number of releases. Working titles from older plans are provisional. Do not route the v43 climax into the old fourth-game slot.
+These are ordered learning stages. **Chris set the series at fourteen games on 2026-10-03**; `docs/PLAN.md` has the titles. Titles from game 7 on are working titles.
 
 | Stage | New emphasis | Continuing tools and narrative opportunity |
 |---|---|---|
@@ -74,9 +74,16 @@ These are ordered learning stages, not a declaration of the total number of rele
 | 2 | SQL, data modeling, APIs | Keep using the shell; connect records, examine schemas and missing data, interact with authored services. |
 | 3 | Python, debugging, testing | Automate investigations and establish reproducible results using the earlier data and shell skills. |
 | 4 | Git and collaborative development | Reconstruct and change software with Python, SQL, and Bash still in active use. |
-| 5 | ML fundamentals, modeling, evaluation, AI fluency, prompting | Test claims, assess datasets and models, understand uncertainty and limitations. |
+| 5 | ML fundamentals, modeling, evaluation | Test claims, assess datasets and models, understand uncertainty and limitations. Loss, gradients, overfitting and validation fold in here in a repass. |
 | 6 | Cloud, DevOps, deployment | Operate and change systems with dependencies, observe failures, deploy and roll back. |
-| 7 | Penultimate confrontation with v43 | Combine engineering and AI skills with LUNA as a partner; the resolution and what follows remain open. |
+| 7 | Data engineering | Pipelines, streams, backfills, idempotency. |
+| 8 | Networking | DNS, TCP, routing, firewalls. **v43 returns in a big way**: it left across the cloud, and this is the skill that follows it. Not the final confrontation. |
+| 9 | Practical AI | LLMs, agents, tools, skills, weights, prompt injection. Required: the series must teach the AI a working engineer touches, not only how to evaluate a model. |
+| 10 | SRE | Observability, on-call, postmortems. |
+| 11 | Security | Defensive framing; prompt injection again, from the defender's side. |
+| 12 | Algorithms | Search, sort, hashing, trees, complexity. |
+| 13 | Distributed systems | APIs, idempotency, retries, consistency. |
+| 14 | **Finale: the conflict that ends v43** | Compilers, combined with everything before, with LUNA as a partner. |
 
 Earlier skills should open additional approaches, not vanish when a new subject arrives. Later games should let players recognize and reuse things they built. Technical topics need observable consequences and honest explanations of simulation limits.
 
@@ -250,6 +257,6 @@ These can be answered by reacting to a draft, not another broad questionnaire:
 - Final puzzle count, optional-objective representation, conversation syntax and topic coverage.
 - Names and personal details for benefactor/tow operator; nearest planet and the next adventure's plot.
 - Exact post-arrival evidence revealing v43's involvement.
-- LUNA embodiment, clone behavior, ultimate v43 resolution, and what follows the penultimate confrontation.
+- LUNA embodiment, clone behavior, and how the finale ends v43.
 
 **Next review artifact:** an expanded Act I beat sheet and content inventory based on section 6, with concrete clue dependencies and sample reunion/tow dialogue. Implement only after that draft resolves the physical chain and reveal order; preserve the current playable act throughout the rewrite.

@@ -8,6 +8,12 @@ where DeWitt stops reading what people decided and starts reading what a
 > fundamentals, modeling, evaluation, AI fluency, prompting — test claims,
 > assess datasets and models, understand uncertainty and limitations."*
 
+> **Repass due, set by Chris on 2026-10-03.** *The Gradient* is no longer a
+> separate game, so this one takes its ML fundamentals as well: loss,
+> gradients, overfitting and validation. What follows is the act as built,
+> before that repass. Practical AI (LLMs, agents, tools, skills, weights,
+> prompt injection) is game 9's, not this one's; `docs/PLAN.md` has the order.
+
 ---
 
 ## 1. Where game four left him
@@ -171,8 +177,8 @@ that she is more than one. She notices that she has spent four games saying "I
 do not know" and meaning it, and that the classifier said 0.97 and did not, and
 that she cannot tell from the inside which of those she is doing right now.
 
-**Same rule as game four, for the same reason.** She does not resolve it. Stage
-7 needs a partner with something left to be, and a companion who has finished
+**Same rule as game four, for the same reason.** She does not resolve it. The
+finale needs a partner with something left to be, and a companion who has finished
 having feelings about her own nature in game five arrives at the confrontation
 with nothing. Flagged here because it will read as a liberty, and it is a
 deliberate one.
@@ -213,7 +219,7 @@ What this act still needs from the engine, and does not have yet:
 2. **Oduya's admission.** §6. A named person conceding error, in writing, in an
    act about nobody being wicked. She could also simply not answer, which is
    bleaker and possibly truer.
-3. **`what-she-is`.** §7, and the one beat that touches stage 7.
+3. **`what-she-is`.** §7, and the one beat that touches the finale.
 4. **Is 0.4 points too neat?** 99.2 against a 98.8 base rate is a very clean
    number. Real leakage is messier. I think the cleanliness is the point — it is
    what makes the arithmetic land on a phone — but it is the kind of tidy that

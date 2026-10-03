@@ -1,5 +1,39 @@
 # SIGKILL — handoff
 
+## State of play, 2026-10-03
+
+**Six games are on `main` and all six are in the chooser.** Game six's review
+found one real hole, fixed in PR #40: `clean-hands` could be won by reading
+your own matter and trimming your line out of `vault01`'s log with root. The
+store now ships each line to the tribunal's **ledger**, a host nobody on the
+floor can log into, and the objective reads that. `docs/GAME6_BEATS.md` §9 has
+the detail. The same PR gave `sed` pattern addresses (`/re/d`, `/re/p`) and
+made its `i` modifier do what the manual said.
+
+**The series is fourteen games, set by Chris on 2026-10-03.** `docs/PLAN.md`
+has the table. In short: 7 *The Pipeline*, 8 *The Handshake* (networking, and
+v43 back in a big way, though not the end), 9 practical AI (LLMs, agents, tools,
+skills, weights, prompt injection), 10–13 SRE, security, algorithms and
+distributed systems, and 14 the finale that ends v43. *The Gradient* is gone:
+its ML fundamentals go into a repass of game 5. `packages/net`, the engine The
+Handshake needs, is PR #42.
+
+**Open for Chris, cheapest first:** `GAME6_BEATS.md` §8, `GAME5_BEATS.md` §9,
+`GAME4_BEATS.md` §8, `GAME3_BEATS.md` §9, `GAME2_BEATS.md` §11. None blocks
+anything until content is built on top of it.
+
+**Known gaps worth closing before game seven:**
+
+- **Game 5 needs its ML-fundamentals repass** — loss, gradients, overfitting,
+  validation — now that *The Gradient* is not a separate game.
+- **LUNA reacts per turn only in game one.** `afterCommand` is implemented by
+  `games/wreck` alone; the canon calls her the companion for the whole series.
+- **The Archive is the thin game** — five objectives against nine everywhere
+  else, and stage 2's "APIs" never shipped. Four are planned: GROUP BY, the
+  registry API, transactions, the unindexed query.
+- **No heredoc in the shell.** From game three on, every Python file is written
+  in `vi` because `cat > f <<'EOF'` does not parse.
+
 ## Read first — game six exists and is reachable, 2026-10-02
 
 **Game 6 exists.** `games/deposit` -- *The Deposit*, on the machine floor of
@@ -266,12 +300,13 @@ Nothing in Act I names v43.
   emerges from hiding when she recognizes his activity. ORACLE stays with NAV-7.
 - Act I builds toward contacting a kind, funny tow operator. Suspicion of v43
   develops after tow arrival. The ship is towed to the nearest planet.
-- The cumulative curriculum is Linux/Bash; SQL/data modeling/APIs; Python/debugging/
-  testing; Git; ML/evaluation/AI fluency; cloud/DevOps; then a penultimate v43
-  confrontation. Total release count and final ending remain open.
+- The cumulative curriculum is fourteen games: Linux/Bash; SQL/data
+  modeling/APIs; Python/debugging/testing; Git; ML fundamentals and evaluation;
+  operations; data engineering; networking (v43 returns); practical AI; SRE;
+  security; algorithms; distributed systems; and a finale that ends v43.
 
 **Sections below retain implementation history and older decisions.** Their
-unnamed-player, eleven-year, slow-decline, fixed thirteen-game, five-objective
+unnamed-player, eleven-year, slow-decline, thirteen-game, five-objective
 scope cap, and earlier curriculum assertions are superseded where they conflict
 with the above. Historical test counts are not fresh validation.
 
@@ -316,7 +351,14 @@ and the typewriter came out — see the note in §2 on `apps/terminal`.
 
 | Branch / PR | State | Contains |
 |---|---|---|
-| `main` @ `b5a083e` | merged base | everything through PR #23 |
+| `main` | merged base | everything through PR #40 — run `git log` rather than trusting a sha here |
+| PR #40 | merged | the deposit ledger, so `clean-hands` cannot be won by editing the log; `sed` pattern addresses |
+| PR #39 | merged | game six, *The Deposit*: the floor of hosts, the store, the fleet save |
+| PR #35–#38 | merged | the CI-built APK and Release asset, copy out of the canvas, the TEXT/TAB dock fixes, the curl/nc and `Requires=`/`After=` probes for game six |
+| PR #33–#34 | merged | *The Fork*; `packages/ml` and *The Containment*, with the glass-box review fixes |
+| PR #30–#32 | merged | game four's beats and `packages/git`; DeWitt as a person rather than a replaced string; a dependency pin |
+| PR #26–#29 | merged | recovered strands and the wa-sqlite spike; `sqlite3` and *The Archive*; *The Harness*; the game library and chooser |
+| PR #24 | merged | `feat/act1-canon-and-rescue`: the canon rewrite, comms and the tow, the pager, the clone, `journalctl` |
 | PR #1–#11 | merged | phases 0–1, Android wrap, renderer, hints, editors, the coreutils sweep, the Act I blocker |
 | PR #12 | merged | Deck C, puzzles 3–4, shell scripts, 32 manual pages |
 | PR #13 | merged | ASCII art: `packages/ascii`, `deck`, `pressure`, the three set pieces |
@@ -464,12 +506,12 @@ reactor is always there, moving air arrives when the scrubber starts, an open
 compartment hisses until it is sealed. Nothing is a backing track.
 
 **`packages/ascii`** — the art toolkit. Frames, gauges, sparklines and block
-layout, no dependencies, shared by all thirteen games. `SAFE_COLS` is 34,
+layout, no dependencies, shared by all fourteen games. `SAFE_COLS` is 34,
 which is what a portrait phone really gives you. Two rules worth knowing:
 art goes through `view.writeArt` (clipped) and never `write` (reflowed, which
 scrambles it), and a column of sparklines must share an axis or the healthy
 rows look like an emergency. It also carries a 5x3 block font, because all
-thirteen games need their name up front.
+fourteen games need their name up front.
 
 **Art in the wreck** — `src/act1/art.ts` is the live diagrams (`deck`,
 `pressure`), `src/act1/cards.ts` is the three set pieces. Both diagrams are
@@ -513,9 +555,10 @@ the 540 lines ORACLE quotes, and 60 C7 rows plus 8 C2 rows are its 68 matches.
 Change the *step* to move the window; leave the counts alone.
 
 **`games/deposit`** — game six, and the only adventure that is a *floor*
-rather than a machine. `src/act1/floor.ts` seeds five hosts (one of them
-powered off, which is a different failure from a name that does not resolve and
-is an objective); `src/store.ts` is the deposit store's own retrieval command,
+rather than a machine. `src/act1/floor.ts` seeds five hosts on the floor (one of
+them powered off, which is a different failure from a name that does not resolve
+and is an objective) plus the tribunal's `ledger`, which is off the floor and
+holds the copy of the store's record nobody here can edit; `src/store.ts` is the deposit store's own retrieval command,
 which is what makes the access record evidence rather than decoration;
 `src/world.ts` boots, saves and restores the fleet and holds the cold open and
 the epilogue. `src/objectives.ts` is nine required and two optional.
@@ -871,7 +914,7 @@ match, if you are adding lines:
 
 The other three options (Wry Dewitt, Insubordinate Tool, Unreliable Log) are
 in git history on `docs/pr-when-final` if a later game wants a different daemon.
-Each of the thirteen games can have its own; the voice is one option on
+Each of the fourteen games can have its own; the voice is one option on
 `questCommands` and recasting touches no ladder.
 
 ### 5a-bis. Scope — settled
@@ -1157,7 +1200,11 @@ by unit tests:
 
 ---
 
-## 8. What to do next
+## 8. What to do next — as of 2026-09-22, Act I only
+
+> Historical. Written when The Wreck was the only game; the current next steps
+> are in **State of play** at the top of this file. Kept because the Act I
+> notes below still apply to anybody editing game one.
 
 Act I is finished to the shape `docs/ACT1_BEATS.md` describes: the canon pass,
 the two comms puzzles, the tow, the optional threads, the projects. **Read that

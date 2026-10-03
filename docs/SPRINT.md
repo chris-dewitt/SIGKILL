@@ -1,5 +1,9 @@
 # Sprint 2 — `sqlite3` on the ship
 
+> **Done.** `sqlite3` shipped in PR #27 and game two was built on it. This file
+> is kept as the record of how the sprint was scoped, not as current work —
+> `HANDOFF.md` has what is open now.
+
 Written 2026-09-26, after Act I shipped and the wa-sqlite spike passed.
 
 **One sentence:** make `sqlite3` a real command on a real database file, as
