@@ -149,7 +149,7 @@ describe('reading the answer', () => {
   });
 
   it('refuses everything else rather than guessing', () => {
-    for (const answer of ['', '0', '7', '-1', '2x', 'cluster', 'yes']) {
+    for (const answer of ['', '0', '8', '-1', '2x', 'cluster', 'yes']) {
       expect(chosen(list, answer), answer).toBeUndefined();
     }
   });

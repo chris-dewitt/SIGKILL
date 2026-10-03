@@ -2,7 +2,7 @@ import type { Adventure } from '@sigkill/quest';
 import { bootPipeline, restorePipeline } from './world.js';
 export { bootPipeline, restorePipeline, PIPELINE_OBJECTIVES } from './world.js';
 export const PIPELINE: Adventure = {
-  id:'pipeline', number:7, title:'The Pipeline', teaches:'Data pipelines, retries and backfills',
+  id:'pipeline', number:7, title:'The Pipeline', teaches:'Data pipelines and backfills',
   blurb:['The scanner sent it three times.', 'Someone was charged for all three.', 'Keep the events. Lose the duplicates.'],
   boot:async()=>bootPipeline(), restore:async snapshot=>restorePipeline(snapshot),
   coldOpen:()=>[
