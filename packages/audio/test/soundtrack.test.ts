@@ -41,6 +41,20 @@ describe('audible state transitions',()=>{
     expect(oscillator.frequency.value).toBe(54);
     expect(context!.oscillators).toHaveLength(2);
   });
+  it('does not queue effects while the app is in the background',async()=>{
+    let context:Context;
+    vi.stubGlobal('AudioContext',class extends Context {constructor(){super();context=this;}});
+    vi.useFakeTimers();
+    sound=new Soundtrack();
+    sound.setState({scene:'silent',scrubber:false,monitor:false,breached:false,reserve:1});
+    await sound.resume();
+    sound.suspend();
+    sound.play('message');
+    expect(context!.oscillators).toHaveLength(0);
+    await sound.resume();
+    sound.play('message');
+    expect(context!.oscillators.length).toBeGreaterThan(0);
+  });
   it('really silences the fallback and separates settings',()=>{
     expect(Object.values(mixFor({scene:'silent',scrubber:false,monitor:false,breached:false,reserve:1})).every(x=>x.gain===0)).toBe(true);
     sound=new Soundtrack();sound.setChannel('effects',0);sound.setChannel('ambience',0.4);

@@ -18,6 +18,7 @@ describe('companion',()=>{
     expect((await s.machine.exec('talk work')).stdout).toContain('inspect the file');
     expect((await s.machine.exec('luna joke')).stdout).toContain('walks into a bar');
     expect(s.questbook.hintsTaken).toBe(0);
+    expect((await s.machine.exec('talk constructor')).stdout).toContain('Try talk');
     expect(s.afterCommand?.()).toEqual([]);
   });
   it('reacts to a state change once and remembers across reload',()=>{

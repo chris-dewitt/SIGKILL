@@ -135,7 +135,7 @@ export function epilogue(world?: World): BeatLine[] {
     `KERR: ${UPLINK_TOTAL} bytes. ${TRANSIT_SECONDS} seconds. Destination: ${DESTINATION}.`,
     'KERR: The ship, the archive, and the tug ledger agree. I am filing the measurement.',
     'KERR: Be careful who you give the theory to, Mr DeWitt.',
-    ...(named ? ['LUNA: We kept the session record too. Kerr did not ask. I am glad you did.'] : []),
+    ...(named ? ['LUNA: It had root for eleven minutes. Kerr did not ask what used it. I am glad you did.'] : []),
     'HOLLIS: Supper. Both of you. The small one can complain about the fridge.',
     '', '  THE HARNESS — COMPLETE',
     '  Keep exploring, or type games for The Fork.', '',

@@ -43,7 +43,7 @@ export function withCompanion<T extends AdventureSession>(session: T, options: C
         io.out(speak([step?.label ?? objective?.title ?? 'The required work is done. We can stay a while.']).join('\n') + '\n');
         return 0;
       }
-      const lines = options.topics[topic];
+      const lines = Object.hasOwn(options.topics, topic) ? options.topics[topic] : undefined;
       io.out(speak(lines ?? [`I do not have an answer for that. Try talk for the topics.`]).join('\n') + '\n');
       return 0;
     },

@@ -8,7 +8,7 @@ company without paying a hint penalty.
 | Game | Pass |
 | --- | --- |
 | The Wreck | Shorter emergency briefing, LUNA arrival, process reactions, milestones and ending; retained title art, ship schematic and optional investigations. |
-| The Archive | Merrick's briefing and SQL discoveries shortened; optional conversation and progress asides. |
+| The Archive | Merrick's briefing and SQL discoveries shortened; optional conversation. |
 | The Harness | Shorter Python/debugging milestones, optional LUNA conversation and quieter room identity. |
 | The Fork | Shorter Git discoveries; kept Pell absent, the provenance question unresolved, and the conditional history ending. |
 | The Containment | Shorter evaluation beats; preserved the distinction between confidence and calibration and avoided revealing the later result in the opening. |
@@ -57,7 +57,8 @@ the authored fixtures, not correctness for every possible future input.
 The dependency-free route harness passes all 27 Pipeline solutions and 18
 near misses. The bottom hints complete all nine objectives, including after
 save/restore. Added regression tests cover rehearsal isolation, protected
-receipts, recipe changes, companion persistence and oscillator retuning.
+receipts, recipe changes, companion persistence, unknown conversation topics,
+background audio and oscillator retuning.
 The full typecheck, test suite and production build are required in CI.
 
 Real-device listening and soft-keyboard comfort still need human playtesting.

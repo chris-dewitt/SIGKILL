@@ -1517,7 +1517,7 @@ total = 0` +
       `  destination: ${DESTINATION}`,
       "",
       "LUNA: A rented processor. That is where the transfer went.",
-      "LUNA: Keep the address. Kerr asked for a destination.",
+      "LUNA: Kerr asked where. I want to know what was running. The recovery README lists the other records.",
       "",
     ],
     steps: [

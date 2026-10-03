@@ -133,7 +133,7 @@ export class Soundtrack {
 
   /** Play a one-shot. Silently does nothing before the first gesture. */
   play(name: CueName): void {
-    if (this.off || this.ctx === undefined || this.master === undefined) return;
+    if (this.off || this.ctx?.state !== 'running' || this.master === undefined) return;
     this.schedule(cue(name), this.ctx.currentTime);
   }
 

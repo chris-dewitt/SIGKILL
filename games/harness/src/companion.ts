@@ -17,8 +17,6 @@ export const COMPANION: CompanionOptions = {
     ]
   },
   "asides": {
-    "the-total": "Keep the raw count. Convert the units after you can reproduce it.",
-    "write-the-test": "Try one input where the answer is obvious. Then one where the input is bad.",
-    "the-package": "Someone else has to run this without borrowing your memory."
-  }
+  "open-the-dump": "The reader runs. Keep its count somewhere we can compare it."
+}
 };

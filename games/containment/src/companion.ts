@@ -17,7 +17,7 @@ export const COMPANION: CompanionOptions = {
     ]
   },
   "asides": {
-    "the-matrix": "Count the crewed ships separately. Most of these rows are empty vessels.",
-    "not-confidence": "Look at how sure it was on the wrong answers."
-  }
+  "the-number-they-quoted": "A figure without the script is a claim we would have to trust.",
+  "the-honest-number": "Keep the crewed-ship result beside the headline. Kerr needs both."
+}
 };

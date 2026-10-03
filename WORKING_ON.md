@@ -10,7 +10,6 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| games/wreck, games/archive, games/harness, games/fork, games/containment, games/deposit, games/pipeline, packages/audio, packages/quest, apps/terminal, docs | Codex | 2026-10-03 | Full playability and dialogue passes for 1–7; companion reactions, audio and Pipeline. |
 | packages/net | Claude | 2026-10-03 | The networking engine, for *The Handshake*. New package; also touches `machine/src/net` and `coreutils/net.ts`, which is in the row on purpose. |
 
 ## Conventions

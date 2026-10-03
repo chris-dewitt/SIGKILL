@@ -13,7 +13,5 @@ export const COMPANION: CompanionOptions = {
       "People leave things blank when they do not know. The database calls that NULL. At least it admits it."
     ]
   },
-  "asides": {
-    "file-the-evidence": "Keep the source beside the finding. It saves us a second argument."
-  }
+  "asides": {}
 };

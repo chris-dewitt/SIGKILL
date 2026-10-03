@@ -42,9 +42,8 @@ export interface HostHooks {
   /**
    * What the mixer should be playing.
    *
-   * Only The Wreck has a ship whose state is audible. The others are rooms with
-   * people in them, and the honest sound for a room whose tone has not been
-   * authored is no tone at all.
+   * The Wreck derives its mix from ship state. Other adventures supply their
+   * authored room tone. An omitted hook remains silent.
    */
   readonly sound?: (machine: Machine, progress: { done: number; goals: number }) => AudioState;
 }
