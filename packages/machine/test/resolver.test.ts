@@ -209,3 +209,36 @@ describe('the file belongs to the machine that reads it', () => {
     expect(remote.stderr).toContain('Could not resolve');
   });
 });
+
+/**
+ * 127.0.0.1 is whoever is asking.
+ *
+ * Not a host on the network and never routed to one, which is the only way the
+ * engine can express the connection that is supposed to succeed: a service
+ * bound to loopback answers its own machine and refuses everybody else.
+ */
+describe('loopback', () => {
+  it('is the machine running the command, by address and by name', async () => {
+    const f = fleet();
+    // The bastion has ssh open, so it can reach its own.
+    expect((await f.local.exec('nc -z 127.0.0.1 22')).code).toBe(0);
+    expect((await f.local.exec('nc -z localhost 22')).code).toBe(0);
+  });
+
+  it('is a different machine on the other end of an ssh', async () => {
+    const f = fleet();
+    // api01 has port 80; the bastion does not. `localhost` over there is
+    // over there.
+    expect((await f.local.exec("ssh api01 'nc -z localhost 80'")).code).toBe(0);
+    expect((await f.local.exec('nc -z localhost 80')).stderr).toContain('refused');
+  });
+
+  it('can be pointed somewhere else by the hosts file, which is a real bug', async () => {
+    const f = fleet();
+    // The classic: a line that sends a service's own name at the local box.
+    hosts(f, '127.0.0.1 api01\n');
+    const r = await f.local.exec('curl http://api01/health');
+    expect(r.stderr).toContain('Connection refused');
+    expect(r.stderr).not.toContain('Could not resolve');
+  });
+});

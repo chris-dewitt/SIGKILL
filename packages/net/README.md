@@ -29,5 +29,20 @@ $ getent hosts api01
 10.0.9.99       api01
 ```
 
-Still to come, in the order a game would want them: `ss`/`netstat`, `ip addr`
-and `ip route`, then a firewall. TLS last or never.
+## What is listening, and where
+
+| Command | What it asks |
+|---------|--------------|
+| `ss -ltn` | which ports this machine is listening on, and on which address |
+| `netstat -ltn` | the same, in the tool every pre-2015 runbook names |
+
+The address column is the lesson. `0.0.0.0` is every address; `127.0.0.1` is
+this machine and nobody else — the service is running, the unit is active, the
+journal is clean, and every connection from anywhere else is refused in exactly
+the words a closed port uses. Nothing but `ss` tells those two apart.
+
+Neither prints Recv-Q or Send-Q. There are no queues in this engine, and two
+columns of plausible zeroes would be a measurement of nothing.
+
+Still to come, in the order a game would want them: `ip addr` and `ip route`,
+then a firewall. TLS last or never.

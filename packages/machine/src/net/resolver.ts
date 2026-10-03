@@ -31,8 +31,14 @@ import type { NetHost, Network } from './network.js';
 
 export const HOSTS_FILE = '/etc/hosts';
 
-/** Where an answer came from. `dns` is the network's own map. */
-export type Via = 'hosts' | 'dns';
+/**
+ * Where an answer came from.
+ *
+ * `dns` is the network's own map. `loopback` is the machine itself, which
+ * every machine knows about without being told and no file is required to
+ * state.
+ */
+export type Via = 'hosts' | 'dns' | 'loopback';
 
 export type Resolution =
   /** A name, an address, and something answering at it. */
@@ -55,6 +61,9 @@ export interface HostsEntry {
 }
 
 const DOTTED_QUAD = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/** The whole 127/8 block is this machine, as it is on any machine. */
+const LOOPBACK = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 
 /** Is this already an address, rather than something to look up? */
 export const isAddress = (text: string): boolean => DOTTED_QUAD.test(text);
@@ -105,8 +114,26 @@ export function readHosts(vfs: Vfs, user: User): HostsEntry[] {
  * An address is never looked up: `curl http://10.0.1.10/` asks that address
  * whether anything is there, and a hosts file has nothing to say about it.
  */
-export function lookup(net: Network, vfs: Vfs, user: User, nameOrIp: string): Resolution {
+export function lookup(
+  net: Network,
+  vfs: Vfs,
+  user: User,
+  nameOrIp: string,
+  /** The machine asking, so that 127.0.0.1 and `localhost` mean something. */
+  self?: string,
+): Resolution {
+  const here = self === undefined ? undefined : net.resolve(self);
+
   const at = (ip: string, via: Via): Resolution => {
+    /*
+     * 127.0.0.1 is whoever is asking.
+     *
+     * Not a host on the network and never routed to one: the loopback address
+     * is the machine itself, which is why a service bound to it can be reached
+     * from the box and from nowhere else. Without this the engine had no way
+     * to express the connection that is supposed to succeed.
+     */
+    if (LOOPBACK.test(ip) && here) return { kind: 'host', host: here, ip, via: 'loopback' };
     const host = net.list().find((candidate) => candidate.ip === ip);
     return host ? { kind: 'host', host, ip, via } : { kind: 'address', ip, via };
   };
@@ -115,6 +142,19 @@ export function lookup(net: Network, vfs: Vfs, user: User, nameOrIp: string): Re
 
   for (const entry of readHosts(vfs, user)) {
     if (entry.names.includes(nameOrIp)) return at(entry.ip, 'hosts');
+  }
+
+  /*
+   * `localhost`, with or without a hosts file.
+   *
+   * Every machine in this engine answers to it, because every machine outside
+   * this engine does -- and a player typing `curl http://localhost/health` on
+   * the box they are standing on should not have to be taught that this
+   * particular computer is missing a line most computers have. A hosts file
+   * that says otherwise is consulted first and wins, as above.
+   */
+  if (nameOrIp === 'localhost' && here) {
+    return { kind: 'host', host: here, ip: '127.0.0.1', via: 'loopback' };
   }
 
   // Nothing in the file, so ask the network -- which is this engine's DNS, and
@@ -137,12 +177,23 @@ export type Reach =
   | { readonly kind: 'no-route'; readonly ip: string }
   | { readonly kind: 'refused'; readonly host: NetHost };
 
-export function reach(resolution: Resolution, port: number): Reach {
+export function reach(resolution: Resolution, port: number, from?: string): Reach {
   if (resolution.kind === 'unknown') return { kind: 'unknown-host' };
   // An address with nothing at it and a host that is powered off are the same
   // packet going nowhere, and the real tools say the same thing about both.
   if (resolution.kind === 'address') return { kind: 'no-route', ip: resolution.ip };
   if (!resolution.host.up) return { kind: 'no-route', ip: resolution.ip };
   if (!resolution.host.ports.has(port)) return { kind: 'refused', host: resolution.host };
+  /*
+   * Listening, and not to you.
+   *
+   * A port bound to 127.0.0.1 answers its own machine and refuses every other,
+   * with exactly the same message a closed port gives -- which is the whole
+   * difficulty of the thing. `from` is the hostname of the machine making the
+   * connection, so a command running on the host itself gets through.
+   */
+  if (resolution.host.loopback.has(port) && from !== resolution.host.hostname) {
+    return { kind: 'refused', host: resolution.host };
+  }
   return { kind: 'ok', host: resolution.host };
 }

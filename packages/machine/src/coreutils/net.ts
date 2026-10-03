@@ -33,11 +33,17 @@ function requireNetwork(ctx: ShellContext, tool: string, io: { err(t: string): v
  * machine's file and never the one the player edited at home.
  */
 const resolveFrom = (ctx: ShellContext, nameOrIp: string): Resolution =>
-  lookup(ctx.network!, ctx.vfs, ctx.user, nameOrIp);
+  lookup(ctx.network!, ctx.vfs, ctx.user, nameOrIp, ctx.hostname);
 
-/** The same three failures, in the same words, for every tool here. */
+/**
+ * The same three failures, in the same words, for every tool here.
+ *
+ * `ctx.hostname` goes with the question because a service bound to loopback
+ * answers its own machine and refuses every other, and the engine cannot tell
+ * those apart without knowing who is asking.
+ */
 const reachFrom = (ctx: ShellContext, nameOrIp: string, port: number): Reach =>
-  reach(resolveFrom(ctx, nameOrIp), port);
+  reach(resolveFrom(ctx, nameOrIp), port, ctx.hostname);
 
 export const netCommands: CommandSpec[] = [
   {

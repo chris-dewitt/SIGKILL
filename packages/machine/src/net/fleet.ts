@@ -27,6 +27,8 @@ export interface HostSnapshot {
   ip: string;
   /** Port to banner. An array because a Map is not JSON. */
   ports: [number, string][];
+  /** Of those, the ones bound to loopback. Absent in saves written before it existed. */
+  loopback?: number[];
   accounts: [string, { uid: number; gid: number }][];
   up: boolean;
   machine: MachineSnapshot;
@@ -70,6 +72,7 @@ export function snapshotFleet(network: Network, session: Session): FleetSnapshot
       hostname: host.hostname,
       ip: host.ip,
       ports: [...host.ports.entries()],
+      loopback: [...host.loopback],
       accounts: [...host.accounts.entries()],
       up: host.up,
       machine: host.machine.snapshot(),
@@ -99,6 +102,7 @@ export function restoreFleet(snap: FleetSnapshot, wire: WireHost): Fleet {
       ip: host.ip,
       machine,
       ports: Object.fromEntries(host.ports),
+      loopback: host.loopback ?? [],
       accounts: Object.fromEntries(host.accounts),
       up: host.up,
       ...(http ? { http } : {}),

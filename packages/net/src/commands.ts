@@ -1,5 +1,6 @@
 import type { CommandSpec } from '@sigkill/machine';
 import { dnsCommands } from './dns.js';
+import { socketCommands } from './sockets.js';
 
 /**
  * Everything this package adds, as one call.
@@ -9,5 +10,5 @@ import { dnsCommands } from './dns.js';
  * that the tools are arbitrary rather than that the questions are different.
  */
 export function netCommands(): CommandSpec[] {
-  return [...dnsCommands()];
+  return [...dnsCommands(), ...socketCommands()];
 }

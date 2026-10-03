@@ -13,6 +13,20 @@ export interface NetHost {
   machine: Machine;
   /** Open ports, port -> service banner. A closed port is simply absent. */
   ports: Map<number, string>;
+  /**
+   * Of those ports, the ones bound to 127.0.0.1 rather than every address.
+   *
+   * A service listening on loopback answers on its own machine and refuses
+   * everybody else, while `systemctl` reports it active and the log shows it
+   * started cleanly. It is one of the most common ways a working service looks
+   * like a broken one, and it cannot be diagnosed by asking whether the
+   * service is running -- only by asking what it is listening on, which is
+   * what `ss` is for.
+   *
+   * A port absent from this set is bound to 0.0.0.0, which is the ordinary
+   * case and why this is a set of exceptions rather than a field per port.
+   */
+  loopback: Set<number>;
   /** Accounts that may log in over ssh, by name. */
   accounts: Map<string, { uid: number; gid: number }>;
   /** Powered on and on the network. */
@@ -32,6 +46,8 @@ export interface HostOptions {
   ip: string;
   machine: Machine;
   ports?: Record<number, string>;
+  /** Ports bound to 127.0.0.1 only. See `NetHost.loopback`. */
+  loopback?: readonly number[];
   accounts?: Record<string, { uid: number; gid: number }>;
   up?: boolean;
   http?: NetHost['http'];
@@ -53,6 +69,7 @@ export class Network {
       ip: opts.ip,
       machine: opts.machine,
       ports: new Map(Object.entries(opts.ports ?? {}).map(([p, b]) => [Number(p), b])),
+      loopback: new Set(opts.loopback ?? []),
       accounts: new Map(Object.entries(opts.accounts ?? {})),
       up: opts.up ?? true,
       ...(opts.http ? { http: opts.http } : {}),

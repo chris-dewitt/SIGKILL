@@ -225,7 +225,7 @@ export function dnsCommands(): CommandSpec[] {
           return 0;
         }
 
-        const resolution = lookup(ctx.network!, ctx.vfs, ctx.user, key);
+        const resolution = lookup(ctx.network!, ctx.vfs, ctx.user, key, ctx.hostname);
         if (resolution.kind === 'unknown') return 2;
         // The canonical name as the source gave it: the file's first name for
         // the entry, or the network's own hostname.
