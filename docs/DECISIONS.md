@@ -167,7 +167,7 @@ Nothing executable is ever loaded from downloaded content.
 wearing a hat. This is a security boundary, not a preference.
 
 **Cost:** an adventure cannot be shipped as a pure data update; it is part of
-the build. Given thirteen separate store listings, that was always true.
+the build. Given fourteen separate store listings, that was always true.
 
 ---
 
@@ -214,3 +214,27 @@ output plus a forced break before any `preformatted` segment. The Machine
 already declares which those are — `RunResult.segments` carries it — so the
 information is there. It was not done because it is more code for a case
 nobody has hit while playing.
+
+---
+
+## 12. Fourteen games, in Chris's order
+
+**Decided** by Chris on 2026-10-03, after the build had drifted from what he
+meant the series to be. `docs/PLAN.md` has the table.
+
+- **Fourteen games.** *The Handshake* (networking) is added at 8.
+- **v43 is met before the end.** The Handshake brings it back in a big way.
+  Game 14 is the finale and the conflict that ends it.
+- **Practical AI is mandatory.** At least one game, preferably more, teaches
+  LLMs, agents, tools, skills, weights and prompt injection. Game 9 is that
+  game; game 11 (security) returns to prompt injection.
+- **ML fundamentals live in game 5.** *The Gradient* is dropped as a separate
+  game and its material goes into a repass of *The Containment*.
+
+**Why:** the slots had been reordered twice on a reading of the story plan,
+and game 5 shipped as model evaluation with no LLMs and no v43. That was
+defensible from the documents but not what Chris wanted. An order he set
+himself ends that argument.
+
+**Cost:** game 5 needs a repass after it shipped. Every beats doc that said
+"stage 7" for the v43 confrontation now means game 14.

@@ -142,9 +142,9 @@ messages. One of them reduces how often she interrupts. One of them is titled
 event, adds a line to her prompt that the player has been reading since Act I.
 
 She is allowed to be upset about this and allowed not to be. What she must not
-do is resolve it — the series has a stage 7 and a partner in it, and a companion
+do is resolve it — the series has a finale and a partner in it, and a companion
 who has finished having feelings about her own authorship in game 4 has nothing
-left to be in game 7.
+left to be in game 14.
 
 Same rule as The Harness's LUNA error: flagged here because it will read as a
 liberty, and it is a deliberate one.
@@ -191,7 +191,7 @@ If any of those is no, the design changes before there is content resting on it.
    precedent. Reversible cheaply today and expensively once content exists, so
    it is the first thing to say no to if it is wrong.
 2. **`her-own-history`.** §6. A liberty, taken deliberately, and the one beat in
-   the act that touches stage 7.
+   the act that touches the finale.
 3. **What Bowen pushed.** It has to complicate him without convicting him, and I
    have not settled what it is. Suggestions welcome; canon forbids making his
    flight a verdict.

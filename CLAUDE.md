@@ -12,7 +12,7 @@ Read this, then the architecture doc, then the code.
 | [docs/PLAYTEST.md](docs/PLAYTEST.md) | Getting the game onto a phone — LAN browser, CI-built APK, the checklist. |
 | [docs/HINTS.md](docs/HINTS.md) | **Read before authoring an objective or a hint ladder.** |
 | [docs/FULLSCREEN.md](docs/FULLSCREEN.md) | How `vi` takes the screen, and how to add another full-screen program. |
-| [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the thirteen adventures. |
+| [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the fourteen adventures. |
 | [packages/machine/README.md](packages/machine/README.md) | The engine's API surface. |
 | [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four of us share this repo. |
 
@@ -20,7 +20,7 @@ Read this, then the architecture doc, then the code.
 
 ## What this is
 
-Thirteen terminal survival adventures that teach real backend and ML
+Fourteen terminal survival adventures that teach real backend and ML
 infrastructure engineering. Phone-first, offline, paid once per game, no ads,
 no accounts, no telemetry.
 
@@ -197,8 +197,8 @@ written here; it was wrong in this file for three games running.
 
 The 40% gate has been applied to every game after the first and has held every
 time — `node tools/measure.mjs` computes it, and `HANDOFF.md` has the latest
-table. Game seven is not chosen yet: the candidates and the case for each are
-at the top of `HANDOFF.md`.
+table. The series is fourteen games; `docs/PLAN.md` has the order Chris set
+on 2026-10-03, and game seven is *The Pipeline*.
 
 **Every puzzle declares its own routes.** `Objective` carries `teaches`,
 `routes` and `nearMisses`, and `packages/quest/src/harness.ts` runs them against

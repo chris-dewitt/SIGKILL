@@ -201,6 +201,7 @@ be lower still.
 Chris's call was *ops now, and start the networking engine in parallel*, so The
 Handshake can be authored later against something real instead of being bent to
 fit what exists.
+It is now game 8 in Chris's fourteen-game order (`docs/PLAN.md`).
 
 What it needs, in the order a game would want it:
 

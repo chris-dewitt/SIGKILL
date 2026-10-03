@@ -10,19 +10,13 @@ floor can log into, and the objective reads that. `docs/GAME6_BEATS.md` §9 has
 the detail. The same PR gave `sed` pattern addresses (`/re/d`, `/re/p`) and
 made its `i` modifier do what the manual said.
 
-**Game seven is not chosen.** Three documents disagree:
-
-| Source | Says game 7 is |
-|---|---|
-| `docs/PLAN.md` table | *The Pipeline* — data engineering |
-| `docs/STORY_AND_GAME_PLAN.md` §3 | stage 7, the penultimate v43 confrontation |
-| `docs/GAME6_BEATS.md` §7 | *The Handshake* — networking, on a `packages/net` not yet started |
-
-The case for *The Handshake*: its engine work is already scoped (resolver,
-`dig`, `ss`, `ip`, a firewall), and v43 left "across the cloud", so a
-confrontation before the player understands networks skips the skill the
-climax needs. The v43 game also waits on the on-device model spike. **Chris
-decides.**
+**The series is fourteen games, set by Chris on 2026-10-03.** `docs/PLAN.md`
+has the table. In short: 7 *The Pipeline*, 8 *The Handshake* (networking, and
+v43 back in a big way, though not the end), 9 practical AI (LLMs, agents, tools,
+skills, weights, prompt injection), 10–13 SRE, security, algorithms and
+distributed systems, and 14 the finale that ends v43. *The Gradient* is gone:
+its ML fundamentals go into a repass of game 5. `packages/net`, the engine The
+Handshake needs, is PR #42.
 
 **Open for Chris, cheapest first:** `GAME6_BEATS.md` §8, `GAME5_BEATS.md` §9,
 `GAME4_BEATS.md` §8, `GAME3_BEATS.md` §9, `GAME2_BEATS.md` §11. None blocks
@@ -30,6 +24,8 @@ anything until content is built on top of it.
 
 **Known gaps worth closing before game seven:**
 
+- **Game 5 needs its ML-fundamentals repass** — loss, gradients, overfitting,
+  validation — now that *The Gradient* is not a separate game.
 - **LUNA reacts per turn only in game one.** `afterCommand` is implemented by
   `games/wreck` alone; the canon calls her the companion for the whole series.
 - **The Archive is the thin game** — five objectives against nine everywhere
@@ -304,12 +300,13 @@ Nothing in Act I names v43.
   emerges from hiding when she recognizes his activity. ORACLE stays with NAV-7.
 - Act I builds toward contacting a kind, funny tow operator. Suspicion of v43
   develops after tow arrival. The ship is towed to the nearest planet.
-- The cumulative curriculum is Linux/Bash; SQL/data modeling/APIs; Python/debugging/
-  testing; Git; ML/evaluation/AI fluency; cloud/DevOps; then a penultimate v43
-  confrontation. Total release count and final ending remain open.
+- The cumulative curriculum is fourteen games: Linux/Bash; SQL/data
+  modeling/APIs; Python/debugging/testing; Git; ML fundamentals and evaluation;
+  operations; data engineering; networking (v43 returns); practical AI; SRE;
+  security; algorithms; distributed systems; and a finale that ends v43.
 
 **Sections below retain implementation history and older decisions.** Their
-unnamed-player, eleven-year, slow-decline, fixed thirteen-game, five-objective
+unnamed-player, eleven-year, slow-decline, thirteen-game, five-objective
 scope cap, and earlier curriculum assertions are superseded where they conflict
 with the above. Historical test counts are not fresh validation.
 
@@ -509,12 +506,12 @@ reactor is always there, moving air arrives when the scrubber starts, an open
 compartment hisses until it is sealed. Nothing is a backing track.
 
 **`packages/ascii`** — the art toolkit. Frames, gauges, sparklines and block
-layout, no dependencies, shared by all thirteen games. `SAFE_COLS` is 34,
+layout, no dependencies, shared by all fourteen games. `SAFE_COLS` is 34,
 which is what a portrait phone really gives you. Two rules worth knowing:
 art goes through `view.writeArt` (clipped) and never `write` (reflowed, which
 scrambles it), and a column of sparklines must share an axis or the healthy
 rows look like an emergency. It also carries a 5x3 block font, because all
-thirteen games need their name up front.
+fourteen games need their name up front.
 
 **Art in the wreck** — `src/act1/art.ts` is the live diagrams (`deck`,
 `pressure`), `src/act1/cards.ts` is the three set pieces. Both diagrams are
@@ -917,7 +914,7 @@ match, if you are adding lines:
 
 The other three options (Wry Dewitt, Insubordinate Tool, Unreliable Log) are
 in git history on `docs/pr-when-final` if a later game wants a different daemon.
-Each of the thirteen games can have its own; the voice is one option on
+Each of the fourteen games can have its own; the voice is one option on
 `questCommands` and recasting touches no ladder.
 
 ### 5a-bis. Scope — settled
