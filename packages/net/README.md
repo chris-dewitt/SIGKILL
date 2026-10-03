@@ -61,4 +61,29 @@ A box with two addresses is one host with two legs, which is what a router is.
 `Network.routed` says what the model will not do: no multi-hop, no metrics, no
 asymmetric routes. A route table nobody can read is not a thing to teach with.
 
-Still to come: a firewall. TLS last or never.
+## What is dropping the packet
+
+| Command | What it asks |
+|---------|--------------|
+| `iptables -L`, `-S` | the INPUT chain, and its policy |
+| `iptables -A/-I/-D INPUT … -j ACTION` | change it (root only) |
+| `iptables -P INPUT ACTION` | what happens to everything no rule matched |
+
+The distinction worth the whole thing:
+
+```
+REJECT   something answered, and the answer was no    Connection refused
+DROP     nothing answered at all                      Connection timed out
+```
+
+A refusal is instant; a drop makes the other end wait and then give up, and
+this engine charges the player that wait, because the wait *is* the symptom. A
+dropped port also looks exactly the same whether or not anything is listening
+behind it, which is why a firewall is diagnosed by reading the rules rather
+than by poking the port.
+
+Only the INPUT chain, only TCP, no NAT, no connection tracking, no `-m`
+anything. An unknown flag is refused rather than accepted and ignored: an
+interface that takes a flag it does not honour is worse than one that says no.
+
+TLS last or never.

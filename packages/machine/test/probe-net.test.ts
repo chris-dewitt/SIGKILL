@@ -258,33 +258,53 @@ describe('probe: moving a file, which is what a deploy is', () => {
  * and `getent` -- as an opt-in command pack, so a machine that was not given
  * them still has none, which is what the first list below asserts.
  *
- * Still absent: listening sockets, addresses and routes, and any firewall. An
- * adventure about those needs more engine first.
+ * The rest followed, and the same way. Listening sockets have an address to be
+ * bound to; hosts have more than one address and a subnet to be outside of;
+ * and a packet can now be dropped, which is a different failure from being
+ * refused. Each of those is specified in its own test file -- `resolver.test.ts`
+ * here, and `sockets`, `interfaces` and `firewall` in `@sigkill/net`.
+ *
+ * What is still absent, and is the next place this file will have to be
+ * edited: NAT, a forwarding chain, connection tracking, multi-hop routing,
+ * output filtering, and TLS.
  *
  * If one of them ever arrives, this test fails and says so. The boundary
  * should not move quietly; it should move in a commit that says it is moving.
  */
 describe('probe: the boundary of the simulated network', () => {
-  it('has no socket, routing or firewall tooling', async () => {
+  /*
+   * Every instrument is in `@sigkill/net` and none of them is a builtin, so a
+   * machine nobody handed them to has none. The day one of them becomes a
+   * builtin -- which would put it in five adventures that never asked for it
+   * -- this is where somebody finds out.
+   */
+  it('has no networking tooling of its own', async () => {
     const f = fleet();
-    for (const absent of ['ss -ltn', 'netstat -ltn', 'ip addr', 'route -n', 'iptables -L', 'ufw status']) {
+    for (const absent of [
+      'dig api01',
+      'host api01',
+      'getent hosts api01',
+      'ss -ltn',
+      'netstat -ltn',
+      'ip addr',
+      'iptables -L',
+    ]) {
       const r = await f.local.exec(absent);
-      expect(r.code, `${absent} exists now -- see the note above this test`).toBe(127);
+      expect(r.code, `${absent} is a builtin now -- see the note above this test`).toBe(127);
     }
   });
 
   /*
-   * And no DNS tooling either, unless an adventure asked for it.
+   * And these are not modelled anywhere, by anybody.
    *
-   * `dig` and `host` are in `@sigkill/net` rather than in the engine, so this
-   * stays true of a bare machine. The day one of them becomes a builtin, this
-   * is where somebody finds out.
+   * `nslookup` is deliberately absent rather than aliased to `host`: it is
+   * deprecated, and a game that teaches it teaches somebody to reach for it.
    */
-  it('has no DNS tooling of its own', async () => {
+  it('still has no nslookup, no ufw and no route', async () => {
     const f = fleet();
-    for (const absent of ['dig api01', 'host api01', 'nslookup api01', 'getent hosts api01']) {
+    for (const absent of ['nslookup api01', 'ufw status', 'route -n']) {
       const r = await f.local.exec(absent);
-      expect(r.code, `${absent} is a builtin now -- see the note above this test`).toBe(127);
+      expect(r.code, `${absent} exists now -- see the note above this test`).toBe(127);
     }
   });
 

@@ -1,4 +1,5 @@
 import type { Machine } from '../machine.js';
+import type { Firewall } from './firewall.js';
 
 export interface HttpResponse {
   status: number;
@@ -22,6 +23,13 @@ export interface NetHost {
    * truer than inventing a link layer.
    */
   addresses: string[];
+  /**
+   * The INPUT chain, when somebody has given this host one.
+   *
+   * Absent means no filtering at all, which is what every adventure before
+   * this had and must keep having. Mutable because `iptables` edits it.
+   */
+  firewall?: Firewall;
   /**
    * Does this host forward between the subnets it is on?
    *
@@ -69,6 +77,8 @@ export interface HostOptions {
   ips?: readonly string[];
   /** Forwards between its subnets. See `NetHost.router`. */
   router?: boolean;
+  /** The INPUT chain. See `NetHost.firewall`. */
+  firewall?: Firewall;
   machine: Machine;
   ports?: Record<number, string>;
   /** Ports bound to 127.0.0.1 only. See `NetHost.loopback`. */
@@ -94,6 +104,7 @@ export class Network {
       ip: opts.ip,
       addresses: [opts.ip, ...(opts.ips ?? [])],
       router: opts.router ?? false,
+      ...(opts.firewall ? { firewall: opts.firewall } : {}),
       machine: opts.machine,
       ports: new Map(Object.entries(opts.ports ?? {}).map(([p, b]) => [Number(p), b])),
       loopback: new Set(opts.loopback ?? []),

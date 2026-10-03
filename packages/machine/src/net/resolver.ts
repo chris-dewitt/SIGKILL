@@ -1,5 +1,6 @@
 import type { User } from '../vfs/types.js';
 import type { Vfs } from '../vfs/vfs.js';
+import { verdict } from './firewall.js';
 import type { NetHost, Network } from './network.js';
 
 /**
@@ -175,7 +176,16 @@ export type Reach =
   | { readonly kind: 'ok'; readonly host: NetHost }
   | { readonly kind: 'unknown-host' }
   | { readonly kind: 'no-route'; readonly ip: string }
-  | { readonly kind: 'refused'; readonly host: NetHost };
+  | { readonly kind: 'refused'; readonly host: NetHost }
+  /**
+   * Nothing answered.
+   *
+   * A dropped packet, which is not the same failure as a refused one: refused
+   * means something said no, timed out means something ate it and said
+   * nothing. Half of reading a connection failure is knowing which of those
+   * two you are looking at.
+   */
+  | { readonly kind: 'timeout'; readonly host: NetHost };
 
 export function reach(
   net: Network,
@@ -200,6 +210,24 @@ export function reach(
   const here = from === undefined ? undefined : net.resolve(from);
   if (resolution.via !== 'loopback' && !net.routed(here, resolution.ip)) {
     return { kind: 'no-route', ip: resolution.ip };
+  }
+
+  /*
+   * The chain, before the socket.
+   *
+   * A rule is matched on the way in, so a dropped packet looks the same
+   * whether or not anything was listening behind it -- which is the point, and
+   * is why a firewall is diagnosed by reading the rules rather than by poking
+   * the port.
+   *
+   * Loopback is exempt. Every real ruleset starts by accepting it, and a game
+   * in which a machine firewalls itself off from itself is a game about a
+   * mistake nobody makes.
+   */
+  if (resolution.via !== 'loopback') {
+    const decision = verdict(resolution.host.firewall, port, here?.ip);
+    if (decision === 'DROP') return { kind: 'timeout', host: resolution.host };
+    if (decision === 'REJECT') return { kind: 'refused', host: resolution.host };
   }
   if (!resolution.host.ports.has(port)) return { kind: 'refused', host: resolution.host };
   /*

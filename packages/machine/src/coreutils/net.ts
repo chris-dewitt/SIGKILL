@@ -144,6 +144,13 @@ export const netCommands: CommandSpec[] = [
         io.err(`ssh: connect to host ${hostname} port 22: Connection refused\n`);
         return 255;
       }
+      if (reached.kind === 'timeout') {
+        // A dropped packet costs the player the wait, because the wait is the
+        // symptom: a refusal is instant and a drop is not.
+        await ctx.advance(5000);
+        io.err(`ssh: connect to host ${hostname} port 22: Connection timed out\n`);
+        return 255;
+      }
       const host = reached.host;
 
       const login = user ?? ctx.user.name;
@@ -220,6 +227,9 @@ export const netCommands: CommandSpec[] = [
         if (reached.kind === 'refused') {
           return `ssh: connect to host ${hostname} port 22: Connection refused`;
         }
+        if (reached.kind === 'timeout') {
+          return `ssh: connect to host ${hostname} port 22: Connection timed out`;
+        }
         return { vfs: reached.host.machine.vfs, path: spec.path };
       };
 
@@ -274,7 +284,7 @@ export const netCommands: CommandSpec[] = [
       'A 404 still counts as a successful fetch unless you pass -f. Checking\n' +
       'that something is healthy means checking what came back, not just that\n' +
       'curl was happy.',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const { flags, values, operands } = parseArgs(argv, {
         flags: ['-s', '--silent', '-I', '--head', '-f', '--fail'],
         valued: ['-o', '--output'],
@@ -319,6 +329,12 @@ export const netCommands: CommandSpec[] = [
       if (reached.kind === 'refused') {
         io.err(`curl: (7) Failed to connect to ${hostname} port ${port}: Connection refused\n`);
         return 7;
+      }
+      if (reached.kind === 'timeout') {
+        await ctx.advance(5000);
+        // 28 is curl's timeout, and it is a different number from 7 on purpose.
+        io.err(`curl: (28) Failed to connect to ${hostname} port ${port}: Connection timed out\n`);
+        return 28;
       }
 
       const response = ctx.network!.serve(reached.host, path);
@@ -377,7 +393,7 @@ export const netCommands: CommandSpec[] = [
       '  nc -zv gateway 22\n' +
       'Useful when ssh or curl fails and you want to know whether anything\n' +
       'is answering at all.',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const { operands } = parseArgs(argv);
       if (operands.length < 2) return usage(io, 'usage: nc [-zv] host port');
       if (!requireNetwork(ctx, 'nc', io)) return 1;
@@ -398,6 +414,11 @@ export const netCommands: CommandSpec[] = [
       }
       if (reached.kind === 'refused') {
         io.err(`nc: connect to ${hostname} port ${port} (tcp) failed: Connection refused\n`);
+        return 1;
+      }
+      if (reached.kind === 'timeout') {
+        await ctx.advance(5000);
+        io.err(`nc: connect to ${hostname} port ${port} (tcp) failed: Connection timed out\n`);
         return 1;
       }
       io.err(`Connection to ${hostname} ${port} port [tcp/*] succeeded!\n`);
