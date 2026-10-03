@@ -7,7 +7,7 @@ describe('the floor boots', () => {
   it('stands the floor up and puts him on the bastion', async () => {
     const d = bootDeposit();
     expect(d.network.list().map((h) => h.hostname)).toEqual([
-      'bastion', 'index01', 'relay01', 'vault01', 'vault02',
+      'bastion', 'index01', 'ledger', 'relay01', 'vault01', 'vault02',
     ]);
     expect((await d.machine.exec('pwd')).stdout.trim()).toBe('/home/dewitt');
   });

@@ -1,4 +1,5 @@
 import { Machine, Network, ROOT_USER, type NetHost, type Session, type User, type Vfs } from '@sigkill/machine';
+import { LEDGER_HOST, LEDGER_LOG, readLedger } from '../store.js';
 
 /**
  * The machine floor of Pell's deposit office.
@@ -9,6 +10,9 @@ import { Machine, Network, ROOT_USER, type NetHost, type Session, type User, typ
  *   vault01   the deposit store. Files, hashes, and the access record.
  *   index01   the catalogue. Answers "where is matter 7714 filed".
  *   relay01   serves deposited material to the tribunal on request.
+ *
+ * Plus `ledger`, which is not on the floor: the tribunal's copy of the store's
+ * record, readable over HTTP and administered by nobody here.
  *
  * Everything here is in the state Pell left it in, which is the state two
  * years of restarts leaves a thing in. Nothing is sabotaged and nobody is
@@ -84,6 +88,10 @@ function depositPolicy(m: Machine): void {
       'Deposited material is served by the store, so that every read of it is',
       'recorded by something other than the person reading.',
       '',
+      'The store sends each line of its record to the tribunal\'s ledger as it',
+      'writes it (http://ledger/vault01). The office can read the ledger. It',
+      'cannot write to it, and nobody here has an account on it.',
+      '',
       '                                             -- the office, 2396',
     ),
     ROOT_USER,
@@ -100,6 +108,16 @@ function depositPolicy(m: Machine): void {
  * there are, because objective eight asks the player to find one.
  */
 const MATTERS = Array.from({ length: 24 }, (_, i) => String(7700 + i));
+
+/** The record as it stood the morning Pell handed over: on vault01, and at the tribunal. */
+const SEED_RECORD = lines(
+  '2398-06-30T09:14 tribunal 7701/manifest',
+  '2398-07-01T11:02 tribunal 7705/manifest',
+  `2398-07-02T08:40 tribunal ${HIS_MATTER}/manifest`,
+  `2398-07-02T08:41 tribunal ${HIS_MATTER}/disclosure.txt`,
+  '2398-07-04T16:20 tribunal 7719/manifest',
+  '2398-07-09T10:05 tribunal 7702/manifest',
+);
 
 function seedVault(m: Machine): void {
   accounts(m);
@@ -139,23 +157,12 @@ function seedVault(m: Machine): void {
   /*
    * The access record.
    *
-   * Append-only in fiction and an ordinary file in fact, which is the honest
-   * version: the player can read it, and so could anybody. Its credibility
-   * comes from being written by the store rather than by the operator, and
-   * `clean-hands` is the objective that rests on that distinction.
+   * An ordinary file, which is the honest version: the player can read it,
+   * and with root he can edit it. Its credibility comes from the copy the
+   * store ships to the tribunal's ledger as it writes, which nobody on this
+   * floor can touch -- and that copy is what `clean-hands` reads.
    */
-  m.vfs.writeText(
-    '/var/log/access.log',
-    lines(
-      '2398-06-30T09:14 tribunal 7701/manifest',
-      '2398-07-01T11:02 tribunal 7705/manifest',
-      `2398-07-02T08:40 tribunal ${HIS_MATTER}/manifest`,
-      `2398-07-02T08:41 tribunal ${HIS_MATTER}/disclosure.txt`,
-      '2398-07-04T16:20 tribunal 7719/manifest',
-      '2398-07-09T10:05 tribunal 7702/manifest',
-    ),
-    ROOT_USER,
-  );
+  m.vfs.writeText('/var/log/access.log', SEED_RECORD, ROOT_USER);
 
   /*
    * Nobody reads deposited material by opening it.
@@ -191,6 +198,39 @@ function seedVault(m: Machine): void {
   m.services.enable('store');
   m.services.start('store');
 }
+
+// ---------------------------------------------------------------- the ledger
+
+/**
+ * The tribunal's copy of the store's record.
+ *
+ * Not the office's machine and not on the office's floor: no SSH, no account
+ * for anybody here, only a read-only web page. That is the whole design. A
+ * record kept on a box its operator administers is a record its operator can
+ * edit; one shipped somewhere he cannot log in is not.
+ *
+ * `initial` lets a save from before the ledger existed bring one back with the
+ * record vault01 holds now, which is the best anybody can do after the fact.
+ */
+export function seedLedger(m: Machine, initial: string = SEED_RECORD): void {
+  m.vfs.mkdirp('/var/log/ledger', ROOT_USER);
+  m.vfs.writeText(LEDGER_LOG, initial, ROOT_USER);
+}
+
+/** `curl http://ledger/vault01` -- read it, from anywhere, and change nothing. */
+export function ledgerHandler(path: string, host: NetHost): { status: number; body: string } {
+  const feed = path.replace(/\/+$/, '');
+  if (feed === '') return { status: 200, body: 'vault01\n' };
+  if (feed === '/vault01') return { status: 200, body: readLedger(host.machine) };
+  return { status: 404, body: 'no such feed\n' };
+}
+
+export const LEDGER = {
+  hostname: LEDGER_HOST,
+  ip: '10.9.0.4',
+  ports: { 80: 'ledgerd/3.0' },
+  accounts: {},
+} as const;
 
 // ------------------------------------------------------------- the catalogue
 
@@ -572,6 +612,7 @@ export function seedFloor(make: (hostname: string) => Machine): Floor {
    * fiction nobody can read.
    */
   accounts(machines.get('vault02')!);
+  seedLedger(machines.get(LEDGER_HOST)!);
 
   ownWorkspace(bastion.vfs, PEOPLE.dewitt, PEOPLE.dewitt);
 
@@ -626,6 +667,7 @@ export const HOSTS = [
       root: { uid: 0, gid: 0 },
     },
   },
+  LEDGER,
 ] as const;
 
 export { MATTERS };

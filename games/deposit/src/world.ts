@@ -1,6 +1,7 @@
 import {
   Machine,
   Network,
+  ROOT_USER,
   restoreFleet,
   snapshotFleet,
   type FleetSnapshot,
@@ -17,8 +18,18 @@ import {
   type World,
 } from '@sigkill/quest';
 import { DEPOSIT_ART, DEPOSIT_OBJECTIVES } from './objectives.js';
-import { storeCommands } from './store.js';
-import { HOME, HOSTS, PEOPLE, indexHandler, ownWorkspace, seedFloor } from './act1/floor.js';
+import { ACCESS_LOG, storeCommands } from './store.js';
+import {
+  HOME,
+  HOSTS,
+  LEDGER,
+  PEOPLE,
+  indexHandler,
+  ledgerHandler,
+  ownWorkspace,
+  seedFloor,
+  seedLedger,
+} from './act1/floor.js';
 
 /**
  * Game six: The Deposit.
@@ -80,7 +91,9 @@ function hostOptions(hostname: string, questbook: Questbook, track: Track) {
 }
 
 function handlerFor(hostname: string) {
-  return hostname === 'index01' ? indexHandler : undefined;
+  if (hostname === 'index01') return indexHandler;
+  if (hostname === LEDGER.hostname) return ledgerHandler;
+  return undefined;
 }
 
 export function bootDeposit(opts: DepositOptions = {}): Deposit {
@@ -136,6 +149,39 @@ export function restoreDeposit(snap: DepositSnapshot, opts: DepositOptions = {})
 
   const bastion = fleet.machines.get('bastion');
   if (!bastion) throw new Error('The Deposit: a save with no bastion in it.');
+
+  /*
+   * A save from before the ledger existed.
+   *
+   * Without it the store refuses every read, forever, so one is put back,
+   * holding what vault01's record says now. That copy may already have been
+   * trimmed, and nothing can tell after the fact -- which is the case for
+   * shipping the record off the box in the first place.
+   */
+  if (!fleet.network.resolve(LEDGER.hostname)) {
+    const ledger = new Machine({
+      hostname: LEDGER.hostname,
+      epoch: FLOOR_MS,
+      network: fleet.network,
+      session: fleet.session,
+      track,
+    });
+    let record: string | undefined;
+    try {
+      record = fleet.machines.get('vault01')?.vfs.readText(ACCESS_LOG, ROOT_USER);
+    } catch {
+      record = undefined;
+    }
+    seedLedger(ledger, record);
+    fleet.network.add({
+      hostname: LEDGER.hostname,
+      ip: LEDGER.ip,
+      machine: ledger,
+      ports: { ...LEDGER.ports },
+      accounts: {},
+      http: ledgerHandler,
+    });
+  }
 
   return {
     machine: bastion,

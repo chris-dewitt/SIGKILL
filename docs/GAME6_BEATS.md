@@ -266,6 +266,34 @@ otherwise would teach something false about Unix. The mode bits make the
 recorded path the ordinary one. They are not a cage, and the act is about what
 he does when nothing stops him.
 
+### The record had to leave the box (2026-10-03, after merge)
+
+Found in review: the same root that lets `sudo cat` around the store also lets
+him *edit the record*. Read your own matter, then on `vault01`:
+
+```
+grep -v dewitt /var/log/access.log > /tmp/a; sudo cp /tmp/a /var/log/access.log
+```
+
+Every tribunal line survives, his does not, and `clean-hands` completed. The
+test that "deleting the record does not help" passed because deleting all of it
+removes the tribunal's lines too; trimming one line was never tried.
+
+The fix is what real audit logging does: ship each line off the machine as it
+is written. `deposit` now appends the same line to the tribunal's **ledger** —
+a host that is not on the floor, has no SSH port and no account for anybody
+here, and is readable at `http://ledger/vault01` — and refuses to serve if
+either copy cannot be written (both are checked before either is written, so a
+refused read never leaves a ledger line). `clean-hands` reads the ledger.
+
+He can still rewrite `vault01`'s log; nothing in the engine pretends otherwise.
+It just no longer pays. `/etc/deposit/policy` and `man deposit` both name the
+ledger, so the player is told where the copy that counts lives, and the
+forfeit rung shows his line from there. A save from before the ledger is
+restored with one, seeded from `vault01`'s record as it stands — the best that
+can be done after the fact, and the argument for shipping logs in the first
+place.
+
 ### He learns the number from his own post
 
 The trap this document nearly contained: if the only way to find out which
