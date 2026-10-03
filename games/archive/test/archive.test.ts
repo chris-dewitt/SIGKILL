@@ -165,8 +165,8 @@ describe('the act can be finished', () => {
   it('has an opening and an ending, and they do not repeat each other', () => {
     const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
     const close = epilogue().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
-    expect(open).toContain('I have you as cargo');
-    expect(close).toContain('PART ONE COMPLETE');
+    expect(open).toContain('listed you as cargo');
+    expect(close).toContain('THE ARCHIVE — COMPLETE');
     const shared = open.split('\n').filter((l) => l.trim().length > 20 && close.includes(l));
     expect(shared).toEqual([]);
   });
@@ -222,3 +222,4 @@ describe('as the host starts it', () => {
     expect((await back.machine.exec(`sqlite3 ${CLAIMS_DB} .tables`)).stdout).toContain('crew');
   }, 120_000);
 });
+

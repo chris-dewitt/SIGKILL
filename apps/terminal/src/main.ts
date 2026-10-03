@@ -337,10 +337,10 @@ function crtCommand(): CommandSpec {
 function soundCommand(): CommandSpec {
   return {
     name: 'sound',
-    summary: 'turn the ship audio on or off',
+    summary: 'sound on/off, or effects/ambience volume (0–100)',
     manual:
-      'sound [on|off]\n\n' +
-      'With no argument, say whether it is on.\n\n' +
+      'sound [on|off|effects 0..100|ambience 0..100]\n\n' +
+      'With no argument, report sound settings. Volumes are saved on this device.\n\n' +
       'Everything you hear is synthesised in the browser -- there are no\n' +
       'audio files, so nothing is downloaded and nothing is tracked. The\n' +
       'room tone is the ship: the reactor is always there, moving air\n' +
@@ -349,17 +349,34 @@ function soundCommand(): CommandSpec {
     plain:
       'Turns the sound on or off.\n\n' +
       '  sound off     silence\n' +
-      '  sound on      back again\n\n' +
+      '  sound on      back again\n' +
+      '  sound effects 70    clicks and reactions\n' +
+      '  sound ambience 50  room tone\n\n' +
       'What you hear is the ship itself. If something is broken you can hear\n' +
       'that it is broken, and when you fix it the sound changes.',
     run: (_ctx, argv, io) => {
       const wanted = argv[1]?.toLowerCase();
+      if (wanted === 'effects' || wanted === 'ambience') {
+        const value = argv[2];
+        if (value === undefined) {
+          io.out(`sound ${wanted}: ${Math.round(sound.channelVolume(wanted) * 100)}\n`);
+          return 0;
+        }
+        const level = Number(value);
+        if (!Number.isFinite(level) || level < 0 || level > 100) {
+          io.err('sound: level must be 0 to 100\n'); return 1;
+        }
+        sound.setChannel(wanted, level / 100);
+        try { localStorage.setItem(`sigkill:sound:${wanted}`, String(level / 100)); } catch { /* session only */ }
+        io.out(`sound ${wanted}: ${level}\n`);
+        return 0;
+      }
       if (wanted === undefined) {
         io.out(`sound: ${sound.muted ? 'off' : 'on'}\n`);
         return 0;
       }
       if (wanted !== 'on' && wanted !== 'off') {
-        io.err(`sound: say 'on' or 'off'\n`);
+        io.err(`sound: on | off | effects 0..100 | ambience 0..100\n`);
         return 1;
       }
       const muted = wanted === 'off';
@@ -641,9 +658,8 @@ view.highlighter = (text) => highlight(text, { commands: new Set(machine.shell.c
  * it never fires for a shortcut, and skipped for modifiers and navigation --
  * a click on every arrow key is how a nice sound becomes an irritating one.
  */
-input.addEventListener('keydown', (event) => {
-  if (event.ctrlKey || event.metaKey || event.altKey) return;
-  if (event.key.length !== 1 && event.key !== 'Backspace') return;
+input.addEventListener('beforeinput', (event) => {
+  if (event.isComposing || !/^(insertText|deleteContentBackward|deleteContentForward)$/.test(event.inputType)) return;
   void sound.resume();
   sound.play('key');
 });
@@ -894,7 +910,7 @@ function shipSound(): AudioState {
 
   // An adventure with no ship to listen to gets a quiet room, which is the
   // honest sound for one whose tone has not been authored.
-  return current.hooks.sound?.(machine, { done, goals: total }) ?? SILENT;
+  return choosing ? SILENT : current.hooks.sound?.(machine, { done, goals: total }) ?? SILENT;
 }
 
 /*
@@ -904,7 +920,7 @@ function shipSound(): AudioState {
  * terminal in a building with people in it, and a reactor hum under that would
  * be the mixer inventing a ship that is not there.
  */
-const SILENT: AudioState = { scrubber: false, monitor: false, breached: false, reserve: 1 };
+const SILENT: AudioState = { scene: 'silent', scrubber: false, monitor: false, breached: false, reserve: 1 };
 
 function playBeats(): void {
   let closed = false;
@@ -912,7 +928,9 @@ function playBeats(): void {
   for (const objective of questbook.drainCompleted(machine)) {
     // The hull turning out to be open is the one piece of good news that is
     // also bad news, so it gets the alarm rather than the chime.
-    sound.play(objective.id === 'hull-watch' ? 'alarm' : 'resolve');
+    sound.play(objective.id === 'hull-watch' ? 'alarm'
+      : ['restore-comms', 'send-the-call'].includes(objective.id) ? 'connection'
+      : current.adventure.id === 'wreck' || current.adventure.id === 'deposit' ? 'repair' : 'evidence');
     spoken.push(...questbook.beat(objective, machine));
     closed = true;
   }
@@ -925,7 +943,9 @@ function playBeats(): void {
    * doing its job. Runs on every command, not only the ones that finish
    * something: she answers a signal that was sent in the middle of one.
    */
-  spoken.push(...(session.afterCommand?.() ?? []));
+  const reaction = session.afterCommand?.() ?? [];
+  if (reaction.length > 0 && !closed) sound.play('message');
+  spoken.push(...reaction);
 
   // Finishing one thing is exactly the moment a player asks "so now what".
   // Answering unprompted is the difference between a board they have to know
@@ -1635,6 +1655,16 @@ refreshStatus();
  *
  * Now the first keystroke resumes into the real room.
  */
+for (const channel of ['effects', 'ambience'] as const) {
+  try {
+    const stored = localStorage.getItem(`sigkill:sound:${channel}`);
+    if (stored !== null && Number.isFinite(Number(stored))) sound.setChannel(channel, Number(stored));
+  } catch { /* Private window. Defaults hold. */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) sound.suspend();
+  else void sound.resume();
+});
 sound.setState(shipSound());
 
 if (choosing) {
@@ -1667,3 +1697,4 @@ input.focus();
 
 // Exported for the console during development.
 Object.assign(window, { machine, questbook, vpath, view, sound });
+

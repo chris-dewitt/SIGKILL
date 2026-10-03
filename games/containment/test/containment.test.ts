@@ -89,8 +89,8 @@ describe('the two numbers the act is built on', () => {
   it('puts both in the cold open, as the act name-checks them', () => {
     const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
     expect(open).toContain('99.2');
-    expect(open).toContain('98.8');
-    expect(open).toMatch(/not going to help you interpret/i);
+    expect(open).not.toContain('98.8'); // The player discovers the baseline.
+    expect(open).toMatch(/tell me what it measures/i);
   });
 });
 
@@ -98,10 +98,10 @@ describe('the ending files method, not a verdict', () => {
   it('quotes the sentence Kerr will actually file', () => {
     const { machine } = bootContainment({ python });
     const ending = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
-    expect(ending).toMatch(/does not distinguish the/i);
-    expect(ending).toMatch(/method, not as a verdict/i);
+    expect(ending).toMatch(/barely beats a constant/i);
+    expect(ending).toMatch(/filing the method and the figures/i);
     // The tow is still contested. The act does not hand him a win.
-    expect(ending).toMatch(/the tow is not over/i);
+    expect(ending).toMatch(/tow is still contested/i);
   });
 
   it('tells a player who skipped the optional threads nothing about them', () => {
@@ -124,7 +124,7 @@ describe('LUNA does not resolve what she finds', () => {
 
     const beat = typeof hers.onComplete === 'function' ? hers.onComplete(w.world) : hers.onComplete;
     const said = (beat ?? []).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
-    expect(said).toMatch(/I do not have the end of it/i);
+    expect(said).toMatch(/cannot tell where the instruction ends/i);
     expect(said).not.toMatch(/i am not really|i am just a|now i know what i am/i);
   }, 300_000);
 });
@@ -219,3 +219,4 @@ describe('the glass box is the model that produced the evidence', () => {
     expect(String(d.nav7.transits)).not.toBe('41');
   });
 });
+

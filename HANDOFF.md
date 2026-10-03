@@ -1,6 +1,15 @@
 # SIGKILL — handoff
 
-## State of play, 2026-10-03
+## Playability pass, 2026-10-03
+
+Games 1–6 now have shorter openings, completion dialogue and endings. Optional
+`talk` conversations and state-driven asides add company in games 2–7. Sound
+has distinct room tones and separate effects/ambience controls. Game seven,
+*The Pipeline*, is implemented and in the chooser with nine required objectives.
+See [docs/PLAYABILITY_PASS.md](docs/PLAYABILITY_PASS.md) for scope, limitations
+and verification. The proposed expansion of game five remains separate.
+
+## Previous state of play, 2026-10-03
 
 **Six games are on `main` and all six are in the chooser.** Game six's review
 found one real hole, fixed in PR #40: `clean-hands` could be won by reading
@@ -1308,3 +1317,4 @@ different explanation entirely.
 A pull request means the branch is finished. Commit as Chris. After any merge,
 verify with `git merge-base --is-ancestor <sha> origin/main` rather than
 trusting the push. If a test fails, say so with the output.
+

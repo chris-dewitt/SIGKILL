@@ -1,3 +1,5 @@
+import { withCompanion } from '@sigkill/quest';
+import { COMPANION } from './companion.js';
 import type { Adventure } from '@sigkill/quest';
 import { bootDeposit, coldOpen, epilogue, restoreDepositSave, saveDeposit } from './world.js';
 
@@ -20,12 +22,13 @@ export const DEPOSIT: Adventure = {
   ],
   boot: async () => {
     const deposit = bootDeposit();
-    return { ...deposit, snapshot: () => saveDeposit(deposit) };
+    return withCompanion({ ...deposit, snapshot: () => saveDeposit(deposit) }, COMPANION);
   },
   restore: async (snapshot) => {
     const deposit = restoreDepositSave(snapshot);
-    return { ...deposit, snapshot: () => saveDeposit(deposit) };
+    return withCompanion({ ...deposit, snapshot: () => saveDeposit(deposit) }, COMPANION);
   },
   coldOpen,
   epilogue,
 };
+

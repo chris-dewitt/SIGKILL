@@ -47,3 +47,4 @@ agents editing it at once will conflict. Claim it explicitly.
 | `games/wreck` | Adventure 1: the NAV-7 world seed and the Act I objectives. |
 | `games/archive` | Adventure 2: Ferryman's Rest, the claims database, SQL. |
 | `games/harness` | Adventure 3: the tug ELLEN MAY, the recovery dump, Python. |
+

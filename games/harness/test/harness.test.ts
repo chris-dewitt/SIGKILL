@@ -388,15 +388,15 @@ describe('the act can be finished', () => {
   it('has an opening and an ending, and they do not repeat each other', () => {
     const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
     const close = epilogue().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
-    expect(open).toContain('she does not want your answer');
-    expect(close).toContain('PART ONE COMPLETE');
+    expect(open).toContain('Kerr wants your program, tests');
+    expect(close).toContain('THE HARNESS — COMPLETE');
     const shared = open.split('\n').filter((l) => l.trim().length > 20 && close.includes(l));
     expect(shared).toEqual([]);
   });
 
   it('closes on a measurement and not on a theory', () => {
     const close = epilogue().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
-    expect(close).toContain('I am not filing a theory, I am filing a measurement');
+    expect(close).toContain('I am filing the measurement');
     // Canon: do not literalise v43 here. Game three ends with a rented
     // processor and an adjuster who declines to speculate.
     expect(close).not.toContain('v43');
@@ -507,7 +507,7 @@ describe('the optional v43 thread', () => {
     expect(with_).toContain('had root for eleven minutes');
 
     // Kerr files the same thing either way. That is the point of her.
-    expect(with_).toContain('I am not filing a theory, I am filing a measurement');
+    expect(with_).toContain('I am filing the measurement');
     expect(with_).not.toMatch(/KERR:[^\n]*v43/);
   });
 });
@@ -583,3 +583,4 @@ describe('as the host starts it', () => {
     expect(blurb).not.toMatch(/v43|rented processor/i);
   });
 });
+

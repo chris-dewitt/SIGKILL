@@ -23,13 +23,19 @@ export interface SoundtrackOptions {
   volume?: number;
   /** Start muted. The player's saved preference, if they have one. */
   muted?: boolean;
+  effectsVolume?: number;
+  ambienceVolume?: number;
 }
 
 export class Soundtrack {
   private ctx: AudioContext | undefined;
   private master: GainNode | undefined;
-  private layers = new Map<LayerName, { gain: GainNode; stop: () => void }>();
+  private layers = new Map<LayerName, { gain: GainNode; tune?: (hz: number) => void; stop: () => void }>();
   private noise: AudioBuffer | undefined;
+  private effects: GainNode | undefined;
+  private ambience: GainNode | undefined;
+  private effectsVolume: number;
+  private ambienceVolume: number;
   private state: ShipState = SILENT_SHIP;
   private volume: number;
   private off: boolean;
@@ -37,6 +43,8 @@ export class Soundtrack {
 
   constructor(opts: SoundtrackOptions = {}) {
     this.volume = opts.volume ?? 0.6;
+    this.effectsVolume = opts.effectsVolume ?? 0.7;
+    this.ambienceVolume = opts.ambienceVolume ?? 0.5;
     this.off = opts.muted ?? false;
   }
 
@@ -75,6 +83,7 @@ export class Soundtrack {
     if (this.ctx === undefined) this.build();
     if (this.ctx?.state === 'suspended') await this.ctx.resume();
     this.apply();
+    this.startSweep();
   }
 
   setMuted(muted: boolean): void {
@@ -84,6 +93,23 @@ export class Soundtrack {
     }
     if (muted) this.stopSweep();
     else this.startSweep();
+  }
+
+  setChannel(channel: 'effects' | 'ambience', volume: number): void {
+    const value = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0));
+    if (channel === 'effects') this.effectsVolume = value;
+    else this.ambienceVolume = value;
+    const bus = channel === 'effects' ? this.effects : this.ambience;
+    if (bus && this.ctx) bus.gain.setTargetAtTime(value, this.ctx.currentTime, 0.05);
+  }
+
+  channelVolume(channel: 'effects' | 'ambience'): number {
+    return channel === 'effects' ? this.effectsVolume : this.ambienceVolume;
+  }
+
+  suspend(): void {
+    this.stopSweep();
+    void this.ctx?.suspend();
   }
 
   setVolume(volume: number): void {
@@ -107,7 +133,7 @@ export class Soundtrack {
 
   /** Play a one-shot. Silently does nothing before the first gesture. */
   play(name: CueName): void {
-    if (this.off || this.ctx === undefined || this.master === undefined) return;
+    if (this.off || this.ctx?.state !== 'running' || this.master === undefined) return;
     this.schedule(cue(name), this.ctx.currentTime);
   }
 
@@ -119,6 +145,8 @@ export class Soundtrack {
     void this.ctx?.close();
     this.ctx = undefined;
     this.master = undefined;
+    this.effects = undefined;
+    this.ambience = undefined;
   }
 
   // ------------------------------------------------------------------ guts
@@ -132,6 +160,12 @@ export class Soundtrack {
     this.master = ctx.createGain();
     this.master.gain.value = this.off ? 0 : this.volume;
     this.master.connect(ctx.destination);
+    this.effects = ctx.createGain();
+    this.effects.gain.value = this.effectsVolume;
+    this.effects.connect(this.master);
+    this.ambience = ctx.createGain();
+    this.ambience.gain.value = this.ambienceVolume;
+    this.ambience.connect(this.master);
 
     this.noise = pinkNoise(ctx);
     this.startSweep();
@@ -162,6 +196,7 @@ export class Soundtrack {
       }
 
       if (existing) {
+        if (target.frequency !== undefined) existing.tune?.(target.frequency);
         existing.gain.gain.setTargetAtTime(target.gain, ctx.currentTime, RAMP / 3);
         continue;
       }
@@ -174,9 +209,9 @@ export class Soundtrack {
     }
   }
 
-  private startLayer(name: LayerName, frequency: number): { gain: GainNode; stop: () => void } | undefined {
+  private startLayer(name: LayerName, frequency: number): { gain: GainNode; tune?: (hz: number) => void; stop: () => void } | undefined {
     const ctx = this.ctx;
-    const master = this.master;
+    const master = this.ambience;
     if (!ctx || !master) return undefined;
 
     const gain = ctx.createGain();
@@ -224,6 +259,10 @@ export class Soundtrack {
     b.start();
     return {
       gain,
+      tune: (hz: number) => {
+        a.frequency.setTargetAtTime(hz, ctx.currentTime, RAMP / 3);
+        b.frequency.setTargetAtTime(hz * 1.006, ctx.currentTime, RAMP / 3);
+      },
       stop: () => {
         try { a.stop(); b.stop(); } catch { /* already stopped */ }
       },
@@ -232,12 +271,12 @@ export class Soundtrack {
 
   /** The hull monitor's periodic blip, while it is running. */
   private startSweep(): void {
-    this.stopSweep();
+    if (this.sweepTimer !== undefined || this.off || !this.ctx || this.ctx.state !== 'running') return;
     this.sweepTimer = setInterval(() => {
-      if (this.off || !this.state.monitor || this.ctx === undefined) return;
+      if (this.off || !this.state.monitor || (this.state.scene && this.state.scene !== 'wreck') || this.ctx?.state !== 'running') return;
       this.schedule(
         { partials: [1], frequency: 1320, attack: 0.002, release: 0.06, gain: 0.02 },
-        this.ctx.currentTime,
+        this.ctx.currentTime, this.ambience,
       );
     }, 6000);
   }
@@ -248,9 +287,9 @@ export class Soundtrack {
   }
 
   /** Synthesise one cue at a time, following any note chained after it. */
-  private schedule(c: Cue, at: number): void {
+  private schedule(c: Cue, at: number, bus = this.effects): void {
     const ctx = this.ctx;
-    const master = this.master;
+    const master = bus;
     if (!ctx || !master) return;
 
     const gain = ctx.createGain();
@@ -290,7 +329,7 @@ export class Soundtrack {
       }
     }
 
-    if (c.then !== undefined) this.schedule(c.then, ends * 0.82 + at * 0.18);
+    if (c.then !== undefined) this.schedule(c.then, ends * 0.82 + at * 0.18, bus);
   }
 }
 
@@ -325,3 +364,4 @@ function pinkNoise(ctx: AudioContext): AudioBuffer {
   }
   return buffer;
 }
+

@@ -1,3 +1,5 @@
+import { withCompanion } from '@sigkill/quest';
+import { COMPANION } from './companion.js';
 import { require_, type Adventure } from '@sigkill/quest';
 import { bootFork, restoreFork, coldOpen, epilogue } from './world.js';
 
@@ -13,9 +15,10 @@ export const FORK: Adventure = {
     'three commits that turn out to matter.',
   ],
   needs: ['python'],
-  boot: async (runtimes) => bootFork({ python: require_(runtimes.python, 'The Fork', 'python') }),
+  boot: async (runtimes) => withCompanion(await bootFork({ python: require_(runtimes.python, 'The Fork', 'python') }), COMPANION),
   restore: async (snapshot, runtimes) =>
-    restoreFork(snapshot, { python: require_(runtimes.python, 'The Fork', 'python') }),
+    withCompanion(restoreFork(snapshot, { python: require_(runtimes.python, 'The Fork', 'python') }), COMPANION),
   coldOpen,
   epilogue,
 };
+

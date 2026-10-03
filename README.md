@@ -29,7 +29,9 @@ craft.
 | 05 | **The Containment** | ML & evaluation — tokens, attention, base rates, leakage, calibration |
 | 06 | **The Deposit** | Operations — four machines, systemd, and a health check that has lied for a month |
 
-Those six are playable. Eight more are sketched in
+| 07 | **The Pipeline** | Data engineering — validation, deduplication, replay, late arrivals and reconciliation |
+
+Those seven are playable. Seven more are sketched in
 [docs/PLAN.md](docs/PLAN.md).
 
 Every adventure ships two tracks over the same puzzles: **Cadet** for players who
@@ -165,3 +167,4 @@ Full detail in [CLAUDE.md](CLAUDE.md) and [docs/PLAN.md](docs/PLAN.md).
 ## Licence
 
 Apache 2.0. See [LICENSE](LICENSE).
+

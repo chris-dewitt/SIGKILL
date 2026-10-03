@@ -97,6 +97,11 @@ const readBy = (who: string): RegExp => new RegExp(`\\b${who}\\s+${HIS_MATTER}/`
  */
 const theFloor: Objective = {
   id: 'the-floor',
+  onComplete: [
+    "",
+    "LUNA: Store, catalogue, relay. Three different jobs. Pell handed you three restart buttons.",
+    "",
+  ],
   title: 'Find out what is actually running, and write it down',
   teaches: ['ssh', 'systemctl', 'shell redirection'],
   done: (w) => {
@@ -263,6 +268,12 @@ const theFloor: Objective = {
  */
 const theCheckThatLied: Objective = {
   id: 'the-check-that-lied',
+  onComplete: [
+    "",
+    "LUNA: The transfer succeeded. The service answered 500.",
+    "LUNA: That green check only asked whether somebody picked up.",
+    "",
+  ],
   title: 'Work out how a month of green checks missed a dead service',
   teaches: ['curl', 'exit status', 'shell redirection'],
   requires: ['the-floor'],
@@ -382,6 +393,11 @@ const theCheckThatLied: Objective = {
  */
 const whyItWillNotStart: Objective = {
   id: 'why-it-will-not-start',
+  onComplete: [
+    "",
+    "LUNA: A lock survived the process that owned it. Read the failure before you remove anything.",
+    "",
+  ],
   title: 'Get the index answering again',
   teaches: ['systemctl', 'journalctl', 'service dependencies'],
   requires: ['the-check-that-lied'],
@@ -500,6 +516,11 @@ const whyItWillNotStart: Objective = {
  */
 const shipIt: Objective = {
   id: 'ship-it',
+  onComplete: [
+    "",
+    "LUNA: Store back. Now ask it for something real.",
+    "",
+  ],
   title: 'Fix the health check so it would have caught this',
   teaches: ['sed', 'curl', 'shell redirection'],
   requires: ['why-it-will-not-start'],
@@ -612,6 +633,12 @@ const shipIt: Objective = {
  */
 const notADnsProblem: Objective = {
   id: 'not-a-dns-problem',
+  onComplete: [
+    "",
+    "LUNA: The name resolved. The dependency did not answer.",
+    "LUNA: Different fault, different repair.",
+    "",
+  ],
   title: "Find out why Pell's mirror has been failing, and what kind of failure it is",
   teaches: ['ssh', 'nc', 'ping'],
   requires: ['why-it-will-not-start'],
@@ -732,6 +759,11 @@ const notADnsProblem: Objective = {
  */
 const afterTheReboot: Objective = {
   id: 'after-the-reboot',
+  onComplete: [
+    "",
+    "LUNA: Enabled. Next boot remembers what you fixed.",
+    "",
+  ],
   title: 'Make sure the catalogue comes back by itself',
   teaches: ['systemctl', 'ln', 'ls'],
   requires: ['why-it-will-not-start'],
@@ -826,6 +858,11 @@ const afterTheReboot: Objective = {
  */
 const serveTheMatter: Objective = {
   id: 'serve-the-matter',
+  onComplete: [
+    "",
+    "LUNA: The tribunal can reach the manifest. Your account is in the access record.",
+    "",
+  ],
   title: 'Get the tribunal the matter they asked for',
   teaches: ['curl', 'scp', 'shell redirection', 'the deposit store'],
   requires: ['why-it-will-not-start'],
@@ -973,6 +1010,11 @@ const serveTheMatter: Objective = {
  */
 const theSecondLie: Objective = {
   id: 'the-second-lie',
+  onComplete: [
+    "",
+    "LUNA: Now the check fails when the service fails. Finally, some useful bad news.",
+    "",
+  ],
   title: "Find out whether the relay's check tests the relay",
   teaches: ['curl', 'systemctl', 'health checks'],
   requires: ['ship-it'],
@@ -1118,6 +1160,12 @@ const theSecondLie: Objective = {
  */
 const theHandover: Objective = {
   id: 'the-handover',
+  onComplete: [
+    "",
+    "PELL: Hosts, dependencies, checks. You wrote the handover I never got.",
+    "PELL: Leave a copy by my cup.",
+    "",
+  ],
   title: 'Write down what happened, so the next person does not start where you did',
   teaches: ['journalctl', 'cat', 'shell redirection'],
   requires: ['after-the-reboot', 'the-second-lie', 'serve-the-matter'],
@@ -1441,17 +1489,10 @@ const cleanHands: Objective = {
     },
   ],
   onComplete: [
-    '',
-    'LUNA: I read the record, Doc. The tribunal opened your matter twice on',
-    'LUNA: the second of July, a minute apart, and your account has never',
-    'LUNA: opened it at all.',
-    '',
-    'LUNA: You had root on that machine the whole time.',
-    '',
-    'LUNA: I am not going to make a speech about it. I am going to note that',
-    'LUNA: the record is the only reason anyone can tell, and that you are the',
-    'LUNA: one who kept the record working.',
-    '',
+    "",
+    "LUNA: They read your matter twice. Your account never did.",
+    "LUNA: You kept the record working when it could have worked against you.",
+    "",
   ],
 };
 
@@ -1587,15 +1628,10 @@ const whereSheCannotGo: Objective = {
     },
   ],
   onComplete: [
-    '',
-    'LUNA: I can hear you typing and I cannot see what you are typing at.',
-    '',
-    'LUNA: I would like you to know that I do not like it, and that the policy',
-    'LUNA: is right. A machine that holds evidence should not run anything the',
-    'LUNA: office did not install, and I am something somebody did not install.',
-    '',
-    'LUNA: Do not carry me across it. Tell me what you found when you get back.',
-    '',
+    "",
+    "LUNA: I cannot follow you onto that machine. The policy is right. I still hate it.",
+    "LUNA: Tell me what you find when you come back.",
+    "",
   ],
 };
 
@@ -1612,3 +1648,4 @@ export const DEPOSIT_OBJECTIVES: Objective[] = [
   cleanHands,
   whereSheCannotGo,
 ];
+
