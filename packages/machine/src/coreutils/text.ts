@@ -438,7 +438,7 @@ export const textCommands: CommandSpec[] = [
 
   {
     name: 'sed',
-    summary: 'stream editor — supports s/pattern/replacement/[g]',
+    summary: 'stream editor — s/pattern/replacement/, and line or /pattern/ addresses',
     manual:
       'sed [-n] [-i] SCRIPT [FILE...]\n' +
       '\n' +
@@ -448,6 +448,7 @@ export const textCommands: CommandSpec[] = [
       '  1,3p                         lines one to three\n' +
       '  5p     $p                    one line; the last line\n' +
       '  2,4d                         delete those lines\n' +
+      '  /PATTERN/d   /PATTERN/p      the lines that match, deleted or printed\n' +
       '\n' +
       '  -n  print nothing except what the script asks for, which is what\n' +
       '      makes  -n 1,3p  print three lines instead of the whole file\n' +
@@ -475,6 +476,10 @@ export const textCommands: CommandSpec[] = [
       '\n' +
       '  sed -i \'s/16/21/g\' file\n' +
       '\n' +
+      'To drop every line containing a word:\n' +
+      '\n' +
+      '  sed \'/word/d\' file\n' +
+      '\n' +
       'It is the fast way to fix one number in a config file when you do not\n' +
       'feel like using vi.',
     run: (ctx, argv, io) => {
@@ -494,8 +499,25 @@ export const textCommands: CommandSpec[] = [
        * the way it is everywhere else in this shell.
        */
       const range = /^(\d+|\$)(?:,(\d+|\$))?([pd])$/.exec(script);
-      if (range) {
-        const [, fromText = '1', toText, action = 'p'] = range;
+      /*
+       * `/PATTERN/d` and `/PATTERN/p`: the lines that match, rather than the
+       * lines at a position. `sed '/dewitt/d'` is the first thing anybody types
+       * to drop a line by what it says, and it used to be refused.
+       */
+      const matching = /^\/((?:[^/\\]|\\.)*)\/([pd])$/.exec(script);
+      let addressRe: RegExp | undefined;
+      if (matching) {
+        try {
+          addressRe = new RegExp(matching[1]!);
+        } catch {
+          io.err(`sed: invalid regular expression '${matching[1]}'\n`);
+          return 2;
+        }
+      }
+      if (range || matching) {
+        const fromText = range?.[1];
+        const toText = range?.[2];
+        const action = (range?.[3] ?? matching?.[2]) as 'p' | 'd';
         const edit = (text: string): string => {
           const trailing = text.endsWith('\n');
           const rows = lines(text);
@@ -503,7 +525,8 @@ export const textCommands: CommandSpec[] = [
             t === undefined ? fallback : t === '$' ? rows.length : Number(t);
           const from = resolve(fromText, 1);
           const to = resolve(toText, from);
-          const inRange = (n: number): boolean => n >= from && n <= to;
+          const inRange = (n: number): boolean =>
+            addressRe ? addressRe.test(rows[n - 1]!) : n >= from && n <= to;
 
           // `p` without `-n` prints every line *and* the range again, which
           // is real sed and surprises everybody exactly once. `-n` is what
@@ -547,7 +570,7 @@ export const textCommands: CommandSpec[] = [
       if (!m) {
         io.err(
           `sed: unsupported script '${script}'\n` +
-            'sed: this machine has s/pattern/replacement/ and addresses like 1,3p\n',
+            'sed: this machine has s/pattern/replacement/ and addresses like 1,3p or /pattern/d\n',
         );
         return 2;
       }
@@ -555,7 +578,10 @@ export const textCommands: CommandSpec[] = [
 
       let re: RegExp;
       try {
-        re = new RegExp(pattern, modifiers.includes('g') ? 'g' : '');
+        re = new RegExp(
+          pattern,
+          `${modifiers.includes('g') ? 'g' : ''}${modifiers.includes('i') ? 'i' : ''}`,
+        );
       } catch {
         io.err(`sed: invalid regular expression '${pattern}'\n`);
         return 2;

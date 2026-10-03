@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ROOT_USER } from '@sigkill/machine';
 import { bootDeposit } from '../src/world.js';
 import { HIS_MATTER } from '../src/act1/floor.js';
-import { ACCESS_LOG } from '../src/store.js';
+import { ACCESS_LOG, LEDGER_HOST, LEDGER_LOG } from '../src/store.js';
 
 /**
  * The store, probed before `clean-hands` was written and kept as the
@@ -87,6 +87,64 @@ describe('the store serves it, and says so', () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toContain('C. DeWitt');
     expect(record(d)).toBe(before);
+  });
+});
+
+describe('the ledger keeps the copy nobody here can edit', () => {
+  const ledger = (d: ReturnType<typeof bootDeposit>): string =>
+    d.network.resolve(LEDGER_HOST)!.machine.vfs.readText(LEDGER_LOG, ROOT_USER);
+
+  it('starts as the same record vault01 holds', () => {
+    const d = bootDeposit();
+    expect(ledger(d)).toBe(record(d));
+  });
+
+  it('receives every read the store serves, as it serves it', async () => {
+    const d = bootDeposit();
+    await d.machine.exec("ssh vault01 'deposit get 7719/manifest'");
+    expect(ledger(d).trim().split('\n').pop()).toBe('2398-07-14T07:30 dewitt 7719/manifest');
+    expect(ledger(d)).toBe(record(d));
+  });
+
+  it('is readable over http, from the bastion', async () => {
+    const d = bootDeposit();
+    const r = await d.machine.exec('curl -s http://ledger/vault01');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe(ledger(d));
+  });
+
+  it('cannot be logged into, copied onto, or reached as root', async () => {
+    const d = bootDeposit();
+    for (const command of [
+      "ssh ledger 'echo x'",
+      `scp ~/NOTICE ledger:${LEDGER_LOG}`,
+      "ssh vault01 \"sudo ssh ledger 'echo x'\"",
+      "ssh vault01 'sudo ssh root@ledger'",
+    ]) {
+      const r = await d.machine.exec(command);
+      expect(r.code, command).not.toBe(0);
+    }
+    expect(ledger(d)).toBe(record(d));
+  });
+
+  it('refuses to serve when the ledger cannot be reached', async () => {
+    const d = bootDeposit();
+    d.network.setUp(LEDGER_HOST, false);
+    const before = record(d);
+    const r = await d.machine.exec(`ssh vault01 'deposit get 7719/manifest'`);
+    expect(r.code).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('cannot reach the ledger');
+    expect(record(d)).toBe(before);
+  });
+
+  it('writes nothing to the ledger for a read it refused', async () => {
+    const d = bootDeposit();
+    const before = ledger(d);
+    await d.machine.exec("ssh vault01 'sudo rm /var/log/access.log'");
+    const r = await d.machine.exec(`ssh vault01 'deposit get ${HIS_MATTER}/manifest'`);
+    expect(r.stderr).toContain('refusing to serve');
+    expect(ledger(d)).toBe(before);
   });
 });
 

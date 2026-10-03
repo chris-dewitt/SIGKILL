@@ -1,4 +1,4 @@
-import { ROOT_USER, type CommandSpec, type ShellContext } from '@sigkill/machine';
+import { ROOT_USER, type CommandSpec, type Machine, type ShellContext } from '@sigkill/machine';
 
 /**
  * `deposit` -- the store's own retrieval tool, and the thing that writes the
@@ -32,6 +32,34 @@ function stamp(ctx: ShellContext): string {
 export const DEPOSIT_ROOT = '/srv/deposit';
 export const ACCESS_LOG = '/var/log/access.log';
 
+/*
+ * The tribunal's copy of the record, on a machine nobody on this floor can
+ * log into.
+ *
+ * The local log alone was not a record: he has root on vault01, so a player
+ * who read their own matter could `grep -v` their line out, copy the rest
+ * back, and win `clean-hands` with a log that still showed every tribunal
+ * read. Shipping each line off the box as it is written is how real audit logs
+ * survive the people who administer the machine they describe.
+ */
+export const LEDGER_HOST = 'ledger';
+export const LEDGER_LOG = '/var/log/ledger/vault01.log';
+
+/** The ledger, if it is on the network and answering. */
+function ledgerOf(ctx: ShellContext): Machine | undefined {
+  const host = ctx.network?.resolve(LEDGER_HOST);
+  return host?.up ? host.machine : undefined;
+}
+
+/** What the tribunal holds, or nothing if the ledger is gone. */
+export function readLedger(ledger: Machine): string {
+  try {
+    return ledger.vfs.readText(LEDGER_LOG, ROOT_USER);
+  } catch {
+    return '';
+  }
+}
+
 export function storeCommands(): CommandSpec[] {
   return [
     {
@@ -43,12 +71,15 @@ export function storeCommands(): CommandSpec[] {
         '  deposit get <matter>/<f>  print one file\n\n' +
         'Deposited files are readable only by the store. Every retrieval it\n' +
         'serves is appended to /var/log/access.log with the account that asked\n' +
-        'for it. That record is written by the store and not by you, which is\n' +
-        'the whole of why anybody should believe it.',
+        'for it, and the same line is sent to the tribunal\'s ledger\n' +
+        '(http://ledger/vault01), which this office can read and cannot write.\n' +
+        'That record is written by the store and not by you, which is the whole\n' +
+        'of why anybody should believe it.',
       plain:
         'Gets a file out of the deposit store:\n' +
         '  deposit get 7719/manifest\n' +
-        'Every read it serves goes in the access log, under your name.',
+        'Every read it serves goes in the access log, under your name, and a\n' +
+        'copy goes to the tribunal, where nobody here can change it.',
       run: (ctx, argv, io) => {
         const [sub, target] = argv.slice(1);
 
@@ -86,22 +117,28 @@ export function storeCommands(): CommandSpec[] {
         }
 
         /*
-         * The line goes down before the body goes out.
+         * The line goes down, in both places, before the body goes out.
          *
-         * If appending fails the read does not happen, because a retrieval the
-         * store cannot record is a retrieval the store should not serve.
+         * If either record cannot be written the read does not happen, because
+         * a retrieval the store cannot record is a retrieval the store should
+         * not serve. Both are checked before either is written, so a refusal
+         * never leaves a line in the ledger for a read that was not served.
          */
+        const ledger = ledgerOf(ctx);
+        if (!ledger) {
+          io.err('deposit: cannot reach the ledger; refusing to serve\n');
+          return 1;
+        }
+        let existing: string;
         try {
-          const existing = ctx.vfs.readText(ACCESS_LOG, ROOT_USER);
-          ctx.vfs.writeText(
-            ACCESS_LOG,
-            `${existing}${stamp(ctx)} ${ctx.user.name} ${target}\n`,
-            ROOT_USER,
-          );
+          existing = ctx.vfs.readText(ACCESS_LOG, ROOT_USER);
         } catch {
           io.err('deposit: cannot write the access log; refusing to serve\n');
           return 1;
         }
+        const line = `${stamp(ctx)} ${ctx.user.name} ${target}\n`;
+        ledger.vfs.writeText(LEDGER_LOG, `${readLedger(ledger)}${line}`, ROOT_USER);
+        ctx.vfs.writeText(ACCESS_LOG, `${existing}${line}`, ROOT_USER);
 
         io.out(body);
         return 0;

@@ -1,7 +1,7 @@
 import { ROOT_USER, type Machine } from '@sigkill/machine';
 import { asArt, type BeatLine, type Objective, type World } from '@sigkill/quest';
 import { HIS_MATTER, WORK } from './act1/floor.js';
-import { ACCESS_LOG } from './store.js';
+import { ACCESS_LOG, LEDGER_HOST, readLedger } from './store.js';
 
 export const DEPOSIT_TITLE = 'The Deposit';
 
@@ -63,24 +63,23 @@ const serviceState = (w: World, hostname: string, unit: string): string | undefi
   host(w, hostname)?.services.get(unit)?.state;
 
 /**
- * The store's access record, as it stands on the machine that keeps it.
+ * The store's access record, as the tribunal holds it.
  *
- * Read from vault01 rather than from anything the player wrote, which is the
- * entire point of it: a record is only evidence while it is still the
- * original. An objective that accepted a copy would accept a copy that had
- * been edited, and `clean-hands` is precisely the objective where that
+ * Read from the ledger, not from vault01 and not from anything the player
+ * wrote, which is the entire point of it: a record is only evidence while it
+ * is still the original. He has root on vault01, so its log is a copy he can
+ * edit -- and an objective that read it could be won by reading his own
+ * matter and trimming his line back out. The ledger is the one copy nobody on
+ * the floor can reach, and `clean-hands` is precisely the objective where that
  * distinction is the lesson.
  *
  * Missing reads as empty, and the goal that uses it requires the record to
- * still say what it said -- so deleting the log fails the objective instead of
- * passing it.
+ * still say what it said -- so a ledger that is not there fails the objective
+ * instead of passing it.
  */
 const accessRecord = (w: World): string => {
-  try {
-    return host(w, 'vault01')?.vfs.readText(ACCESS_LOG, ROOT_USER) ?? '';
-  } catch {
-    return '';
-  }
+  const ledger = host(w, LEDGER_HOST);
+  return ledger ? readLedger(ledger) : '';
 };
 
 /** A line of the access record: who read which matter. */
@@ -1428,15 +1427,15 @@ const cleanHands: Objective = {
         {
           tier: 'direction',
           lines: [
-            'There is no repair for this one. The store wrote the line, which is',
-            'why anybody would have believed the record if it had been empty.',
-            'Leave it where it is.',
+            'There is no repair for this one. The store wrote the line, and sent',
+            'it to the tribunal\'s ledger as it did -- which is why anybody would',
+            'have believed the record if it had been empty. Leave it where it is.',
           ],
         },
         {
           tier: 'command',
-          lines: ['It is one line. It is worth reading once:'],
-          command: `ssh vault01 'grep dewitt ${ACCESS_LOG}'`,
+          lines: ['It is one line, and the copy that counts is not on this floor:'],
+          command: 'curl -s http://ledger/vault01 | grep dewitt',
         },
       ],
     },

@@ -112,6 +112,33 @@ describe('clean-hands rests on something the player cannot edit', () => {
     expect(cleanHands.done(d.machine)).toBe(false);
   });
 
+  /*
+   * The hole this used to have.
+   *
+   * Root on vault01 means its log is a file he can rewrite. Both of these
+   * trim his own line out and keep every tribunal line, and the first of them
+   * used to complete the objective. The ledger is why neither does now.
+   */
+  for (const trim of [
+    "ssh vault01 \"sudo sed -i '/dewitt/d' /var/log/access.log\"",
+    "ssh vault01 'grep -v dewitt /var/log/access.log > /tmp/a; sudo cp /tmp/a /var/log/access.log'",
+    "ssh vault01 'grep -v dewitt /var/log/access.log > /tmp/a; sudo mv /tmp/a /var/log/access.log'",
+  ]) {
+    it(`stays lost to somebody who trims his own line: ${trim}`, async () => {
+      const d = bootDeposit();
+      await d.machine.exec("ssh vault01 'grep 7714 /var/log/access.log' > ~/work/mine.txt");
+      await d.machine.exec("ssh vault01 'deposit get 7714/disclosure.txt'");
+
+      const r = await d.machine.exec(trim);
+      expect(r.stderr, trim).toBe('');
+      expect(record(d)).not.toContain('dewitt');
+      expect(record(d)).toContain(`tribunal 7714/disclosure.txt`);
+
+      expect(cleanHands.done(d.machine)).toBe(false);
+      expect(theForfeit.pending(d.machine)).toBe(true);
+    });
+  }
+
   it('refuses to serve anything once it cannot record it', async () => {
     const d = bootDeposit();
     await d.machine.exec("ssh vault01 'sudo rm /var/log/access.log'");
