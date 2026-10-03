@@ -240,6 +240,58 @@ describe('sed addresses', () => {
     await m.exec("sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /work/f");
     expect(m.vfs.readText('/work/f', ROOT_USER)).toBe('O2_TARGET=21\n');
   });
+
+  it('honours the i modifier its manual promises', async () => {
+    const m = ship();
+    expect((await m.exec("echo SEALED=No | sed 's/no/yes/i'")).stdout).toBe('SEALED=yes\n');
+    expect((await m.exec("echo SEALED=No | sed 's/no/yes/'")).stdout).toBe('SEALED=No\n');
+  });
+});
+
+describe('sed pattern addresses', () => {
+  const log = 'tribunal 7714\ndewitt 7714\ntribunal 7719\n';
+
+  it('deletes the lines that match', async () => {
+    const m = ship();
+    put(m, '/work/f', log);
+    expect((await m.exec("sed '/dewitt/d' /work/f")).stdout).toBe('tribunal 7714\ntribunal 7719\n');
+  });
+
+  it('prints only the lines that match with -n', async () => {
+    const m = ship();
+    put(m, '/work/f', log);
+    expect((await m.exec("sed -n '/7714/p' /work/f")).stdout).toBe('tribunal 7714\ndewitt 7714\n');
+  });
+
+  it('takes a real regex, and an escaped slash', async () => {
+    const m = ship();
+    put(m, '/work/f', 'a/b\nab\n^x\n');
+    expect((await m.exec("sed '/^a\\/b$/d' /work/f")).stdout).toBe('ab\n^x\n');
+    expect((await m.exec("sed -n '/^\\^/p' /work/f")).stdout).toBe('^x\n');
+  });
+
+  it('works down a pipe and in place', async () => {
+    const m = ship();
+    put(m, '/work/f', log);
+    expect((await m.exec("cat /work/f | sed '/tribunal/d'")).stdout).toBe('dewitt 7714\n');
+    await m.exec("sed -i '/dewitt/d' /work/f");
+    expect(m.vfs.readText('/work/f', ROOT_USER)).toBe('tribunal 7714\ntribunal 7719\n');
+  });
+
+  it('empties the file when every line matches', async () => {
+    const m = ship();
+    put(m, '/work/f', 'x\nx\n');
+    expect((await m.exec("sed '/x/d' /work/f")).stdout).toBe('');
+  });
+
+  it('refuses a broken pattern rather than throwing', async () => {
+    const m = ship();
+    put(m, '/work/f', log);
+    const r = await m.exec("sed '/(/d' /work/f");
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('invalid regular expression');
+    expect(m.vfs.readText('/work/f', ROOT_USER)).toBe(log);
+  });
 });
 
 describe('readlink', () => {

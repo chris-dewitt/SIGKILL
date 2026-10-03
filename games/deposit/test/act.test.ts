@@ -4,6 +4,7 @@ import { Questbook } from '@sigkill/quest';
 import { DEPOSIT } from '../src/adventure.js';
 import { DEPOSIT_ART, DEPOSIT_OBJECTIVES } from '../src/objectives.js';
 import { bootDeposit, saveDeposit } from '../src/world.js';
+import { LEDGER_LOG } from '../src/store.js';
 
 const required = DEPOSIT_OBJECTIVES.filter((o) => o.optional !== true);
 
@@ -117,6 +118,29 @@ describe('a save keeps the whole floor', () => {
     // world agree -- which is the failure this whole seam exists to prevent.
     const fresh = new Questbook(DEPOSIT_OBJECTIVES);
     expect(fresh.status(back.machine).find((r) => r.id === 'after-the-reboot')?.done).toBe(true);
+  });
+
+  it('brings a save from before the ledger back with one, holding vault01\'s record', async () => {
+    const started = bootDeposit();
+    await started.machine.exec("ssh vault01 'deposit get 7719/manifest'");
+    const save = JSON.parse(JSON.stringify(saveDeposit(started)));
+    save.fleet.hosts = save.fleet.hosts.filter((h: { hostname: string }) => h.hostname !== 'ledger');
+
+    const back = await DEPOSIT.restore(save, {});
+    const vault = back.machine.network!.resolve('vault01')!.machine;
+    const ledger = back.machine.network!.resolve('ledger')!.machine;
+    expect(ledger.vfs.readText(LEDGER_LOG, ROOT_USER)).toBe(
+      vault.vfs.readText('/var/log/access.log', ROOT_USER),
+    );
+
+    // And the store serves again, rather than refusing for want of a ledger.
+    const r = await back.machine.exec("ssh vault01 'deposit get 7702/manifest'");
+    expect(r.stderr).toBe('');
+    expect(ledger.vfs.readText(LEDGER_LOG, ROOT_USER)).toContain('dewitt 7702/manifest');
+
+    // A save taken after that keeps the ledger like any other host.
+    const again = await DEPOSIT.restore(JSON.parse(JSON.stringify(back.snapshot!())), {});
+    expect(again.machine.network!.resolve('ledger')).toBeDefined();
   });
 
   it('refuses a save with no floor in it rather than half-restoring one', async () => {
