@@ -1,7 +1,7 @@
 import type { User } from '../vfs/types.js';
 import type { Vfs } from '../vfs/vfs.js';
 import { verdict } from './firewall.js';
-import type { NetHost, Network } from './network.js';
+import { subnetOf, type NetHost, type Network } from './network.js';
 
 /**
  * Turning a name into an address, as two sources rather than one map.
@@ -135,7 +135,15 @@ export function lookup(
      * to express the connection that is supposed to succeed.
      */
     if (LOOPBACK.test(ip) && here) return { kind: 'host', host: here, ip, via: 'loopback' };
-    const host = net.list().find((candidate) => candidate.ip === ip);
+    /*
+     * Every address, not just the primary.
+     *
+     * A host with two legs answers on both, so comparing only `ip` reported a
+     * live secondary interface as an address with nothing at it -- which is to
+     * say `No route to host` for a machine that was right there. `resolve()`
+     * had already been taught this and this path had not.
+     */
+    const host = net.list().find((candidate) => candidate.addresses.includes(ip));
     return host ? { kind: 'host', host, ip, via } : { kind: 'address', ip, via };
   };
 
@@ -187,6 +195,20 @@ export type Reach =
    */
   | { readonly kind: 'timeout'; readonly host: NetHost };
 
+/**
+ * The address a packet leaves by.
+ *
+ * A multihomed host has one address per subnet it is on, and the one the far
+ * end sees is the one on *its* subnet -- which is what `ip route` prints as
+ * that connected route's source. Matching a firewall's `-s` clause against the
+ * primary address instead would have a border box rejected by a rule that
+ * accepts the very subnet it is connecting from.
+ */
+function egress(here: NetHost | undefined, to: string): string | undefined {
+  if (!here) return undefined;
+  return here.addresses.find((address) => subnetOf(address) === subnetOf(to)) ?? here.ip;
+}
+
 export function reach(
   net: Network,
   resolution: Resolution,
@@ -225,7 +247,7 @@ export function reach(
    * mistake nobody makes.
    */
   if (resolution.via !== 'loopback') {
-    const decision = verdict(resolution.host.firewall, port, here?.ip);
+    const decision = verdict(resolution.host.firewall, port, egress(here, resolution.ip));
     if (decision === 'DROP') return { kind: 'timeout', host: resolution.host };
     if (decision === 'REJECT') return { kind: 'refused', host: resolution.host };
   }

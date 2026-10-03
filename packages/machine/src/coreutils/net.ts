@@ -79,7 +79,25 @@ export const netCommands: CommandSpec[] = [
        */
       io.out(`PING ${target} (${resolution.ip}) 56(84) bytes of data.\n`);
 
-      if (resolution.kind === 'address' || !resolution.host.up) {
+      /*
+       * Routed, but not filtered.
+       *
+       * ping has to agree with the route table: it is the command people reach
+       * for *first* when a host will not answer, and one that reports replies
+       * from a subnet nothing can route to sends them to look at the service
+       * instead of the gateway.
+       *
+       * The firewall is a different matter and is deliberately not consulted.
+       * A ruleset that drops a port while answering ICMP is ordinary, and
+       * "ping works, the port does not" is a real and useful thing to meet.
+       */
+      const here = ctx.network!.resolve(ctx.hostname);
+      const unreachable =
+        resolution.kind === 'address' ||
+        !resolution.host.up ||
+        (resolution.via !== 'loopback' && !ctx.network!.routed(here, resolution.ip));
+
+      if (unreachable) {
         // Each probe still costs time; that is how a player feels a dead host.
         await ctx.advance(count * 1000);
         emit(io, [
@@ -194,7 +212,7 @@ export const netCommands: CommandSpec[] = [
       'Copies a file between this machine and another one. Put host: in\n' +
       'front of the side that is remote:\n' +
       '  scp notes.txt node01:/tmp/notes.txt',
-    run: (ctx, argv, io) => {
+    run: async (ctx, argv, io) => {
       const { operands } = parseArgs(argv);
       if (operands.length < 2) return usage(io, 'usage: scp source target');
       if (!requireNetwork(ctx, 'scp', io)) return 1;
@@ -214,6 +232,8 @@ export const netCommands: CommandSpec[] = [
        * failed deploy was the one tool that would not tell them where to look.
        */
       type End = { vfs: typeof ctx.vfs; path: string };
+      /** Set when the failure was a drop, so the wait can be charged below. */
+      let dropped = false;
       const endpoint = (spec: { host?: string; path: string }): End | string => {
         if (!spec.host) return { vfs: ctx.vfs, path: ctx.resolve(spec.path) };
         const { host: hostname } = splitTarget(spec.host);
@@ -228,6 +248,7 @@ export const netCommands: CommandSpec[] = [
           return `ssh: connect to host ${hostname} port 22: Connection refused`;
         }
         if (reached.kind === 'timeout') {
+          dropped = true;
           return `ssh: connect to host ${hostname} port 22: Connection timed out`;
         }
         return { vfs: reached.host.machine.vfs, path: spec.path };
@@ -239,6 +260,10 @@ export const netCommands: CommandSpec[] = [
       // the wording is ssh's and the second line is scp's.
       const unreachable = typeof from === 'string' ? from : typeof to === 'string' ? to : undefined;
       if (unreachable !== undefined) {
+        // A dropped packet costs the same five seconds here as it does in ssh.
+        // scp is ssh underneath, and a copy that fails instantly where the
+        // login hangs would hide the one difference worth noticing.
+        if (dropped) await ctx.advance(5000);
         io.err(`${unreachable}\n`);
         io.err('scp: lost connection\n');
         return 1;

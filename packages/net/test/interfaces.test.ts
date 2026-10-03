@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Machine, Network, type Session } from '@sigkill/machine';
+import { Machine, Network, ROOT_USER, type Session } from '@sigkill/machine';
 import { netCommands } from '../src/index.js';
 
 /**
@@ -166,5 +166,53 @@ describe('a flat network', () => {
     net.add({ hostname: 'far', ip: '10.9.0.4', machine: far, ports: { 80: 'ledgerd' } });
 
     expect((await here.exec('nc -z far 80')).code).toBe(0);
+  });
+});
+
+/**
+ * Four things a review found, each with the shape of the bug it was.
+ *
+ * All four came from the same blind spot: the model grew a second address per
+ * host and a route table, and four places went on asking the old question --
+ * what is this host's address, rather than which of its addresses is this.
+ */
+describe('a secondary address is a real address', () => {
+  it('answers when it is dialled directly', async () => {
+    const { app } = sites();
+    // 10.0.2.254 is the border's second leg, not its primary.
+    expect((await app.exec('nc -z 10.0.2.254 22')).code).toBe(0);
+  });
+
+  it('answers when a hosts file points a name at it', async () => {
+    const { app } = sites();
+    app.vfs.mkdirp('/etc', ROOT_USER);
+    app.vfs.writeText('/etc/hosts', '10.0.2.254 edge\n', ROOT_USER);
+    expect((await app.exec('nc -z edge 22')).code).toBe(0);
+  });
+});
+
+describe('ping agrees with the route table', () => {
+  /*
+   * The command people reach for first when a host will not answer. One that
+   * reports replies from a subnet nothing can route to sends them off to look
+   * at the service instead of the gateway.
+   */
+  it('reports loss where the TCP tools report no route', async () => {
+    const { app } = sites({ forwarding: false });
+    expect((await app.exec('nc -z db01 5432')).stderr).toContain('No route to host');
+
+    const r = await app.exec('ping -c 2 db01');
+    expect(r.stdout).toContain('100% packet loss');
+    expect(r.code).toBe(1);
+  });
+
+  it('still answers across a border box that is forwarding', async () => {
+    const { app } = sites();
+    expect((await app.exec('ping -c 1 db01')).code).toBe(0);
+  });
+
+  it('and still answers on its own subnet with no routing at all', async () => {
+    const { app } = sites({ forwarding: false });
+    expect((await app.exec('ping -c 1 border')).code).toBe(0);
   });
 });

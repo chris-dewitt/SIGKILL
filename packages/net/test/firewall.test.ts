@@ -61,6 +61,17 @@ describe('a dropped packet', () => {
     expect(bastion.shell.clock() - before).toBeGreaterThanOrEqual(5000);
   });
 
+  it('costs scp the same wait, because scp is ssh underneath', async () => {
+    const { bastion } = floor({ policy: 'DROP', rules: [] });
+    bastion.vfs.mkdirp('/home/dewitt', ROOT_USER);
+    bastion.vfs.writeText('/home/dewitt/app.conf', 'workers=4\n', ROOT_USER);
+
+    const before = bastion.shell.clock();
+    const r = await bastion.exec('scp /home/dewitt/app.conf db01:/tmp/app.conf');
+    expect(r.stderr).toContain('Connection timed out');
+    expect(bastion.shell.clock() - before).toBeGreaterThanOrEqual(5000);
+  });
+
   it('is curl 28, which is a different number from a refusal on purpose', async () => {
     const { bastion } = floor(DROPPING);
     expect((await bastion.exec('curl http://db01:5432/')).code).toBe(28);
@@ -189,5 +200,55 @@ describe('a host nobody gave rules to', () => {
     const { bastion, db } = floor();
     expect((await bastion.exec('nc -z db01 5432')).code).toBe(0);
     expect((await db.exec('iptables -L')).stdout).toContain('policy ACCEPT');
+  });
+});
+
+/**
+ * Which address the far end sees.
+ *
+ * A multihomed host leaves by the leg on the destination's subnet, and that is
+ * the address a `-s` rule has to be matched against -- it is also what `ip
+ * route` prints as that connected route's source. Matching the primary instead
+ * had a border box refused by a rule accepting the very subnet it was
+ * connecting from.
+ */
+describe('a rule matching on source', () => {
+  function twoLegs() {
+    const net = new Network({ routing: true });
+    const session: Session = { stack: [] };
+    const commands = netCommands();
+    const accounts = { root: { uid: 0, gid: 0 }, dewitt: { uid: 1000, gid: 1000 } };
+    const border = new Machine({ hostname: 'border', network: net, session, commands });
+    const db = new Machine({ hostname: 'db01', network: net, session, commands });
+
+    net.add({
+      hostname: 'border',
+      ip: '10.0.1.254',
+      ips: ['10.0.2.254'],
+      router: true,
+      machine: border,
+      ports: { 22: 'SSH' },
+      accounts,
+    });
+    net.add({
+      hostname: 'db01',
+      ip: '10.0.2.20',
+      machine: db,
+      ports: { 22: 'SSH', 5432: 'postgres' },
+      accounts,
+      firewall: {
+        policy: 'DROP',
+        rules: [
+          { action: 'ACCEPT', source: '10.0.2.0/24', port: 5432 },
+          { action: 'ACCEPT', port: 22 },
+        ],
+      },
+    });
+    return { border };
+  }
+
+  it('sees the leg on its own subnet, not the primary one', async () => {
+    const { border } = twoLegs();
+    expect((await border.exec('nc -z db01 5432')).code).toBe(0);
   });
 });
