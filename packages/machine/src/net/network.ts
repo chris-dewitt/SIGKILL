@@ -95,8 +95,33 @@ export interface HostOptions {
  * services, so `ssh node01 'systemctl status slurmd'` is doing exactly what
  * it appears to be doing. Nothing about a remote host is special-cased.
  */
+export interface NetworkOptions {
+  /**
+   * Enforce subnets, so that an address in another /24 needs a route to it.
+   *
+   * **Off by default, and that is not timidity.** Until there was any routing
+   * in this engine, a host's address was chosen as flavour: game six puts its
+   * tribunal ledger on 10.9.0.4 to say *this machine is not ours*, written at
+   * a time when no part of the engine could read anything into that. Turning
+   * routing on by default makes the engine infer a topology from decoration
+   * and then report a story decision as `No route to host`, which is the
+   * engine lying about something it does not know.
+   *
+   * An adventure that has thought about subnets says so, and then every rule
+   * in `routed` applies to it. One that has not keeps the flat network it was
+   * written against.
+   */
+  readonly routing?: boolean;
+}
+
 export class Network {
   private hosts = new Map<string, NetHost>();
+  /** See `NetworkOptions.routing`. */
+  readonly routing: boolean;
+
+  constructor(opts: NetworkOptions = {}) {
+    this.routing = opts.routing ?? false;
+  }
 
   add(opts: HostOptions): NetHost {
     const host: NetHost = {
@@ -145,6 +170,9 @@ export class Network {
    * cannot be read is not a thing to teach with.
    */
   routed(from: NetHost | undefined, to: string): boolean {
+    // A flat network, which is what every adventure written before routing
+    // existed is and must remain. See `NetworkOptions.routing`.
+    if (!this.routing) return true;
     // A machine the network has never heard of reaches everything, which is
     // how every adventure before this behaved and must keep behaving.
     if (!from) return true;

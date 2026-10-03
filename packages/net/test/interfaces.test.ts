@@ -14,7 +14,9 @@ import { netCommands } from '../src/index.js';
  * than one answer, and therefore the smallest one worth modelling.
  */
 function sites(opts: { forwarding?: boolean; borderUp?: boolean } = {}) {
-  const net = new Network();
+  // Subnets are opt-in, because an adventure that has not thought about them
+  // has not chosen its addresses to mean anything. This one has.
+  const net = new Network({ routing: true });
   const session: Session = { stack: [] };
   const commands = netCommands();
   const make = (hostname: string) => new Machine({ hostname, network: net, session, commands });
@@ -131,7 +133,7 @@ describe('across a subnet', () => {
 
 describe('one subnet needs no router at all', () => {
   it('reaches everything, which is how every adventure so far has worked', async () => {
-    const net = new Network();
+    const net = new Network({ routing: true });
     const session: Session = { stack: [] };
     const commands = netCommands();
     const a = new Machine({ hostname: 'a', network: net, session, commands });
@@ -141,5 +143,28 @@ describe('one subnet needs no router at all', () => {
 
     expect((await a.exec('nc -z b 22')).code).toBe(0);
     expect((await a.exec('ip route')).stdout).not.toContain('default via');
+  });
+});
+
+/**
+ * And a network that never asked for subnets does not get them.
+ *
+ * The case this was found by: game six puts its tribunal ledger on 10.9.0.4 to
+ * say *that machine is not ours*, which was flavour when it was written
+ * because nothing could read anything into an address. Inferring a topology
+ * from it and then reporting the story decision as `No route to host` is the
+ * engine lying about something it does not know.
+ */
+describe('a flat network', () => {
+  it('reaches another subnet with no router anywhere', async () => {
+    const net = new Network();
+    const session: Session = { stack: [] };
+    const commands = netCommands();
+    const here = new Machine({ hostname: 'here', network: net, session, commands });
+    const far = new Machine({ hostname: 'far', network: net, session, commands });
+    net.add({ hostname: 'here', ip: '10.2.0.1', machine: here, ports: { 22: 'SSH' } });
+    net.add({ hostname: 'far', ip: '10.9.0.4', machine: far, ports: { 80: 'ledgerd' } });
+
+    expect((await here.exec('nc -z far 80')).code).toBe(0);
   });
 });

@@ -51,8 +51,15 @@ columns of plausible zeroes would be a measurement of nothing.
 | `ip addr` | every address this machine answers to |
 | `ip route` | the subnet it reaches directly, and the gateway for everything else |
 
-Every subnet is a /24. Routing is one hop: within a /24 hosts reach each other
-directly, and across one they need a box with a leg in both that is up *and*
+Every subnet is a /24, and **subnets are opt-in**: a `Network` enforces them
+only when the adventure asks for it with `new Network({ routing: true })`.
+Until this package existed a host's address was flavour — game six puts its
+tribunal ledger on 10.9.0.4 to say *that machine is not ours* — and inferring a
+topology from a decorative address, then reporting a story decision as `No
+route to host`, is the engine lying about something it does not know.
+
+With routing on, it is one hop: within a /24 hosts reach each other directly,
+and across one they need a box with a leg in both that is up *and*
 forwarding. Those are three separate things that can be wrong and all three
 come out as `No route to host`, which is correct and is why the route table is
 worth reading.

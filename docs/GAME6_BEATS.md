@@ -216,7 +216,9 @@ What it needs, in the order a game would want it — **all five built, 2026-10-0
    refusing you in the same words a closed port uses.
 4. ✅ **`ip addr` / `ip route`** — a host answers to one or more addresses, every
    subnet is a /24, and routing is one hop through a box with a leg in both
-   that is up *and* forwarding.
+   that is up *and* forwarding. Opt-in per network: this act's own ledger sits
+   on 10.9.0.4 as *flavour*, and an engine that read a topology into that and
+   then refused to connect would be inventing a fact.
 5. ✅ **A firewall** — `iptables`, the INPUT chain, and the distinction the
    whole thing is for: REJECT is refused at once, DROP says nothing and the
    other end waits. The engine charges the player that wait.

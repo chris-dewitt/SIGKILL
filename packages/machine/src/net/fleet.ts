@@ -43,6 +43,8 @@ export interface HostSnapshot {
 
 export interface FleetSnapshot {
   version: 1;
+  /** Whether the network enforces subnets. See `NetworkOptions.routing`. */
+  routing?: boolean;
   hosts: HostSnapshot[];
   /**
    * Where the player was standing, as hostnames, outermost first.
@@ -75,6 +77,7 @@ export type WireHost = (hostname: string) => {
 export function snapshotFleet(network: Network, session: Session): FleetSnapshot {
   return {
     version: 1,
+    routing: network.routing,
     hosts: network.list().map((host) => ({
       hostname: host.hostname,
       ip: host.ip,
@@ -92,7 +95,8 @@ export function snapshotFleet(network: Network, session: Session): FleetSnapshot
 }
 
 export function restoreFleet(snap: FleetSnapshot, wire: WireHost): Fleet {
-  const network = new Network();
+  // A save from before routing existed restores flat, which is what it was.
+  const network = new Network({ routing: snap.routing ?? false });
   // One session object, shared by every machine on the network, or `ssh` on
   // one host pushes onto a stack the others cannot see.
   const session: Session = { stack: [] };
