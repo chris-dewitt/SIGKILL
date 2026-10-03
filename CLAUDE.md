@@ -190,16 +190,16 @@ sharing the VFS.
 system (`packages/quest` plus the Act I ladders). Chris has playtested Act I on
 a phone and wants to keep going.
 
-**Six games exist, and all six are in the chooser.** *The Wreck* (bash), *The
+**Seven games exist, and all seven are in the chooser.** *The Wreck* (bash), *The
 Archive* (SQL), *The Harness* (Python, debugging, testing), *The Fork* (Git),
 *The Containment* (models and evaluation), *The Deposit* (operations, across
-a fleet of hosts). Run `pnpm check` for the test count rather than trusting one
+a fleet of hosts), and *The Pipeline* (data engineering). Run `pnpm check` for the test count rather than trusting one
 written here; it was wrong in this file for three games running.
 
-The 40% gate has been applied to every game after the first and has held every
+The 40% gate was applied through game six and held each
 time — `node tools/measure.mjs` computes it, and `HANDOFF.md` has the latest
 table. The series is fourteen games; `docs/PLAN.md` has the order Chris set
-on 2026-10-03, and game seven is *The Pipeline*.
+on 2026-10-03, and game seven is *The Pipeline*. See `docs/PLAYABILITY_PASS.md` for its scope and the playability pass.
 
 **Every puzzle declares its own routes.** `Objective` carries `teaches`,
 `routes` and `nearMisses`, and `packages/quest/src/harness.ts` runs them against
@@ -226,3 +226,4 @@ worked example.
 **Phase 2 gated everything downstream** on the mobile input model, and it
 passed. Content built on unpleasant input is content thrown away, so if the
 input model changes, re-test it on a real phone before building more.
+

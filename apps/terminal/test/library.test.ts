@@ -15,9 +15,9 @@ const none = new Set<string>();
 const both = { python: {} as never, sql: {} as never };
 
 describe('the library', () => {
-  it('holds the six games that exist, in series order', () => {
-    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'containment', 'deposit']);
-    expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4, 5, 6]);
+  it('holds the seven games that exist, in series order', () => {
+    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'containment', 'deposit', 'pipeline']);
+    expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('gives every adventure an id that a save key can be built from', () => {
@@ -45,7 +45,7 @@ describe('the library', () => {
 });
 
 describe('what this host can offer', () => {
-  it('offers all six when both interpreters are present', () => {
+  it('offers all seven when both interpreters are present', () => {
     expect(offered(both).map((row) => row.adventure.id)).toEqual([
       'wreck',
       'archive',
@@ -53,6 +53,7 @@ describe('what this host can offer', () => {
       'fork',
       'containment',
       'deposit',
+      'pipeline',
     ]);
   });
 
@@ -69,14 +70,16 @@ describe('what this host can offer', () => {
       'fork',
       'containment',
       'deposit',
+      'pipeline',
     ]);
     expect(offered({ sql: {} as never }).map((r) => r.adventure.id)).toEqual([
       'wreck',
       'archive',
       'deposit',
+      'pipeline',
     ]);
     // Games one and six need no interpreter at all, which is the floor.
-    expect(offered({}).map((r) => r.adventure.id)).toEqual(['wreck', 'deposit']);
+    expect(offered({}).map((r) => r.adventure.id)).toEqual(['wreck', 'deposit', 'pipeline']);
   });
 });
 
@@ -89,7 +92,7 @@ describe('what the chooser says', () => {
     expect(lines.join('\n')).toContain('4. The Fork');
     expect(lines.join('\n')).toContain('5. The Containment');
     expect(lines.join('\n')).toContain('6. The Deposit');
-    expect(lines.at(-2)).toBe('  Type 1-6 to begin.');
+    expect(lines.at(-2)).toBe('  Type 1-7 to begin.');
   });
 
   it('marks the runs already in progress, which is the useful part', () => {
@@ -157,3 +160,4 @@ describe('reading the answer', () => {
     expect(chosen(offered({ python: {} as never }), 'archive')).toBeUndefined();
   });
 });
+

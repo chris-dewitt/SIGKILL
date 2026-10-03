@@ -1,3 +1,5 @@
+import { withCompanion } from '@sigkill/quest';
+import { COMPANION } from './companion.js';
 import { require_, type Adventure } from '@sigkill/quest';
 import { bootContainment, restoreContainment, coldOpen, epilogue } from './world.js';
 
@@ -14,11 +16,12 @@ export const CONTAINMENT: Adventure = {
   ],
   needs: ['python'],
   boot: async (runtimes) =>
-    bootContainment({ python: require_(runtimes.python, 'The Containment', 'python') }),
+    withCompanion(bootContainment({ python: require_(runtimes.python, 'The Containment', 'python') }), COMPANION),
   restore: async (snapshot, runtimes) =>
-    restoreContainment(snapshot, {
+    withCompanion(restoreContainment(snapshot, {
       python: require_(runtimes.python, 'The Containment', 'python'),
-    }),
+    }), COMPANION),
   coldOpen,
   epilogue,
 };
+

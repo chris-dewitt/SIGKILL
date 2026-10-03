@@ -13,7 +13,11 @@
  */
 
 /** What the adventure tells the mixer about the world. */
+export type SoundScene = 'wreck' | 'archive' | 'harness' | 'fork' | 'containment' | 'deposit' | 'pipeline' | 'silent';
+
 export interface ShipState {
+  /** Room identity. Omitted preserves existing ship callers. */
+  scene?: SoundScene;
   /** The atmosphere scrubber is running. */
   scrubber: boolean;
   /** The hull monitor is running. */
@@ -57,6 +61,22 @@ export type LayerName =
  * rather than a switch flipping.
  */
 export function mixFor(state: ShipState): Record<LayerName, Layer> {
+  if (state.scene === 'silent') return {
+    reactor: { gain: 0 }, air: { gain: 0 }, leak: { gain: 0 }, sweep: { gain: 0 },
+  };
+  if (state.scene && state.scene !== 'wreck') {
+    // Room tones, never simulated danger. Each place has its own motor/air mix.
+    const rooms = {
+      archive: [92, 0.018, 0.012], harness: [73, 0.04, 0.035],
+      fork: [120, 0.016, 0.008], containment: [145, 0.012, 0.025],
+      deposit: [48, 0.075, 0.045], pipeline: [82, 0.03, 0.032],
+    } as const;
+    const [frequency, motor, air] = rooms[state.scene];
+    return {
+      reactor: { gain: motor, frequency }, air: { gain: air },
+      leak: { gain: 0 }, sweep: { gain: 0 },
+    };
+  }
   // A thinner reserve makes the reactor hum sit higher and louder -- the
   // sound of a system working harder than it should have to.
   const strain = 1 - clamp(state.reserve, 0, 1);
@@ -91,7 +111,11 @@ export type CueName =
   | 'resolve'
   | 'act'
   | 'alarm'
-  | 'reveal';
+  | 'reveal'
+  | 'message'
+  | 'repair'
+  | 'connection'
+  | 'evidence';
 
 export interface Cue {
   /** Partials, as multiples of the base frequency. */
@@ -110,6 +134,11 @@ export interface Cue {
 }
 
 const CUES: Record<CueName, Cue> = {
+  message: { partials: [1, 2], frequency: 740, attack: 0.004, release: 0.16, gain: 0.045 },
+  repair: { partials: [1, 2], frequency: 150, attack: 0.01, release: 0.45, gain: 0.065, bend: 7 },
+  connection: { partials: [1, 3], frequency: 660, attack: 0.008, release: 0.18, gain: 0.06,
+    then: { partials: [1, 2], frequency: 990, attack: 0.008, release: 0.3, gain: 0.05 } },
+  evidence: { partials: [1, 2], frequency: 440, attack: 0.003, release: 0.22, gain: 0.055 },
   /** A keypress. Barely there — it is heard a thousand times a session. */
   key: { partials: [1], frequency: 2400, attack: 0.001, release: 0.02, gain: 0.035, noise: true },
   /** Committing a line. Lower and rounder than a keypress, so Enter feels like Enter. */
@@ -161,3 +190,4 @@ export function cueDuration(c: Cue): number {
 function clamp(n: number, low: number, high: number): number {
   return Math.min(Math.max(n, low), high);
 }
+

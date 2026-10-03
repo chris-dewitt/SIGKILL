@@ -1,3 +1,5 @@
+import { withCompanion } from '@sigkill/quest';
+import { COMPANION } from './companion.js';
 import { require_, type Adventure } from '@sigkill/quest';
 import { bootHarness, restoreHarness, coldOpen, epilogue } from './world.js';
 
@@ -13,9 +15,10 @@ export const HARNESS: Adventure = {
     'answer twice.',
   ],
   needs: ['python'],
-  boot: async (runtimes) => bootHarness({ python: require_(runtimes.python, 'The Harness', 'python') }),
+  boot: async (runtimes) => withCompanion(await bootHarness({ python: require_(runtimes.python, 'The Harness', 'python') }), COMPANION),
   restore: async (snapshot, runtimes) =>
-    restoreHarness(snapshot, { python: require_(runtimes.python, 'The Harness', 'python') }),
+    withCompanion(restoreHarness(snapshot, { python: require_(runtimes.python, 'The Harness', 'python') }), COMPANION),
   coldOpen,
   epilogue,
 };
+

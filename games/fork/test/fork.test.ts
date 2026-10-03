@@ -245,8 +245,8 @@ describe('the ending', () => {
     expect(ending).toContain(key.widened!.slice(0, 7));
     expect(ending).toContain(key.firstRestrictedRead!.slice(0, 7));
     expect(ending).toContain(key.merge!.slice(0, 7));
-    expect(ending).toContain('THE FORK: PART ONE COMPLETE');
-    expect(ending).toMatch(/no negligence in that sequence/i);
+    expect(ending).toContain('THE FORK — COMPLETE');
+    expect(ending).toMatch(/documented sequence/i);
   });
 
   it('does not tell a player who skipped the optional threads what they missed', () => {
@@ -310,3 +310,4 @@ describe('the goals read state, never the command', () => {
     expect(FORK_OBJECTIVES.find((o) => o.id === 'open-the-deposit')!.done(machine)).toBe(false);
   });
 });
+

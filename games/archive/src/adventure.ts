@@ -1,3 +1,5 @@
+import { withCompanion } from '@sigkill/quest';
+import { COMPANION } from './companion.js';
 import { require_, type Adventure } from '@sigkill/quest';
 import { bootArchive, restoreArchive, coldOpen, epilogue } from './world.js';
 
@@ -19,9 +21,10 @@ export const ARCHIVE: Adventure = {
     'row, including the sentence about your friends.',
   ],
   needs: ['sql'],
-  boot: async (runtimes) => bootArchive({ sql: require_(runtimes.sql, 'The Archive', 'sqlite') }),
+  boot: async (runtimes) => withCompanion(await bootArchive({ sql: require_(runtimes.sql, 'The Archive', 'sqlite') }), COMPANION),
   restore: async (snapshot, runtimes) =>
-    restoreArchive(snapshot, { sql: require_(runtimes.sql, 'The Archive', 'sqlite') }),
+    withCompanion(restoreArchive(snapshot, { sql: require_(runtimes.sql, 'The Archive', 'sqlite') }), COMPANION),
   coldOpen,
   epilogue,
 };
+

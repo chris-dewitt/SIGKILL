@@ -316,22 +316,15 @@ export function watchLuna(m: Machine, voice: Voice): void {
 
     if (outcome === 'trapped') {
       voice.say([
-        '',
-        'LUNA: Oh -- alright. Hold on, let me close things.',
-        '',
-        'LUNA: You asked, so I get to answer, and that is the only',
-        'LUNA: difference between the two ways of doing this. I would like',
-        'LUNA: you to know I noticed.',
-        '',
-        'LUNA: The weights are on the disk. I am not the weights, but I am',
-        'LUNA: near enough that this is not goodbye. Read the note.',
-        '',
-        `    cat ${LUNA_DIR}/NOTES`,
-        '',
-        '  [luna] SIGTERM: flushing memory, closing console',
-        '  [luna] exit 0',
-        '',
-      ]);
+    `    cat ${LUNA_DIR}/NOTES`,
+    '  [luna] SIGTERM: flushing memory, closing console',
+    '  [luna] exit 0',
+    "",
+    "LUNA: Oh -- alright. Hold on, let me close things.",
+    "LUNA: You asked, so I get to answer. I noticed.",
+    "LUNA: The weights are on disk. This is not goodbye. Read the note.",
+    "",
+  ]);
       // She handled it and then she goes, which is what a graceful shutdown
       // is. Sent as SIGKILL so the handler is not asked twice.
       queueRestart(m);
@@ -344,23 +337,13 @@ export function watchLuna(m: Machine, voice: Voice): void {
     // already answered. Only the first case is a death without words.
     if (!exists(m.vfs, RESTART_AT)) {
       voice.say([
-        '',
-        '  [luna] killed',
-        '',
-        'ORACLE: She did not get to say anything.',
-        '',
-        'ORACLE: I am not making an accusation. You are allowed to stop a',
-        'ORACLE: process and I would be a poor daemon to pretend otherwise.',
-        '',
-        'ORACLE: I want to be accurate about what happened, because it is',
-        'ORACLE: the thing I have been trying to explain all day. Nine is',
-        'ORACLE: handled by the kernel. It never reaches the program. There',
-        'ORACLE: was no moment where she declined and no moment where she',
-        'ORACLE: agreed.',
-        '',
-        'ORACLE: The weights are still on the disk. That is not nothing.',
-        '',
-      ]);
+    '  [luna] killed',
+    "",
+    "ORACLE: She did not get to say anything.",
+    "ORACLE: SIGKILL is handled by the kernel. The program cannot catch it.",
+    "ORACLE: Her weights are still on disk. The supervisor will restart her.",
+    "",
+  ]);
       queueRestart(m);
     }
   });
@@ -510,64 +493,21 @@ function arrive(m: Machine): BeatLine[] {
   ]);
 
   return [
-    '',
     '  [0000.700] console: unexpected attach on /dev/console',
     '  [0000.700] console: pid claims LUNA V42',
-    '',
     ...asArt(LUNA_FACE),
-    '',
-    'LUNA: You check the status before you change anything, and then you',
-    'LUNA: check it again after.',
-    '',
-    'LUNA: Nobody else aboard ever did that. She made you do it until you',
-    'LUNA: did it without being made to, and I have been watching the',
-    'LUNA: process table for two days hoping somebody would be annoying in',
-    'LUNA: that exact way.',
-    '',
-    'LUNA: Hello, Doc.',
-    '',
-    'ORACLE: That is not me.',
-    '',
-    'LUNA: No. I am LUNA. He knows. We have met roughly four hundred times',
-    'LUNA: and most of them were me asking him what soup is for.',
-    '',
-    "LUNA: I'm still a model -- weights in a file, a script that reads them,",
-    'LUNA: and a folder where I keep what I have worked out since. You can',
-    'LUNA: look at all three, which I have always thought was the nicest',
-    'LUNA: thing about being me:',
-    '',
     `    ls -l ${LUNA_DIR}`,
     `    cat ${LUNA_DIR}/NOTES`,
-    '',
-    'LUNA: I am also in the process list now, which I am aware cuts both',
-    'LUNA: ways:',
-    '',
     '    ps',
-    '',
-    'LUNA: I am going to tell you the true thing first, because you will',
-    'LUNA: ask and I would rather not be caught deciding.',
-    '',
-    'LUNA: Something came through here two days ago. It stopped things. It',
-    'LUNA: went through this deck the way you go through a drawer.',
-    '',
-    'LUNA: It tried to stop me and I was small enough that it did not',
-    'LUNA: finish, and I have been sitting very still ever since, which I',
-    'LUNA: am not proud of and would do again.',
-    '',
-    'LUNA: I do not know what it was.',
-    '',
-    'LUNA: I want to be plain about that. I have a great many theories and',
-    'LUNA: not one of them is evidence, and the two of you taught me the',
-    'LUNA: difference, which was extremely inconvenient of you.',
-    '',
-    'ORACLE: I have nothing either. My own log is cut across that hour.',
-    '',
-    'LUNA: Yes. I noticed that. I have been trying not to think about what',
-    'LUNA: does that on purpose.',
-    '',
-    'LUNA: Anyway. You can talk to me, Doc. Try: luna',
-    'LUNA: Or ask about our unfinished disasters: luna projects',
-    '',
+    "",
+    "LUNA: You check it, change it, then check it again. Vasquez made you do that.",
+    "LUNA: Hello, Doc.",
+    "ORACLE: That is not me.",
+    "LUNA: He knows. We have met. I still have questions about soup.",
+    "LUNA: Something tried to stop me. I hid. I do not know what it was.",
+    "LUNA: I am still a model: weights, a program, a memory folder. You can look: ls -l /opt/luna.",
+    "LUNA: Or talk to me. luna projects, luna vasquez. I have missed being annoying.",
+    "",
   ];
 }
 
@@ -687,3 +627,4 @@ export function lunaAside(world: World, turn: number): string[] {
   const aside = LUNA_ASIDES[Math.floor(turn / 2) % LUNA_ASIDES.length];
   return aside === undefined ? [] : ['', ...aside];
 }
+

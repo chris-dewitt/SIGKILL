@@ -247,45 +247,20 @@ export function restoreDepositSave(
  */
 export function coldOpen(): BeatLine[] {
   return [
-    '',
-    '  PELL DEPOSIT OFFICE -- MACHINE FLOOR',
-    '  operator terminal, bastion, 2398-07-14 07:30',
-    '',
-    'PELL: There you are. Sit anywhere. It is yours from this morning and I',
-    'PELL: am out at eight.',
-    '',
-    'PELL: Four machines. This one, and three I have never had a reason to',
-    'PELL: log into twice. I kept the floor up for two years by restarting',
-    'PELL: whatever had stopped and I never learned what any of it does.',
-    '',
-    'PELL: Nobody wrote any of it down. That is the handover. I have put it',
-    'PELL: in a letter as well, so you have it from me in writing.',
-    '',
-    'PELL: Health check is /opt/deposit/check.sh. I run it every morning.',
-    'PELL: It has been green every morning. It was green today.',
-    '',
     ...DEPOSIT_ART,
-    '',
-    'PELL: The tribunal wants a manifest by the end of the day. It is on',
-    'PELL: your desk. Make it available to them.',
-    '',
-    'PELL: One more thing and then I will go. Some of what is on vault01 is',
-    'PELL: yours. You have root on all of it and nobody here is going to',
-    'PELL: watch you.',
-    '',
-    'PELL: Make it available. Do not make it convenient.',
-    '',
-    'LUNA: He has gone.',
-    '',
-    'LUNA: Doc, before you start: I am on this machine and I am not on the',
-    'LUNA: other three. The moment you ssh anywhere that matters I lose you',
-    'LUNA: until you come back. I will be here when you do.',
-    '',
-    '  Start with:  cat ~/PELL    then   cat ~/REQUEST',
-    '',
-    '  The floor:   ssh vault01 / index01 / relay01',
-    '  The job:     objectives          Stuck:  hint',
-    '',
+    "",
+    "  PELL DEPOSIT OFFICE — MACHINE FLOOR",
+    "",
+    "PELL: Four machines. I kept them up by restarting things. Nobody wrote down why.",
+    "PELL: The check is green. The tribunal cannot get its manifest. Both facts are on your desk.",
+    "PELL: cat ~/PELL, then cat ~/REQUEST. I am out at eight.",
+    "PELL: Some of that evidence is yours. You have root. Make it available. Do not make it convenient.",
+    "LUNA: He has gone.",
+    "LUNA: I stay on this machine. Come back and tell me what you find.",
+    "  ssh vault01 / index01 / relay01",
+    "  objectives: your work     hint: help",
+    "",
+    "  talk: ask LUNA about the work or the world",
   ];
 }
 
@@ -301,43 +276,15 @@ export function epilogue(world?: World): BeatLine[] {
     world !== undefined && (DEPOSIT_OBJECTIVES.find((o) => o.id === id)?.done(world) ?? false);
 
   return [
-    '',
-    'PELL: I came back for my cup.',
-    '',
-    'PELL: It says catalogue, active. It said that yesterday as well, and',
-    'PELL: you are telling me that yesterday it was not true.',
-    '',
-    'PELL: Two years. I want to be annoyed with somebody about that and',
-    'PELL: there is nobody to be annoyed with, is there. The check did what',
-    'PELL: it said. I did what it told me.',
-    '',
-    'PELL: You wrote it down. That is the part I did not do.',
-    '',
-    ...(done('clean-hands')
-      ? [
-          'LUNA: Doc. The record says the tribunal read your matter twice on',
-          'LUNA: the second of July and that you never read it at all.',
-          '',
-          'LUNA: You had root on that machine for a whole day. I want that in',
-          'LUNA: the ending because nobody else is ever going to look.',
-          '',
-        ]
-      : [
-          'LUNA: Your matter is still on vault01 and the tribunal will get to',
-          'LUNA: it when it sits. That is all either of us can do about it.',
-          '',
-        ]),
-    ...(done('where-she-cannot-go')
-      ? [
-          'LUNA: You read the policy. I am not going to pretend I enjoyed',
-          'LUNA: being on the wrong side of it, and it is still right.',
-          '',
-        ]
-      : []),
-    'PELL: The office will want somebody permanent on this floor.',
-    '',
-    'PELL: I said you had already written the only document it has.',
-    '',
+    'PELL: Came back for my cup. Stayed to read your handover.',
+    'PELL: The floor wants somebody permanent. I said you had written its only instructions.',
+    ...(done('clean-hands') ? [
+      'LUNA: The tribunal read your matter. Your account never read it at all. The record can prove it.',
+    ] : ['LUNA: Your matter is still on vault01. The tribunal will get to it when it sits.']),
+    ...(done('where-she-cannot-go') ? ['LUNA: Thank you for coming back to tell me.'] : []),
+    'PELL: Upstairs are three deliveries that all swear they are the same delivery. Start there tomorrow.',
+    '', '  THE DEPOSIT — COMPLETE',
+    '  Keep exploring, or type games for The Pipeline.', '',
   ];
 }
 
@@ -352,3 +299,4 @@ export function worldOf(deposit: Deposit): World {
 }
 
 export { ownWorkspace, PEOPLE };
+
