@@ -13,6 +13,7 @@ where DeWitt stops reading what people decided and starts reading what a
 > gradients, overfitting and validation. What follows is the act as built,
 > before that repass. Practical AI (LLMs, agents, tools, skills, weights,
 > prompt injection) is game 9's, not this one's; `docs/PLAN.md` has the order.
+> The repass beats are in [GAME5_REPASS.md](GAME5_REPASS.md).
 
 ---
 

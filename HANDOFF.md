@@ -25,7 +25,10 @@ anything until content is built on top of it.
 **Known gaps worth closing before game seven:**
 
 - **Game 5 needs its ML-fundamentals repass** — loss, gradients, overfitting,
-  validation — now that *The Gradient* is not a separate game.
+  validation — now that *The Gradient* is not a separate game. Beats are in
+  `docs/GAME5_REPASS.md`, waiting on Chris.
+- **Python's `random` is not seeded.** Found by the repass probe: it differs
+  run to run, against rule 1. `GAME5_REPASS.md` §7 item 1 has the fix.
 - **LUNA reacts per turn only in game one.** `afterCommand` is implemented by
   `games/wreck` alone; the canon calls her the companion for the whole series.
 - **The Archive is the thin game** — five objectives against nine everywhere
