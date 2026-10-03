@@ -6,9 +6,30 @@ export interface HttpResponse {
   contentType?: string;
 }
 
+/** The /24 an address sits in. Every subnet here is a /24; see `routed`. */
+export const subnetOf = (ip: string): string => ip.split('.').slice(0, 3).join('.');
+
 export interface NetHost {
   hostname: string;
+  /** The primary address. `addresses[0]`, kept as a field because everything reads it. */
   ip: string;
+  /**
+   * Every address this host answers to, primary first.
+   *
+   * More than one means more than one interface, which in practice means a
+   * router: a box with a leg in two subnets is what joining two subnets looks
+   * like, and modelling it as one host with two addresses is both simpler and
+   * truer than inventing a link layer.
+   */
+  addresses: string[];
+  /**
+   * Does this host forward between the subnets it is on?
+   *
+   * An address in two subnets does not by itself make a router -- forwarding
+   * is a thing somebody turned on, and a box that has both legs and is not
+   * forwarding is a real and maddening failure.
+   */
+  router: boolean;
   /** The host *is* a Machine. That is what makes ssh real rather than scripted. */
   machine: Machine;
   /** Open ports, port -> service banner. A closed port is simply absent. */
@@ -44,6 +65,10 @@ export interface NetHost {
 export interface HostOptions {
   hostname: string;
   ip: string;
+  /** Extra addresses beyond `ip`. See `NetHost.addresses`. */
+  ips?: readonly string[];
+  /** Forwards between its subnets. See `NetHost.router`. */
+  router?: boolean;
   machine: Machine;
   ports?: Record<number, string>;
   /** Ports bound to 127.0.0.1 only. See `NetHost.loopback`. */
@@ -67,6 +92,8 @@ export class Network {
     const host: NetHost = {
       hostname: opts.hostname,
       ip: opts.ip,
+      addresses: [opts.ip, ...(opts.ips ?? [])],
+      router: opts.router ?? false,
       machine: opts.machine,
       ports: new Map(Object.entries(opts.ports ?? {}).map(([p, b]) => [Number(p), b])),
       loopback: new Set(opts.loopback ?? []),
@@ -78,12 +105,58 @@ export class Network {
     return host;
   }
 
-  /** Resolve by hostname or by address — this is the whole of DNS for now. */
+  /**
+   * Resolve by hostname or by any address this host answers to.
+   *
+   * This is the network's own map -- the engine's DNS. `src/net/resolver.ts`
+   * is what the commands actually call, because a machine's `/etc/hosts` is
+   * consulted before this is.
+   */
   resolve(nameOrIp: string): NetHost | undefined {
     const byName = this.hosts.get(nameOrIp);
     if (byName) return byName;
     for (const host of this.hosts.values()) {
-      if (host.ip === nameOrIp) return host;
+      if (host.addresses.includes(nameOrIp)) return host;
+    }
+    return undefined;
+  }
+
+  /**
+   * Can a packet from one host get to an address?
+   *
+   * Two subnets, one hop, and that is the whole of routing here. Within a /24
+   * hosts reach each other directly. Across one they need a box with a leg in
+   * both that is up and is forwarding -- three separate things that can be
+   * wrong, which is the reason this is modelled at all.
+   *
+   * No multi-hop, no metrics, no asymmetric routes. A second hop needs a
+   * topology nobody can see from inside the game, and a route table that
+   * cannot be read is not a thing to teach with.
+   */
+  routed(from: NetHost | undefined, to: string): boolean {
+    // A machine the network has never heard of reaches everything, which is
+    // how every adventure before this behaved and must keep behaving.
+    if (!from) return true;
+    const target = subnetOf(to);
+    if (from.addresses.some((address) => subnetOf(address) === target)) return true;
+
+    return this.list().some(
+      (host) =>
+        host.router &&
+        host.up &&
+        host.addresses.some((a) => subnetOf(a) === target) &&
+        host.addresses.some((a) => from.addresses.some((mine) => subnetOf(a) === subnetOf(mine))),
+    );
+  }
+
+  /** The gateway this host sends off-subnet traffic to, if it has one. */
+  gatewayFor(host: NetHost): string | undefined {
+    for (const candidate of this.list()) {
+      if (!candidate.router || candidate === host) continue;
+      const shared = candidate.addresses.find((a) =>
+        host.addresses.some((mine) => subnetOf(a) === subnetOf(mine)),
+      );
+      if (shared) return shared;
     }
     return undefined;
   }

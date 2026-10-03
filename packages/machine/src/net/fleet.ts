@@ -25,6 +25,10 @@ import { Network, type NetHost, type Session } from './network.js';
 export interface HostSnapshot {
   hostname: string;
   ip: string;
+  /** Every address, primary first. Absent in saves written before interfaces existed. */
+  ips?: string[];
+  /** Forwards between its subnets. */
+  router?: boolean;
   /** Port to banner. An array because a Map is not JSON. */
   ports: [number, string][];
   /** Of those, the ones bound to loopback. Absent in saves written before it existed. */
@@ -71,6 +75,8 @@ export function snapshotFleet(network: Network, session: Session): FleetSnapshot
     hosts: network.list().map((host) => ({
       hostname: host.hostname,
       ip: host.ip,
+      ips: [...host.addresses],
+      router: host.router,
       ports: [...host.ports.entries()],
       loopback: [...host.loopback],
       accounts: [...host.accounts.entries()],
@@ -100,6 +106,9 @@ export function restoreFleet(snap: FleetSnapshot, wire: WireHost): Fleet {
     network.add({
       hostname: host.hostname,
       ip: host.ip,
+      // The primary is already `ip`, so only the rest go back as extras.
+      ips: (host.ips ?? [host.ip]).slice(1),
+      router: host.router ?? false,
       machine,
       ports: Object.fromEntries(host.ports),
       loopback: host.loopback ?? [],

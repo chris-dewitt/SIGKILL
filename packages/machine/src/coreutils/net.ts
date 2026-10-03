@@ -43,7 +43,7 @@ const resolveFrom = (ctx: ShellContext, nameOrIp: string): Resolution =>
  * those apart without knowing who is asking.
  */
 const reachFrom = (ctx: ShellContext, nameOrIp: string, port: number): Reach =>
-  reach(resolveFrom(ctx, nameOrIp), port, ctx.hostname);
+  reach(ctx.network!, resolveFrom(ctx, nameOrIp), port, ctx.hostname);
 
 export const netCommands: CommandSpec[] = [
   {

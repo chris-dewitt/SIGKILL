@@ -177,12 +177,30 @@ export type Reach =
   | { readonly kind: 'no-route'; readonly ip: string }
   | { readonly kind: 'refused'; readonly host: NetHost };
 
-export function reach(resolution: Resolution, port: number, from?: string): Reach {
+export function reach(
+  net: Network,
+  resolution: Resolution,
+  port: number,
+  /** The machine making the connection, by hostname. */
+  from?: string,
+): Reach {
   if (resolution.kind === 'unknown') return { kind: 'unknown-host' };
   // An address with nothing at it and a host that is powered off are the same
   // packet going nowhere, and the real tools say the same thing about both.
   if (resolution.kind === 'address') return { kind: 'no-route', ip: resolution.ip };
   if (!resolution.host.up) return { kind: 'no-route', ip: resolution.ip };
+
+  /*
+   * And a packet with nowhere to go is the same again.
+   *
+   * Loopback is exempt because a machine talking to itself is not routed
+   * anywhere -- 127.0.0.1 is in no subnet anybody has a leg in, and checking
+   * it against the route table would make every local connection fail.
+   */
+  const here = from === undefined ? undefined : net.resolve(from);
+  if (resolution.via !== 'loopback' && !net.routed(here, resolution.ip)) {
+    return { kind: 'no-route', ip: resolution.ip };
+  }
   if (!resolution.host.ports.has(port)) return { kind: 'refused', host: resolution.host };
   /*
    * Listening, and not to you.

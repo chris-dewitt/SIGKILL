@@ -44,5 +44,21 @@ the words a closed port uses. Nothing but `ss` tells those two apart.
 Neither prints Recv-Q or Send-Q. There are no queues in this engine, and two
 columns of plausible zeroes would be a measurement of nothing.
 
-Still to come, in the order a game would want them: `ip addr` and `ip route`,
-then a firewall. TLS last or never.
+## Where this machine is, and where its packets go
+
+| Command | What it asks |
+|---------|--------------|
+| `ip addr` | every address this machine answers to |
+| `ip route` | the subnet it reaches directly, and the gateway for everything else |
+
+Every subnet is a /24. Routing is one hop: within a /24 hosts reach each other
+directly, and across one they need a box with a leg in both that is up *and*
+forwarding. Those are three separate things that can be wrong and all three
+come out as `No route to host`, which is correct and is why the route table is
+worth reading.
+
+A box with two addresses is one host with two legs, which is what a router is.
+`Network.routed` says what the model will not do: no multi-hop, no metrics, no
+asymmetric routes. A route table nobody can read is not a thing to teach with.
+
+Still to come: a firewall. TLS last or never.
