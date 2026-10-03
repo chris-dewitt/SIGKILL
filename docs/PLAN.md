@@ -126,7 +126,7 @@ full arc rather than one game.
 | 03 | **The Harness** | Python, debugging & testing |
 | 04 | **The Fork** | Git & collaborative development |
 | 05 | **The Containment** | LLM & AI |
-| 06 | The Handshake | Networking — DNS, TCP, TLS, routing, firewalls |
+| 06 | **The Deposit** | Operations — services, unit dependencies, health checks that lie |
 | 07 | The Pipeline | Data engineering — ETL, streams, backfills, idempotency |
 | 08 | The Gradient | ML fundamentals — loss, gradients, overfitting, validation |
 | 09 | The Daemon | SRE — signals, systemd, observability, on-call, postmortems |
@@ -137,11 +137,26 @@ full arc rather than one game.
 
 Order follows `docs/STORY_AND_GAME_PLAN.md` §3, which is the curriculum
 authority: Python, debugging and testing third, Git fourth, ML and AI fluency
-fifth. Cloud and deployment arrive with slot 6 and after, rather than before the
-player can write a program.
+fifth, cloud and deployment sixth.
 
-Games 01–05 are built. Beats for each are in `docs/ACT1_BEATS.md` and
-`docs/GAME2_BEATS.md` through `docs/GAME5_BEATS.md`.
+**The Handshake** — networking: DNS, TCP, TLS, routing, firewalls — is
+unslotted, deliberately. It leaves slot 6 because the engine cannot carry it:
+`Network.resolve()` is one map lookup and that is the whole of DNS, and there is
+no `/etc/hosts`, no `dig`, no `ss`, no `ip` and no firewall to teach with. The
+probe that established that is `packages/machine/test/probe-net.test.ts`, which
+fails if any of them ever appears.
+
+It gets a slot when `packages/net` exists, and not before — authored against
+something real rather than bent to fit what is there. Naming a slot now would
+only be guessing at an order nobody can yet justify.
+
+Games 01–06 are built. Beats for each are in `docs/ACT1_BEATS.md` and
+`docs/GAME2_BEATS.md` through `docs/GAME6_BEATS.md`.
+
+The gate is computed rather than asserted: `node tools/measure.mjs` knows all
+six and prints each one's cost against The Wreck. Game six is 16.0%, of which
+387 lines are outside its own package — the network probes, the unit-dependency
+parser and a save that can hold four hosts instead of one.
 
 ---
 

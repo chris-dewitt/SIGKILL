@@ -1,4 +1,4 @@
-import type { ProcessTable, ServiceManager, Track, Vfs } from '@sigkill/machine';
+import type { Network, ProcessTable, ServiceManager, Track, Vfs } from '@sigkill/machine';
 
 /**
  * What an objective is allowed to look at.
@@ -19,6 +19,19 @@ export interface World {
    * only honest way to check, given that `kill` says nothing either way.
    */
   readonly procs: ProcessTable;
+  /**
+   * The rest of the fleet, when the adventure is more than one machine.
+   *
+   * Absent for adventures one through five, which are each a single machine
+   * and for which `vfs`, `services` and `procs` above are the whole world.
+   *
+   * Game six is four hosts, and almost everything it asks the player to do
+   * happens on one of the three that are not the one they are typing at. A
+   * goal that can only see the local machine could not observe any of it.
+   * `ShellContext` already carries the network, so a context satisfies this
+   * without changing anything that builds one.
+   */
+  readonly network?: Network;
 }
 
 /**

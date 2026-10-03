@@ -93,6 +93,23 @@ content layer.
 It is also the string a tappable "do it" chip would send, which matters more on
 a phone than on a keyboard.
 
+**Write the test in the shape `games/deposit/test/hints.test.ts` uses**: drive
+each objective's prerequisites by *their* bottom rungs first, then the earlier
+steps of this one, then the step under test. A ladder that only works from a
+fresh world is a ladder nobody plays. That test found three broken ladders in
+game six on the day it was written, all of them invisible to the route harness
+-- which checks that a declared solution works and never that a hint does
+anything.
+
+**A step that cannot be cleared is a deliberate, documented exception, and
+needs a test of its own.** There is exactly one in the series:
+`clean-hands/and-not-you` in game six is pending only once the deposit store
+has recorded the player reading their own matter, and nothing takes that line
+out. Its bottom rung shows them the line rather than pretending to repair it,
+and `hints.test.ts` asserts the objective stays lost -- because a step whose
+hint silently does nothing is the failure this whole field exists to prevent,
+and the only way to tell the two apart is to write down which one you meant.
+
 **The `command` must be non-interactive**, because the test runs it through the
 real shell and asserts the step clears. `vi /etc/life_support.conf` opens an
 editor and changes nothing by itself, so it cannot go in the field. Lead with

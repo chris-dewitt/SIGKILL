@@ -81,7 +81,7 @@ async function openRun(): Promise<{ session: AdventureSession; stale: boolean }>
     try {
       return {
         session: await current.adventure.restore(
-          { machine: saved.machine, quest: saved.quest },
+          { machine: saved.machine, quest: saved.quest, fleet: saved.fleet },
           runtimes,
         ),
         stale: false,
@@ -661,7 +661,18 @@ function refreshPrompt(): void {
  * gated on exactly one of those being pleasant.
  */
 function showChooser(): void {
-  for (const line of chooserLines(library, savedAdventures(library.map((e) => e.adventure.id)))) {
+  /*
+   * The real width, not the fallback.
+   *
+   * `chooserLines` clips each blurb so it cannot wrap, and its default is the
+   * 34 columns of a portrait phone. Nothing was passing a width, so every
+   * blurb in the series was cut at 29 characters on every screen -- including
+   * a desktop showing seventy. Found by screenshotting the chooser, which is
+   * the only way it could have been: the unit test passed, because clipping
+   * to 29 is exactly what it asserts when it asks whether the lines fit.
+   */
+  const saved = savedAdventures(library.map((e) => e.adventure.id));
+  for (const line of chooserLines(library, saved, view.columns)) {
     write(line, 'system');
   }
 }
@@ -937,10 +948,23 @@ let actEnded = saved?.actEnded ?? false;
 function persist(): void {
   if (wiping) return;
   try {
-    writeSave(current.adventure.id, {
-      version: 1,
+    /*
+     * The adventure saves itself when it is more than one machine.
+     *
+     * Five games are a single machine and `machine.snapshot()` is the whole
+     * world; game six is four hosts, and a save with only the bastion in it
+     * would quietly undo everything the player fixed on the other three. The
+     * fallback is the snapshot this has always taken.
+     */
+    const world = session.snapshot?.() ?? {
       machine: machine.snapshot(),
       quest: questbook.snapshot(),
+    };
+    writeSave(current.adventure.id, {
+      version: 1,
+      machine: world.machine,
+      quest: world.quest,
+      ...(world.fleet ? { fleet: world.fleet } : {}),
       actEnded,
       history,
     });

@@ -12,6 +12,7 @@ import { ARCHIVE } from '@sigkill/archive';
 import { HARNESS } from '@sigkill/harness';
 import { FORK } from '@sigkill/fork';
 import { CONTAINMENT } from '@sigkill/containment';
+import { DEPOSIT } from '@sigkill/deposit';
 import type { ShipStatus } from './status.js';
 
 /**
@@ -97,6 +98,11 @@ export const LIBRARY: readonly Entry[] = [
   {
     adventure: CONTAINMENT,
     hooks: { readout: () => ({ place: 'HEARING ANNEXE' }) },
+  },
+  {
+    adventure: DEPOSIT,
+    // The same office as game four, two floors down and two years on.
+    hooks: { readout: () => ({ place: 'DEPOSIT OFFICE -- MACHINE FLOOR' }) },
   },
 ];
 

@@ -23,6 +23,11 @@
  * "Caused elsewhere" is the number that matters and the one it is tempting to
  * leave out -- game two's real cost was mostly the route harness, and game
  * three's was mostly seven fixes to the Python bridge.
+ *
+ * Games four to six were missing from this for a while, which made the gate
+ * something the repo talked about rather than something it computed. Their
+ * windows are each the commit their first content landed on top of, the same
+ * rule as games two and three.
  */
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -67,6 +72,32 @@ const GAMES = [
     content: 'games/harness',
     own: ['games/harness'],
     since: 'ddeb76b',
+    engine: [],
+  },
+  {
+    name: 'The Fork',
+    content: 'games/fork',
+    own: ['games/fork', 'packages/git'],
+    since: '195fc05',
+    engine: ['packages/git'],
+  },
+  {
+    name: 'The Containment',
+    content: 'games/containment',
+    own: ['games/containment', 'packages/ml'],
+    since: 'e5c790a',
+    engine: ['packages/ml'],
+  },
+  {
+    name: 'The Deposit',
+    content: 'games/deposit',
+    own: ['games/deposit'],
+    /*
+     * Where game six's work actually began: the network probe, three commits
+     * before any of its own content. The probes, the `Requires=`/`After=` fix
+     * and `snapshotFleet` are all its cost and all outside its package.
+     */
+    since: 'bbcb5ef',
     engine: [],
   },
 ];
@@ -116,7 +147,16 @@ function addedBetween(from, to, paths, exclude = []) {
 const sum = (dirs, opts) => dirs.reduce((n, d) => n + countLines(d, opts), 0);
 
 /** Counted from the source rather than imported, so this stays a script. */
-const objectivesIn = (file) => (readFileSync(file, 'utf8').match(/^    id: '/gm) ?? []).length;
+/*
+ * Objectives in a file, by the indent their `id` sits at.
+ *
+ * Two spaces or four: games one to five declare their objectives inside one
+ * array literal, game six declares each as its own top-level const. Steps are
+ * nested deeper than either and are not counted, which is the whole reason
+ * this is indent-sensitive rather than a search for `id:`.
+ */
+const objectivesIn = (file) =>
+  (readFileSync(file, 'utf8').match(/^ {2,4}id: '/gm) ?? []).length;
 
 // ------------------------------------------------------------------ the sums
 
@@ -188,7 +228,7 @@ for (const game of GAMES) {
   const count = objectivesIn(file);
   const content = countLines(game.content);
   console.log(
-    `    ${game.name.padEnd(12)} ${String(count).padStart(2)} objectives  ` +
+    `    ${game.name.padEnd(15)} ${String(count).padStart(2)} objectives  ` +
       `${pad(Math.round(content / count))} lines each`,
   );
 }
@@ -199,14 +239,14 @@ console.log(`
 for (const row of rows.slice(1)) {
   const projected = wreckPer * 9 + row.engine + row.elsewhere;
   console.log(
-    `    ${row.name.padEnd(12)} ${pad(projected)}  (${((projected / wreck.total) * 100).toFixed(1)}%)`,
+    `    ${row.name.padEnd(15)} ${pad(projected)}  (${((projected / wreck.total) * 100).toFixed(1)}%)`,
   );
 }
 
 console.log(`
   Tests, for reference, not in the gate:`);
 for (const game of GAMES) {
-  console.log(`    ${game.name.padEnd(12)} ${pad(countLines(game.content, { tests: true }))}`);
+  console.log(`    ${game.name.padEnd(15)} ${pad(countLines(game.content, { tests: true }))}`);
 }
 console.log();
 

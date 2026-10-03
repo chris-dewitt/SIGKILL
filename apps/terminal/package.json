@@ -25,6 +25,7 @@
     "@sigkill/audio": "workspace:*",
     "@sigkill/containment": "workspace:*",
     "@sigkill/crt": "workspace:*",
+    "@sigkill/deposit": "workspace:*",
     "@sigkill/editor": "workspace:*",
     "@sigkill/fork": "workspace:*",
     "@sigkill/harness": "workspace:*",

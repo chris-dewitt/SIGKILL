@@ -24,10 +24,13 @@ craft.
 |---|-------|---------|
 | 01 | **The Wreck** | Linux & bash — filesystem, permissions, processes, pipes, logs, cron, SSH |
 | 02 | **The Archive** | SQL & data — queries, joins, indexes, transactions, schema design |
-| 03 | **The Cluster** | HPC & cloud — SSH, Docker, systemd, SLURM, distributed training |
-| 04 | **The Containment** | LLM & AI — tokenization, attention, embeddings, RAG, prompt injection |
+| 03 | **The Harness** | Python, debugging & testing — a program, a failing test, the same answer twice |
+| 04 | **The Fork** | Git — history, branches, blame, and what people decided |
+| 05 | **The Containment** | LLM & AI — tokenization, attention, embeddings, RAG, prompt injection |
+| 06 | **The Deposit** | Operations — four machines, systemd, and a health check that has lied for a month |
 
-Nine more are sketched in [docs/PLAN.md](docs/PLAN.md).
+Those six are playable. Seven more are sketched in
+[docs/PLAN.md](docs/PLAN.md).
 
 Every adventure ships two tracks over the same puzzles: **Cadet** for players who
 have never opened a terminal, **Operator** for players who have and want the

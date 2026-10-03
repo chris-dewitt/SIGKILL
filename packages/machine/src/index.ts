@@ -25,6 +25,8 @@ export type { SqlRuntime, SqlRequest, SqlResult, SqlRow } from './lang/sql.js';
 
 export { Network } from './net/network.js';
 export type { NetHost, HostOptions, HttpResponse, Session } from './net/network.js';
+export { snapshotFleet, restoreFleet } from './net/fleet.js';
+export type { Fleet, FleetSnapshot, HostSnapshot, WireHost } from './net/fleet.js';
 
 export { ProcessTable } from './proc/table.js';
 export type { SignalWatcher, SpawnOptions } from './proc/table.js';
