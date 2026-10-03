@@ -126,11 +126,18 @@ packages/python/     Pyodide behind the PythonRuntime interface, in a Worker.
 packages/sql/        wa-sqlite behind the SqlRuntime interface, in a Worker.
 packages/crt/        Phosphor renderer: glyph atlas, WebGL2 CRT, terminal buffer.
 packages/quest/      Objectives, state-aware hint ladders, `hint` and `objectives`.
-packages/editor/     vi and nano over one text buffer. `vi`, `vim`, `nano`.
+packages/editor/     vi and nano over one text buffer. `vi`, `vim`, `nano`; also `less`.
+packages/git/        Git's object model, with ids that match real git byte for byte.
+packages/ml/         A real transformer small enough to read: the glass box.
+packages/ascii/      Frames, gauges, sparklines and a block font for the art.
+packages/audio/      The ship's sound, synthesised from its state. No audio files.
 apps/terminal/       Playable web terminal; becomes the Capacitor app.
 games/wreck/         Adventure 1: the NAV-7 world seed and the Act I ladders.
 games/archive/       Adventure 2: Ferryman's Rest, the claims database, SQL.
 games/harness/       Adventure 3: the tug ELLEN MAY, the recovery dump, Python.
+games/fork/          Adventure 4: Pell's deposit office, the repository, Git.
+games/containment/   Adventure 5: the annexe and the evaluation, models and measuring.
+games/deposit/       Adventure 6: the machine floor, a fleet of hosts, operations.
 ```
 
 Dependencies point one way: `apps` → `packages` → nothing. Import across
@@ -182,11 +189,16 @@ sharing the VFS.
 system (`packages/quest` plus the Act I ladders). Chris has playtested Act I on
 a phone and wants to keep going.
 
-**Phases 3–6 complete — three games exist.** *The Wreck* (bash), *The Archive*
-(SQL), *The Harness* (Python, debugging, testing). 1,078 tests.
+**Six games exist, and all six are in the chooser.** *The Wreck* (bash), *The
+Archive* (SQL), *The Harness* (Python, debugging, testing), *The Fork* (Git),
+*The Containment* (models and evaluation), *The Deposit* (operations, across
+a fleet of hosts). Run `pnpm check` for the test count rather than trusting one
+written here; it was wrong in this file for three games running.
 
-The 40% gate has now been applied twice and held twice: game two cost 14.3% of
-game one, game three 18.5%. The engine share by game is 77%, 18%, 8%.
+The 40% gate has been applied to every game after the first and has held every
+time — `node tools/measure.mjs` computes it, and `HANDOFF.md` has the latest
+table. Game seven is not chosen yet: the candidates and the case for each are
+at the top of `HANDOFF.md`.
 
 **Every puzzle declares its own routes.** `Objective` carries `teaches`,
 `routes` and `nearMisses`, and `packages/quest/src/harness.ts` runs them against
@@ -201,11 +213,14 @@ including `sys.modules` outliving a command, so that fixing a bug and re-running
 gave the old answer silently. None was visible from the engine's own tests.
 Half a day of probing; it would have cost the whole act.
 
-**All three games are launchable.** `packages/quest/src/adventure.ts` is the
+**Every game is launchable.** `packages/quest/src/adventure.ts` is the
 `Adventure` contract, each game exports a descriptor, and `apps/terminal` keeps
 one save slot per game with a chooser and a `games` command. Add a game by
 adding a descriptor and one line to `apps/terminal/src/library.ts`; if it needs
-more than that, the contract is wrong rather than the game.
+more than that, the contract is wrong rather than the game. A game that is more
+than one machine also implements `AdventureSession.snapshot()`, or a reload
+silently undoes everything done on the other hosts — `games/deposit` is the
+worked example.
 
 **Phase 2 gated everything downstream** on the mobile input model, and it
 passed. Content built on unpleasant input is content thrown away, so if the
