@@ -1,4 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { Machine } from '@sigkill/machine';
+import { ARRIVAL_MS } from '@sigkill/archive';
+import { ANNEXE_MS } from '@sigkill/containment';
+import { FLOOR_MS } from '@sigkill/deposit';
+import { OFFICE_MS } from '@sigkill/fork';
+import { BERTH_MS } from '@sigkill/harness';
+import { INTAKE_MS } from '@sigkill/pipeline';
+import { WAKE_MS } from '@sigkill/wreck';
 import { chooserLines, chosen, entry, offered, LIBRARY } from '../src/library.js';
 
 /**
@@ -163,3 +171,80 @@ describe('reading the answer', () => {
   });
 });
 
+
+/**
+ * The two things a reorder breaks silently.
+ *
+ * Moving The Containment to last on 2026-10-09 broke both and no test
+ * noticed: its epoch was 2398-07-10 while the two games now before it open on
+ * the 14th and the 15th, so the terminal clock jumped five days backwards at
+ * the finale; and the end-of-game prompts still pointed along the old order,
+ * leaving Fork sending players past two games and the finale sending them
+ * backwards into one they had already played.
+ *
+ * Both were found in review rather than by CI, which is the reason for these.
+ * They are properties of the series as a whole, so they live here — no single
+ * game's package can see them.
+ *
+ * Neither test boots a game. Booting needs the real SQLite and Python
+ * engines, which this suite does not have and should not wait for; the epochs
+ * are exported constants and an epilogue is prose, so both are reachable
+ * without a world.
+ */
+describe('the series hangs together in the order it is played', () => {
+  const inOrder = offered(both);
+
+  /** Each game's opening instant, by id, in the order they are played. */
+  const EPOCHS: Record<string, number> = {
+    wreck: WAKE_MS,
+    archive: ARRIVAL_MS,
+    harness: BERTH_MS,
+    fork: OFFICE_MS,
+    deposit: FLOOR_MS,
+    pipeline: INTAKE_MS,
+    containment: ANNEXE_MS,
+  };
+
+  const day = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+  it('knows when every game opens', () => {
+    for (const { adventure } of inOrder) {
+      expect(EPOCHS[adventure.id], `${adventure.title} has no epoch here`).toBeTypeOf('number');
+    }
+  });
+
+  it('never runs the clock backwards from one game to the next', () => {
+    for (const [i, { adventure }] of inOrder.entries()) {
+      if (i === 0) continue;
+      const before = inOrder[i - 1]!.adventure;
+      expect(
+        EPOCHS[adventure.id]!,
+        `${adventure.title} opens ${day(EPOCHS[adventure.id]!)}, ` +
+          `before ${before.title} on ${day(EPOCHS[before.id]!)}`,
+      ).toBeGreaterThanOrEqual(EPOCHS[before.id]!);
+    }
+  });
+
+  it('sends the player to the next game, and the last one nowhere', () => {
+    const world = new Machine({ hostname: 'nowhere' });
+    for (const [i, { adventure }] of inOrder.entries()) {
+      const ending = adventure
+        .epilogue(world)
+        .map((line) => (typeof line === 'string' ? line : line.art))
+        .join('\n');
+      const next = inOrder[i + 1]?.adventure;
+
+      if (next) {
+        expect(ending, `${adventure.title} should point at ${next.title}`).toContain(next.title);
+        continue;
+      }
+      // The finale names no successor, because there is not one.
+      for (const other of inOrder.slice(0, -1)) {
+        expect(
+          ending,
+          `${adventure.title} is last and should not send anybody to ${other.adventure.title}`,
+        ).not.toContain(other.adventure.title);
+      }
+    }
+  });
+});

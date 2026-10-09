@@ -135,7 +135,7 @@ it.
 | 4 | **The Fork** | Git, and what people decided |
 | 5 | **The Deposit** | Services and checks that lie — **plus networking, SRE and access control** |
 | 6 | **The Pipeline** | Data engineering — **plus distributed systems**: retries, consistency, exactly once |
-| 7 | **The Containment** | Models and measuring them — **plus practical AI**, and **the finale** |
+| 7 | **The Containment** | Models and measuring them. **The finale** — *planned*: practical AI and the v43 confrontation, neither built yet |
 
 ### Where the struck slots went
 
@@ -154,6 +154,11 @@ next question the existing world already raises, it belongs here.
 | 14 | Finale — the conflict that ends v43 | **The Containment** | see below |
 
 ### The Containment is the finale
+
+**What ships today is the evaluation act, unchanged.** Everything in this
+section below is the plan for extending it, and nothing in it is playable yet;
+the game table says so too, because a plan quoted as a feature is how a README
+starts lying.
 
 It is the game about a machine that made a decision about DeWitt's life, and
 until now it was the only game with no antagonist while the antagonist had no

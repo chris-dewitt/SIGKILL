@@ -28,7 +28,18 @@ import { glassBoxCommands } from './glassbox.js';
  */
 
 /** Three weeks after the deposit office. */
-export const ANNEXE_MS = Date.UTC(2398, 6, 10, 9, 0);
+/*
+ * The hearing, and it has to be after the deposit floor.
+ *
+ * This read 2398-07-10 while the game was fifth. The Deposit opens on the
+ * 14th and The Pipeline on the 15th, so when this became the finale the
+ * terminal clock and every file timestamp jumped five days backwards at the
+ * last game of the series. Moved past both.
+ *
+ * Nothing in the act names the date -- the cold open prints a room, not a
+ * calendar -- so this constant is the whole of the chronology.
+ */
+export const ANNEXE_MS = Date.UTC(2398, 6, 18, 9, 0);
 
 export interface ContainmentOptions {
   track?: Track;
@@ -120,7 +131,7 @@ export function epilogue(world?: World): BeatLine[] {
     ...(askedIt ? ['LUNA: And we established that please is not a repair for this classifier.'] : []),
     ...(sawHerself ? ['LUNA: I am still thinking about mine. Walk with me?'] : []),
     '', '  THE CONTAINMENT — COMPLETE',
-    '  Keep exploring, or type games for The Deposit.', '',
+    '  Keep exploring, or type games to go back to any of the seven.', '',
   ];
 }
 

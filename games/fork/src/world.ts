@@ -176,7 +176,7 @@ export function epilogue(world?: World): BeatLine[] {
       'LUNA: I wish I could tell her I read it.',
     ] : []),
     '', '  THE FORK — COMPLETE',
-    '  Keep exploring, or type games for The Containment.', '',
+    '  Keep exploring, or type games for The Deposit.', '',
   ];
 }
 

@@ -28,7 +28,7 @@ The series is finite on purpose, and it ends.
 | 04 | **The Fork** | Git — history, branches, blame, and what people decided |
 | 05 | **The Deposit** | Operations, networking & SRE — four machines, systemd, and a health check that has lied for a month |
 | 06 | **The Pipeline** | Data engineering & distributed systems — validation, deduplication, replay, late arrivals, reconciliation |
-| 07 | **The Containment** | AI — evaluating a model, then meeting one that acts. **The finale.** |
+| 07 | **The Containment** | AI — tokens, attention, base rates, leakage, calibration. **The last game**; the v43 confrontation it is being extended into is planned, not built |
 
 All seven are playable. Several teach more than one subject, on purpose: the
 back half of an older fourteen-game plan was folded into the games that were
