@@ -66,7 +66,11 @@ The motivating rhythm is: discover something intriguing; ask a question; learn o
 
 ## 3. Curriculum and series direction
 
-These are ordered learning stages. **Chris set the series at fourteen games on 2026-10-03**; `docs/PLAN.md` has the titles. Titles from game 7 on are working titles.
+These are ordered learning stages.
+
+**Superseded 2026-10-09, Chris: there are seven games and that is the series.** Stages 8 to 14 are struck as *releases* and kept as *material* — each folds into whichever of the seven already half teaches it, because a game does not have to teach one thing. The mapping is in `docs/PLAN.md`. The finale is the stage 5 game, *The Containment*, carrying both the practical-AI stage and the conflict that ends v43.
+
+The reason, recorded because the failure is instructive: the series was set at fourteen on 2026-10-03, and across the same period the finale moved from stage 7 to stage 14 while six games shipped. An ending parked one stage beyond whatever has been built never arrives.
 
 | Stage | New emphasis | Continuing tools and narrative opportunity |
 |---|---|---|
@@ -76,14 +80,14 @@ These are ordered learning stages. **Chris set the series at fourteen games on 2
 | 4 | Git and collaborative development | Reconstruct and change software with Python, SQL, and Bash still in active use. |
 | 5 | ML fundamentals, modeling, evaluation | Test claims, assess datasets and models, understand uncertainty and limitations. Loss, gradients, overfitting and validation fold in here in a repass. |
 | 6 | Cloud, DevOps, deployment | Operate and change systems with dependencies, observe failures, deploy and roll back. |
-| 7 | Data engineering | Pipelines, streams, backfills, idempotency. |
-| 8 | Networking | DNS, TCP, routing, firewalls. **v43 returns in a big way**: it left across the cloud, and this is the skill that follows it. Not the final confrontation. |
-| 9 | Practical AI | LLMs, agents, tools, skills, weights, prompt injection. Required: the series must teach the AI a working engineer touches, not only how to evaluate a model. |
-| 10 | SRE | Observability, on-call, postmortems. |
-| 11 | Security | Defensive framing; prompt injection again, from the defender's side. |
-| 12 | Algorithms | Search, sort, hashing, trees, complexity. |
-| 13 | Distributed systems | APIs, idempotency, retries, consistency. |
-| 14 | **Finale: the conflict that ends v43** | Compilers, combined with everything before, with LUNA as a partner. |
+| 7 | Data engineering | Pipelines, streams, backfills, idempotency. **Built, as game 6: *The Pipeline*.** |
+| ~~8~~ | Networking | **Struck as a release; folded into *The Deposit*,** which already turns on telling three failures apart and is the game `packages/net` was built during. Whether v43's return over the network moves there or goes is open. |
+| ~~9~~ | Practical AI | **Struck as a release; folded into the finale.** The requirement stands exactly as written — the series must teach the AI a working engineer touches, not only how to evaluate a model — and *The Containment* is where it is met, with v43 as the agent. |
+| ~~10~~ | SRE | **Struck as a release; folded into *The Deposit*,** whose `the-handover` is already a postmortem written from a journal and a lock file. |
+| ~~11~~ | Security | **Struck as a release; split.** Access control and audit into *The Deposit* (`clean-hands` is already that); prompt injection from the defender's side into the finale, beside the agent. |
+| ~~12~~ | Algorithms | **Struck as a release; split** between *The Archive* (an index is a tree; hashing; why a query is slow) and *The Harness* (complexity measured rather than asserted). |
+| ~~13~~ | Distributed systems | **Struck as a release; folded into *The Pipeline*,** whose `safe-to-repeat` and `reconcile` are already two thirds of it. |
+| ~~14~~ | **Finale: the conflict that ends v43** | **Struck as a release; it is game 7, *The Containment*,** with LUNA as a partner. Compilers has no home among the seven and is Chris's to cut or shrink. |
 
 Earlier skills should open additional approaches, not vanish when a new subject arrives. Later games should let players recognize and reuse things they built. Technical topics need observable consequences and honest explanations of simulation limits.
 

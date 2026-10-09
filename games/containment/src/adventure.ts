@@ -6,7 +6,7 @@ import { bootContainment, restoreContainment, coldOpen, epilogue } from './world
 /** Adventure five. */
 export const CONTAINMENT: Adventure = {
   id: 'containment',
-  number: 5,
+  number: 7,
   title: 'The Containment',
   teaches: 'Models, and measuring them',
   blurb: [

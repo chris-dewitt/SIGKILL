@@ -16,7 +16,7 @@ const both = { python: {} as never, sql: {} as never };
 
 describe('the library', () => {
   it('holds the seven games that exist, in series order', () => {
-    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'containment', 'deposit', 'pipeline']);
+    expect(ids).toEqual(['wreck', 'archive', 'harness', 'fork', 'deposit', 'pipeline', 'containment']);
     expect(LIBRARY.map((row) => row.adventure.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
@@ -51,9 +51,10 @@ describe('what this host can offer', () => {
       'archive',
       'harness',
       'fork',
-      'containment',
       'deposit',
       'pipeline',
+      // Last on purpose: the finale. See `docs/PLAN.md`.
+      'containment',
     ]);
   });
 
@@ -68,9 +69,9 @@ describe('what this host can offer', () => {
       'wreck',
       'harness',
       'fork',
-      'containment',
       'deposit',
       'pipeline',
+      'containment',
     ]);
     expect(offered({ sql: {} as never }).map((r) => r.adventure.id)).toEqual([
       'wreck',
@@ -90,8 +91,9 @@ describe('what the chooser says', () => {
     expect(lines.join('\n')).toContain('2. The Archive');
     expect(lines.join('\n')).toContain('3. The Harness');
     expect(lines.join('\n')).toContain('4. The Fork');
-    expect(lines.join('\n')).toContain('5. The Containment');
-    expect(lines.join('\n')).toContain('6. The Deposit');
+    expect(lines.join('\n')).toContain('5. The Deposit');
+    expect(lines.join('\n')).toContain('6. The Pipeline');
+    expect(lines.join('\n')).toContain('7. The Containment');
     expect(lines.at(-2)).toBe('  Type 1-7 to begin.');
   });
 
