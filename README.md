@@ -17,8 +17,8 @@ Everything you type is real: a real shell parser, real POSIX permissions, a real
 Python interpreter, a real SQLite database, real Git history. The commands you
 learn are the abilities that open the next door.
 
-Fourteen of these, each a different disaster, each a different pillar of the
-craft.
+Seven of these, each a different disaster, each several pillars of the craft.
+The series is finite on purpose, and it ends.
 
 | # | Title | Teaches |
 |---|-------|---------|
@@ -26,13 +26,13 @@ craft.
 | 02 | **The Archive** | SQL & data — queries, joins, indexes, transactions, schema design |
 | 03 | **The Harness** | Python, debugging & testing — a program, a failing test, the same answer twice |
 | 04 | **The Fork** | Git — history, branches, blame, and what people decided |
-| 05 | **The Containment** | ML & evaluation — tokens, attention, base rates, leakage, calibration |
-| 06 | **The Deposit** | Operations — four machines, systemd, and a health check that has lied for a month |
+| 05 | **The Deposit** | Operations, networking & SRE — four machines, systemd, and a health check that has lied for a month |
+| 06 | **The Pipeline** | Data engineering & distributed systems — validation, deduplication, replay, late arrivals, reconciliation |
+| 07 | **The Containment** | AI — tokens, attention, base rates, leakage, calibration. **The last game**; the v43 confrontation it is being extended into is planned, not built |
 
-| 07 | **The Pipeline** | Data engineering — validation, deduplication, replay, late arrivals and reconciliation |
-
-Those seven are playable. Seven more are sketched in
-[docs/PLAN.md](docs/PLAN.md).
+All seven are playable. Several teach more than one subject, on purpose: the
+back half of an older fourteen-game plan was folded into the games that were
+already half teaching it. [docs/PLAN.md](docs/PLAN.md) has the mapping.
 
 Every adventure ships two tracks over the same puzzles: **Cadet** for players who
 have never opened a terminal, **Operator** for players who have and want the

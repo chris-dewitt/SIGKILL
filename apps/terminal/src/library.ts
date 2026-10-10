@@ -96,15 +96,23 @@ export const LIBRARY: readonly Entry[] = [
     hooks: { sound: () => ({ scene: 'fork', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'PELL DEPOSIT OFFICE' }) },
   },
   {
-    adventure: CONTAINMENT,
-    hooks: { sound: () => ({ scene: 'containment', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'HEARING ANNEXE' }) },
-  },
-  {
     adventure: DEPOSIT,
     // The same office as game four, two floors down and two years on.
     hooks: { sound: () => ({ scene: 'deposit', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'DEPOSIT OFFICE -- MACHINE FLOOR' }) },
   },
   { adventure: PIPELINE, hooks: { readout: () => ({ place: 'INTAKE DESK' }), sound: () => ({ scene: 'pipeline', scrubber: false, monitor: false, breached: false, reserve: 1 }) } },
+  /*
+   * Last, and that is the point.
+   *
+   * The Containment is the finale: the hearing is argued after the evidence
+   * has been filed at the deposit office, and v43 lands here rather than in a
+   * game that was always one slot further out. `docs/PLAN.md` has the whole
+   * decision.
+   */
+  {
+    adventure: CONTAINMENT,
+    hooks: { sound: () => ({ scene: 'containment', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'HEARING ANNEXE' }) },
+  },
 ];
 
 /**

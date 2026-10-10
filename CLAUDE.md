@@ -12,7 +12,7 @@ Read this, then the architecture doc, then the code.
 | [docs/PLAYTEST.md](docs/PLAYTEST.md) | Getting the game onto a phone — LAN browser, CI-built APK, the checklist. |
 | [docs/HINTS.md](docs/HINTS.md) | **Read before authoring an objective or a hint ladder.** |
 | [docs/FULLSCREEN.md](docs/FULLSCREEN.md) | How `vi` takes the screen, and how to add another full-screen program. |
-| [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, the fourteen adventures. |
+| [docs/PLAN.md](docs/PLAN.md) | North star — phases, risks, and **the seven**. The back half was struck 2026-10-09 and folded into the games that exist. |
 | [packages/machine/README.md](packages/machine/README.md) | The engine's API surface. |
 | [packages/net/README.md](packages/net/README.md) | Name resolution, sockets, routes and the firewall — and which tool asks which question. |
 | [WORKING_ON.md](WORKING_ON.md) | Claim a package before editing it. Four of us share this repo. |
@@ -21,7 +21,7 @@ Read this, then the architecture doc, then the code.
 
 ## What this is
 
-Fourteen terminal survival adventures that teach real backend and ML
+Seven terminal survival adventures that teach real backend and ML
 infrastructure engineering. Phone-first, offline, paid once per game, no ads,
 no accounts, no telemetry.
 

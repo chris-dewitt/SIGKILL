@@ -12,7 +12,7 @@ import { bootDeposit, coldOpen, epilogue, restoreDepositSave, saveDeposit } from
  */
 export const DEPOSIT: Adventure = {
   id: 'deposit',
-  number: 6,
+  number: 5,
   title: 'The Deposit',
   teaches: 'Services, and checks that lie',
   blurb: [

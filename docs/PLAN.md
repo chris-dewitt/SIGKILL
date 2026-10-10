@@ -114,62 +114,92 @@ because the point is that a Cadet becomes an Operator.
 
 ---
 
-## The fourteen
+## The seven
 
-Wave one is committed. The rest are sketched so the engine is built against the
-full arc rather than one game.
+**Chris, 2026-10-09: seven games, and that is the series.** Slots 8 to 14 are
+struck. Nothing is cut — the material in them is pushed into the seven games
+that exist, because *a game does not have to teach one thing*.
+
+The reason for killing the back half is in its own history. The list was
+thirteen, then fourteen on 2026-10-03, and across that the finale moved from
+slot 7 to slot 14 while six games shipped. An ending that recedes faster than
+you can build is not a plan, it is a treadmill. The sketch did its job — the
+engine was built against a whole arc rather than one game — and then outlived
+it.
 
 | # | Title | Teaches |
 |---|-------|---------|
-| 01 | **The Wreck** | Linux & bash |
-| 02 | **The Archive** | SQL & data |
-| 03 | **The Harness** | Python, debugging & testing |
-| 04 | **The Fork** | Git & collaborative development |
-| 05 | **The Containment** | ML fundamentals & evaluation — loss, gradients, overfitting, validation, leakage, calibration |
-| 06 | **The Deposit** | Operations — services, unit dependencies, health checks that lie |
-| 07 | The Pipeline | Data engineering — ETL, streams, backfills, idempotency |
-| 08 | The Handshake | Networking — DNS, TCP, routing, firewalls. **v43 returns in a big way.** |
-| 09 | *(practical AI — untitled)* | LLMs, agents, tools, skills, weights, prompt injection |
-| 10 | The Daemon | SRE — observability, on-call, postmortems |
-| 11 | The Payload | Security — injection (prompt injection included), auth, secrets, threat modeling (defensive framing) |
-| 12 | The Index | Algorithms — search, sort, hashing, trees, complexity |
-| 13 | The Contract | Distributed systems — APIs, idempotency, retries, consistency |
-| 14 | The Bootstrap | Compilers — build a language, then use it. **The finale: the conflict that ends v43.** |
+| 1 | **The Wreck** | Linux and bash |
+| 2 | **The Archive** | SQL and data — **plus algorithms**: indexes as trees, hashing, what makes a query slow |
+| 3 | **The Harness** | Python, debugging and testing — **plus complexity** measured rather than asserted |
+| 4 | **The Fork** | Git, and what people decided |
+| 5 | **The Deposit** | Services and checks that lie — **plus networking, SRE and access control** |
+| 6 | **The Pipeline** | Data engineering — **plus distributed systems**: retries, consistency, exactly once |
+| 7 | **The Containment** | Models and measuring them. **The finale** — *planned*: practical AI and the v43 confrontation, neither built yet |
 
-**Chris set this order on 2026-10-03.** Fourteen games, not thirteen: *The
-Handshake* is added at 8. What changed and why:
+### Where the struck slots went
 
-- **ML fundamentals fold into game 5.** *The Gradient* is gone as a separate
-  game; loss, gradients, overfitting and validation go into a repass of *The
-  Containment*, which already teaches evaluation.
-- **Practical AI is required.** At least one game, preferably more, teaches the
-  AI a working engineer actually touches: LLMs, agents, tools, skills, weights,
-  prompt injection. Slot 9 is that game. *The Payload* picks up prompt
-  injection again from the defensive side.
-- **v43 is met before the end.** *The Handshake* is where v43 comes back in a
-  big way — it left NAV-7 "across the cloud", and networking is the skill that
-  follows it. It is not the final confrontation.
-- **Game 14 is the finale** and the conflict that ends v43. It keeps *The
-  Bootstrap*'s subject, compilers.
-- **The Daemon is kept but narrowed** to observability, on-call and
-  postmortems, so it does not repeat *The Deposit*.
+Each one goes where the game is already half doing it. That is the test: if a
+subject needs a new world to be taught, it was a separate game; if it is the
+next question the existing world already raises, it belongs here.
 
-Titles from 7 on are working titles. Plots from 7 on are not written; each
-game gets a beats doc, like games 2–6, before content.
+| Struck | Subject | Lands in | Because that game already has |
+|---|---|---|---|
+| 08 | Networking — DNS, routing, firewalls | **The Deposit** | `not-a-dns-problem`, a four-host floor, and `packages/net` built during it |
+| 09 | Practical AI — LLMs, agents, tools, prompt injection | **The Containment** | the model, the glass box, and a player who can now measure one |
+| 10 | SRE — observability, on-call, postmortems | **The Deposit** | `the-handover`: a postmortem written from the journal and the lock |
+| 11 | Security — auth, secrets, injection | **The Deposit** + **The Containment** | `clean-hands` is access control and audit; prompt injection belongs with the agent |
+| 12 | Algorithms — search, sort, hashing, trees | **The Archive** + **The Harness** | an index *is* a tree, and the second is where you can time one |
+| 13 | Distributed systems — idempotency, retries | **The Pipeline** | `safe-to-repeat` and `reconcile` are already two thirds of it |
+| 14 | Finale — the conflict that ends v43 | **The Containment** | see below |
 
-**The Handshake's engine.** It was unslotted until `packages/net` existed,
-because `Network.resolve()` was one map lookup and there was no `/etc/hosts`,
-`dig`, `ss`, `ip` or firewall to teach with. `docs/GAME6_BEATS.md` §7 has the
-build order and PR #42 implements it.
+### The Containment is the finale
 
-Games 01–06 are built, and 05 is due a repass for ML fundamentals. Beats for
-each are in `docs/ACT1_BEATS.md` and `docs/GAME2_BEATS.md` through
-`docs/GAME6_BEATS.md`.
+**What ships today is the evaluation act, unchanged.** Everything in this
+section below is the plan for extending it, and nothing in it is playable yet;
+the game table says so too, because a plan quoted as a feature is how a README
+starts lying.
 
-The gate is computed rather than asserted: `node tools/measure.mjs` knows all
-six and prints each one's cost against The Wreck. Game six is 16.0%, of which
-387 lines are outside its own package — the network probes, the unit-dependency
-parser and a save that can hold four hosts instead of one.
+It is the game about a machine that made a decision about DeWitt's life, and
+until now it was the only game with no antagonist while the antagonist had no
+game. **v43 lands there**, as a live agent with tools — which makes slot 9 and
+slot 14 the same act rather than two games.
+
+That is the one piece of real engine work left in the series. `packages/ml`
+already has a tokenizer, `forward`, `generate`, `nextTokenProbs`, `sample` and
+attention circuits, so the model exists; what is missing is an agent loop with
+tools and a surface a player can inject into. A slice on the scale of
+`packages/net`, not a new interpreter.
+
+The ordering follows: **The Deposit is 5, The Pipeline is 6, The Containment is
+7.** Right in the fiction as well — evidence is filed at the deposit office
+before it is argued at the hearing.
+
+### Homeless, and Chris's call
+
+**Compilers.** Slot 14 kept *The Bootstrap*'s subject — build a language, then
+use it to escape. Nothing in the seven is half doing that, which by the test
+above means it was a real separate game rather than a chapter. It is the one
+subject with no home: cut it, or shrink it to a parser beat somewhere. Not
+decided, and not decided by me.
+
+**v43's networking beat.** Slot 8 said v43 "returns in a big way" over the
+network. With the confrontation moved into game 7, that return can either move
+into The Deposit as a trace across the floor, or go — the finale does not need
+it to work. Also Chris's.
+
+### What is built, and what is not
+
+All seven are playable. Two are below the others' weight and get the
+redistribution as the reason to grow rather than as extra homework:
+
+| | Content | Hint ladders | Notes |
+|---|---|---|---|
+| The Archive | ~1,400 lines | 5 objectives | the algorithms pass is its second act |
+| The Pipeline | ~270 lines | 9 objectives, 1 ladder | routes and misses exist; ladders and tests do not |
+
+The gate is computed rather than asserted: `node tools/measure.mjs` prints each
+game's cost against The Wreck. It knows six and needs The Pipeline adding.
 
 ---
 

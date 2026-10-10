@@ -58,8 +58,16 @@ describe('the act is structurally sound', () => {
     await expect(CONTAINMENT.boot({})).rejects.toThrow(MissingRuntime);
   });
 
-  it('sits at slot five', () => {
-    expect(CONTAINMENT.number).toBe(5);
+  /*
+   * Last, and the test says why.
+   *
+   * It moved from five to seven on 2026-10-09 when the series was cut to seven
+   * games and this one was made the finale -- the hearing is argued after the
+   * evidence is filed, and v43 lands here rather than in a game perpetually one
+   * slot further out. `docs/PLAN.md` has the decision.
+   */
+  it('sits last, because it is the finale', () => {
+    expect(CONTAINMENT.number).toBe(7);
     expect(CONTAINMENT.id).toBe('containment');
   });
 });

@@ -2,6 +2,9 @@ import { Machine, ROOT_USER, type CommandSpec, type MachineSnapshot } from '@sig
 import { editorCommands } from '@sigkill/editor';
 import { Questbook, questCommands, withCompanion, type AdventureSnapshot, type Objective, type World } from '@sigkill/quest';
 
+/** The morning the intake desk opens. Named so the series chronology is testable. */
+export const INTAKE_MS = Date.UTC(2398, 6, 15, 9, 0);
+
 export const INTAKE = '/srv/intake';
 export const WORK = '/home/dewitt/work';
 export const RAW = 'E1,09:00,NAV-7,2,v1\nE2,09:05,TUG-9,3,v1\nE1,09:00,NAV-7,2,v1\nE3,09:10,NAV-7,broken,v1\n';
@@ -163,7 +166,7 @@ function attach(machine: Machine, questbook: Questbook) {
 }
 export function bootPipeline() {
   const questbook = new Questbook(PIPELINE_OBJECTIVES);
-  const machine = new Machine({ hostname: 'intake', epoch: Date.UTC(2398,6,15,9), commands: commands(questbook) });
+  const machine = new Machine({ hostname: 'intake', epoch: INTAKE_MS, commands: commands(questbook) });
   const fs = machine.vfs;
   for (const dir of [INTAKE, '/srv/outbox', WORK, '/tmp']) fs.mkdirp(dir, ROOT_USER);
   fs.chown('/home/dewitt',1000,1000,ROOT_USER); fs.chmod('/tmp',0o777,ROOT_USER);
