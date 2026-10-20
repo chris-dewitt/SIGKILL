@@ -1,7 +1,12 @@
 # Game 5 repass — ML fundamentals in *The Containment*
 
-**Beats for the repass Chris set on 2026-10-03. Draft 1, a proposal.** Nothing
-here is built. §8 is his to overrule cheaply.
+**Beats for the repass Chris set on 2026-10-03. Approved 2026-10-20.** Nothing
+here is built yet. §8 is still his to overrule cheaply.
+
+> Since this was written the series became seven games: *The Containment* is
+> now game **seven** and the finale, and "game 9" below -- practical AI -- is
+> the finale's own material, not a later game. The repass lands first, so the
+> finale is written on top of a player who can make a model, not only read one.
 
 *The Gradient* is no longer a separate game, so its curriculum (loss,
 gradients, overfitting, validation) comes here. *The Containment* already

@@ -31,15 +31,19 @@ accepts `luna`. Brief asides follow changes in objective state, wait through
 quiet turns, and remember previous appearances across saves. The Wreck
 retains its existing richer `luna` command.
 
-## Game seven: The Pipeline
+## The Pipeline (now game six)
 
 Merrick's intake has repeated deliveries, two schema versions, one malformed
 row and a late event. The work is to preserve raw evidence, quarantine bad
 rows, normalize columns, deduplicate, test replay safety, backfill late data,
 reconcile per-claim event counts, publish and leave a reproducible handover.
 
-Every objective has three executable routes, two near misses and a complete
-hint ladder. `rehearse /home/dewitt/pipe.sh` runs the player's shell recipe on
+Every objective has three executable routes and two near misses, and the
+harness runs them. **The ladders and near misses are thin, though** (review,
+2026-10-20): each objective's ladder is one generated step, every near miss
+shares one boilerplate reason, and many of the three routes differ only by
+`sort -u` against `sort | uniq`. It is playable and it is not yet at the other
+games' depth; a beat sheet and a depth pass are next for it. `rehearse /home/dewitt/pipe.sh` runs the player's shell recipe on
 isolated copies with normal, repeated and late deliveries. Its protected
 receipt is bound to the tested recipe; changing the script invalidates it.
 `delivery` makes the authored late batch available. No real clock or network

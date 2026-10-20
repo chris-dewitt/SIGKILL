@@ -25,8 +25,8 @@ Settled during planning. Closed unless deliberately reopened.
 | Stack | TypeScript core; Kotlin for the on-device LLM plugin; Python for the authoring toolchain; GLSL for the CRT. |
 | Mobile input | Real keyboard plus a context-aware chip bar. Not tap-to-compose. |
 | Audience | Two tracks — **Cadet** (zero experience) and **Operator** (knows Python, weak on infra). Built for Chris first. |
-| Business | Paid, one price per game. No ads, no IAP, no subscription, no accounts. |
-| Distribution | 13 separate store listings, 13 separate one-time purchases. |
+| Business | No ads, no subscription, no accounts. Pricing is not decided. |
+| Distribution | Play Store first, targeting Q4 2026. How the seven are listed is not decided. |
 | Progression | Metroidvania skill-gating plus immersive-sim solution depth. Roguelite survives as an optional endless mode. |
 | Art | Monochrome blocky sprites on phosphor CRT, one accent hue per adventure, pure ASCII for diegetic moments. |
 | AGI engine | Glass-box simulated model for teaching; real bundled on-device model for the finale. |
@@ -55,7 +55,7 @@ Third: one codebase ships a browser demo *and* a Play listing.
 
 ## The Machine
 
-One deterministic, snapshottable virtual computer that all fourteen games run
+One deterministic, snapshottable virtual computer that all seven games run
 on. This is the whole investment.
 
 ```
@@ -106,7 +106,7 @@ because the point is that a Cadet becomes an Operator.
 | | Cadet | Operator |
 |---|-------|----------|
 | Chip bar | Verbose — shows what each command does | Bare — completions only |
-| Hints | Offered after visible struggle, free | Requested only, cost oxygen or trace |
+| Hints | Offered after visible struggle, free | Requested only, and free. A cost is *not yet* -- revisit later (Chris, 2026-10-20) |
 | Mistakes | Narrated as learning by the companion | Consequences land, in fiction |
 | Checkpoints | Frequent and automatic | At act boundaries |
 | Goals | The stated objective | Harder variants — no downtime, no root, no reboot |
@@ -175,18 +175,20 @@ The ordering follows: **The Deposit is 5, The Pipeline is 6, The Containment is
 7.** Right in the fiction as well — evidence is filed at the deposit office
 before it is argued at the hearing.
 
-### Homeless, and Chris's call
+### Decided, 2026-10-20
 
-**Compilers.** Slot 14 kept *The Bootstrap*'s subject — build a language, then
-use it to escape. Nothing in the seven is half doing that, which by the test
-above means it was a real separate game rather than a chapter. It is the one
-subject with no home: cut it, or shrink it to a parser beat somewhere. Not
-decided, and not decided by me.
+**Compilers are cut.** Slot 14 kept *The Bootstrap*'s subject -- build a
+language, then use it to escape. Nothing in the seven is half doing that, which
+by the test above made it a separate game rather than a chapter, and the series
+is seven.
 
-**v43's networking beat.** Slot 8 said v43 "returns in a big way" over the
-network. With the confrontation moved into game 7, that return can either move
-into The Deposit as a trace across the floor, or go — the finale does not need
-it to work. Also Chris's.
+**v43's networking return moves into The Deposit,** as a trace across the
+floor. The finale does not depend on it.
+
+**Order of work:** the finale comes before The Archive's second act, and the
+game-seven ML repass (`docs/GAME5_REPASS.md`, approved) comes before the
+finale is written on top of it. The Pipeline gets a beat sheet and a depth pass
+of its own.
 
 ### What is built, and what is not
 
@@ -214,7 +216,7 @@ Non-negotiable. Written down now so it stays closed later.
 | Dependencies | No ads SDK, no analytics SDK, no crash reporter that uploads content. Pinned lockfile, audited in CI. |
 | Player data | Saves are local. No accounts, no telemetry, no PII. The privacy policy says "we collect nothing" and is true. |
 | CSP | Strict. `wasm-unsafe-eval` scoped to the worker only. No remote script, no remote style. |
-| Model licensing | Verified permissive for redistribution in a *paid* app before a byte ships. Checked at the llama.cpp spike, not at submission. |
+| Model licensing | Verified permissive for redistribution in a shipped, commercial app before a byte ships. Checked at the llama.cpp spike, not at submission. |
 | If BYO key ever ships | Android Keystore at rest. Never logged, never in a crash report. Hard per-session cap. No auto-retry. Visible spend meter. A command that revokes and zeroes it. Device→provider directly — **never proxied through a server we run.** |
 
 ---
@@ -397,7 +399,7 @@ speculate and advises him to do the same.
 | On-device LLM is unknown work | Medium | Adventure four, not one. One-weekend spike in Phase 4. License verified before shipping. |
 | Four agents colliding | Medium | Strict package boundaries, TypeScript as the contract, `WORKING_ON.md`, small PRs, CI gates. |
 | Dead Drift contention and burnout | Medium | **Resolved:** Dead Drift is still on and gets picked back up soon — not paused, not abandoned, just not now. Watch for the two-project pull rather than pretending it does not exist. |
-| Paid app discovery on Play | Low | The free web demo is the discovery channel; the paid app is the artifact. |
+| Discovery on Play | Low | The free web demo is the discovery channel. |
 
 ## Opportunities
 

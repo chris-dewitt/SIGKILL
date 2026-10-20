@@ -10,7 +10,7 @@ Add a row when you start. Delete it when you are done.
 
 | Package | Claimed by | Since | What |
 |---------|-----------|-------|------|
-| packages/net | Claude | 2026-10-03 | The networking engine, for *The Handshake*. New package; also touches `machine/src/net` and `coreutils/net.ts`, which is in the row on purpose. |
+| _(none)_ | | | |
 
 ## Conventions
 
@@ -47,4 +47,8 @@ agents editing it at once will conflict. Claim it explicitly.
 | `games/wreck` | Adventure 1: the NAV-7 world seed and the Act I objectives. |
 | `games/archive` | Adventure 2: Ferryman's Rest, the claims database, SQL. |
 | `games/harness` | Adventure 3: the tug ELLEN MAY, the recovery dump, Python. |
+| `games/fork` | Adventure 4: Pell's deposit office, the repository, Git. |
+| `games/deposit` | Adventure 5: the machine floor, a fleet of hosts, operations. |
+| `games/pipeline` | Adventure 6: Merrick's intake, batches and replay, data engineering. |
+| `games/containment` | Adventure 7 and the finale: the annexe, the evaluation, models. |
 
