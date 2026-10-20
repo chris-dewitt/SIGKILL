@@ -12,7 +12,7 @@ export { ShellContext, run } from './shell/exec.js';
 export type {
   CommandFn, CommandSpec, ExecIO, OutputSegment, RunResult, ScreenProgram, Track,
 } from './shell/exec.js';
-export { parse } from './shell/parser.js';
+export { parse, needsMoreInput } from './shell/parser.js';
 export { lex } from './shell/lexer.js';
 export { ShellSyntaxError } from './shell/types.js';
 

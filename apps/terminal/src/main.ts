@@ -3,7 +3,7 @@ import {
   TerminalView, tubeByName, TUBE_NAMES,
 } from '@sigkill/crt';
 import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
-import { path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/machine';
+import { needsMoreInput, parse, path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { WorkerSqlRuntime } from '@sigkill/sql';
 import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
@@ -586,6 +586,14 @@ let historyIndex = history.length;
  * would interleave output and race the machine's state.
  */
 let busy = false;
+/**
+ * A command still being typed, while a here-document is open.
+ *
+ * `cat > calc.py <<'EOF'` is the start of a command and not the whole of one:
+ * the lines after it are the file. The input box takes one line at a time, so
+ * they collect here behind a `> ` prompt until the delimiter arrives.
+ */
+let openHeredoc: string | null = null;
 
 /** Once Pyodide is loaded, later runs are fast and need no notice. */
 let pythonWarmed = false;
@@ -665,7 +673,7 @@ input.addEventListener('beforeinput', (event) => {
 });
 
 function refreshPrompt(): void {
-  promptEl.textContent = machine.prompt;
+  promptEl.textContent = openHeredoc !== null ? '> ' : machine.prompt;
 }
 
 /**
@@ -711,13 +719,26 @@ function open_(id: string): void {
 }
 
 async function submit(raw: string): Promise<void> {
-  const command = raw.trim();
+  let command = raw.trim();
   // Every browser refuses to start an AudioContext outside a gesture, and is
   // right to. This is the first one that reliably happens.
   void sound.resume();
   sound.play('submit');
-  const echoed = machine.prompt + command;
-  write(echoed, 'echo');
+
+  /*
+   * A body line, while a here-document is open. Taken as typed, not trimmed:
+   * `<<-` strips leading tabs and a Python body cares about its indentation.
+   */
+  if (openHeredoc !== null) {
+    write(`> ${raw}`, 'echo');
+    openHeredoc = `${openHeredoc}\n${raw}`;
+    if (needsMoreInput(openHeredoc)) return;
+    command = openHeredoc;
+    openHeredoc = null;
+    refreshPrompt();
+  } else {
+    write(machine.prompt + command, 'echo');
+  }
 
   /*
    * The chooser owns exactly one line of input, and only for a brand-new
@@ -749,8 +770,20 @@ async function submit(raw: string): Promise<void> {
     return;
   }
 
-  if (command.length > 0) {
+  if (command.length > 0 && !command.includes('\n') && needsMoreInput(command)) {
+    openHeredoc = command;
+    const wanted = parse(command).unterminatedHeredoc ?? 'EOF';
+    write(`(type the lines, then ${wanted} on a line of its own to finish)`, 'system');
+    // The opening line is what history keeps: one line, which the input box
+    // can hold, and recalling it starts the same here-document again.
     history.push(command);
+    historyIndex = history.length;
+    refreshPrompt();
+    return;
+  }
+
+  if (command.length > 0) {
+    if (!command.includes('\n')) history.push(command);
     historyIndex = history.length;
 
     busy = true;
