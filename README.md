@@ -6,7 +6,7 @@ A series of terminal survival adventures that teach real backend and ML
 infrastructure engineering — Linux, Python, SQL, Git, distributed systems, and
 the machinery underneath large language models.
 
-Phone-first. Fully offline. Paid once per game. **No ads, no accounts, no telemetry.**
+Phone-first. Fully offline. **No ads, no accounts, no telemetry.**
 
 ---
 
@@ -61,7 +61,7 @@ pnpm build        # production bundle
 
 ## The Machine
 
-Every one of the fourteen games runs on one deterministic virtual computer.
+Every one of the seven games runs on one deterministic virtual computer.
 
 ```
 packages/machine/    VFS, shell parser, coreutils, virtual clock

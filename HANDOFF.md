@@ -1,5 +1,31 @@
 # SIGKILL — handoff
 
+## State of play, 2026-10-20
+
+**Seven games, all playable, and the series ends at seven** (Chris,
+2026-10-09). Order: 1 *The Wreck*, 2 *The Archive*, 3 *The Harness*, 4 *The
+Fork*, 5 *The Deposit*, 6 *The Pipeline*, 7 *The Containment*, which is also
+the finale. `docs/PLAN.md` has where the struck back half went.
+
+**Decided 2026-10-20:**
+
+- **Compilers are cut.** v43's networking return moves into *The Deposit*.
+- **Order of work:** quick engine fixes, then the game-seven ML repass
+  (`docs/GAME5_REPASS.md`, now approved), then **the finale** -- v43 as a live
+  agent with tools in *The Containment*. *The Archive*'s second act comes after.
+- **The Pipeline gets a beat sheet and a depth pass.** It is playable but thin:
+  one generated ladder step per objective and one shared near-miss reason.
+- **Hints stay free** on both tracks for now; an Operator cost is "not yet".
+- **Ship target: Q4 2026, Play Store.** Pricing is undecided, and the docs no
+  longer say "paid once per game".
+- **Chris on the current games: "kinda weak."** That is the most important
+  input in this file. Find out what, specifically, before adding content.
+
+**Quick fixes queued:** Python's `random` is unseeded (a rule-1 break, fix in
+`GAME5_REPASS.md` §7); heredocs in the shell; LUNA's aside memory lives in the
+game's own filesystem at `/var/lib/sigkill/companion.json`, where a player can
+read or delete it, and moves into the save.
+
 ## Playability pass, 2026-10-03
 
 Games 1–6 now have shorter openings, completion dialogue and endings. Optional
@@ -968,7 +994,7 @@ that. Depth over breadth. Epics, not days:
 | E3 | Act I — Breathe. Then Call Somebody | **done.** 7 required + 2 optional, waking to rescue. |
 | E4–E6 | ~~Acts II–IV~~ | **cancelled 2026-09-21.** There is no Act II. Act I is the whole of game 1. |
 | E7 | Procedural audio — Web Audio, state-driven, zero assets | **core shipped** (PR #17) |
-| E8 | Ship — Play Store | wrap exists; listing is later. Paid-or-free is open. |
+| E8 | Ship — Play Store | wrap exists; **target Q4 2026**. Pricing is not decided. |
 | E9 | Game 2 — The Archive, on a planet, in SQL | **proposed.** `docs/GAME2_BEATS.md`. Needs wa-sqlite and Chris's answers to §11. |
 
 ### 5c. Story and feel — settled 2026-09-13

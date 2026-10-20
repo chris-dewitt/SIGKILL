@@ -167,7 +167,7 @@ Nothing executable is ever loaded from downloaded content.
 wearing a hat. This is a security boundary, not a preference.
 
 **Cost:** an adventure cannot be shipped as a pure data update; it is part of
-the build. Given fourteen separate store listings, that was always true.
+the build. For a game that ships through a store, that was always true.
 
 ---
 
@@ -175,7 +175,7 @@ the build. Given fourteen separate store listings, that was always true.
 
 **Decided:** no ads, no analytics, no crash reporter that uploads content.
 
-**Why:** partly the product — this is a paid game and not a funnel. But it is
+**Why:** partly the product — this is a game and not a funnel. But it is
 also a security control. If the app ever holds an API key, every SDK in the
 process is a way for it to leave.
 

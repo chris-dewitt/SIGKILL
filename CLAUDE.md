@@ -22,8 +22,8 @@ Read this, then the architecture doc, then the code.
 ## What this is
 
 Seven terminal survival adventures that teach real backend and ML
-infrastructure engineering. Phone-first, offline, paid once per game, no ads,
-no accounts, no telemetry.
+infrastructure engineering. Phone-first, offline, no ads, no accounts, no
+telemetry.
 
 Every game runs on one deterministic virtual computer — **the Machine**
 (`packages/machine`). That package is the whole investment. Treat it
@@ -137,8 +137,9 @@ games/wreck/         Adventure 1: the NAV-7 world seed and the Act I ladders.
 games/archive/       Adventure 2: Ferryman's Rest, the claims database, SQL.
 games/harness/       Adventure 3: the tug ELLEN MAY, the recovery dump, Python.
 games/fork/          Adventure 4: Pell's deposit office, the repository, Git.
-games/containment/   Adventure 5: the annexe and the evaluation, models and measuring.
-games/deposit/       Adventure 6: the machine floor, a fleet of hosts, operations.
+games/deposit/       Adventure 5: the machine floor, a fleet of hosts, operations.
+games/pipeline/      Adventure 6: Merrick's intake, batches, replay, data engineering.
+games/containment/   Adventure 7: the annexe and the evaluation, models -- and the finale.
 ```
 
 Dependencies point one way: `apps` → `packages` → nothing. Import across
@@ -198,8 +199,10 @@ written here; it was wrong in this file for three games running.
 
 The 40% gate was applied through game six and held each
 time — `node tools/measure.mjs` computes it, and `HANDOFF.md` has the latest
-table. The series is fourteen games; `docs/PLAN.md` has the order Chris set
-on 2026-10-03, and game seven is *The Pipeline*. See `docs/PLAYABILITY_PASS.md` for its scope and the playability pass.
+table. **The series is seven games and it ends** -- Chris, 2026-10-09; the
+back half was folded into the games that exist. *The Containment* is game
+seven and the finale. `docs/PLAN.md` has the order and where each struck
+subject went; `docs/PLAYABILITY_PASS.md` covers the playability pass.
 
 **Every puzzle declares its own routes.** `Objective` carries `teaches`,
 `routes` and `nearMisses`, and `packages/quest/src/harness.ts` runs them against
