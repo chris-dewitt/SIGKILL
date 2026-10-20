@@ -20,7 +20,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   apps/terminal:
     dependencies:
@@ -86,11 +86,11 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
       vite:
-        specifier: ^6.4.3
-        version: 6.4.3(@types/node@22.20.2)
+        specifier: ^6.4.4
+        version: 6.4.4(@types/node@22.20.2)
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
       wa-sqlite:
         specifier: ^1.0.0
         version: 1.0.0
@@ -121,7 +121,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   games/containment:
     dependencies:
@@ -152,7 +152,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   games/deposit:
     dependencies:
@@ -180,7 +180,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   games/fork:
     dependencies:
@@ -211,7 +211,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   games/harness:
     dependencies:
@@ -239,7 +239,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   games/pipeline:
     dependencies:
@@ -261,7 +261,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   games/wreck:
     dependencies:
@@ -283,7 +283,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/ascii:
     devDependencies:
@@ -292,7 +292,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/audio:
     devDependencies:
@@ -301,7 +301,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/crt:
     devDependencies:
@@ -310,7 +310,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/editor:
     dependencies:
@@ -323,7 +323,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/git:
     dependencies:
@@ -339,7 +339,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/machine:
     devDependencies:
@@ -348,7 +348,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/ml:
     dependencies:
@@ -364,7 +364,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/net:
     dependencies:
@@ -377,7 +377,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/python:
     dependencies:
@@ -393,7 +393,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/quest:
     dependencies:
@@ -406,7 +406,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
   packages/sql:
     dependencies:
@@ -425,7 +425,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2))
+        version: 4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
 packages:
 
@@ -1261,8 +1261,8 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
-  vite@6.4.3:
-    resolution: {integrity: sha512-NTKlcQjlAK7MlQoyb6LgaqHc8sso/pVyUJYWMws3jg21uTJw/LddqIFPcPqP6PzpgbIcZyKI85sFE4HBrQDA8A==}
+  vite@6.4.4:
+    resolution: {integrity: sha512-xGjU/SyjeNyb0E4KxXBvYz/1C+3JXuujvf2hXNOtnlcE+58o5ajd9N2/n2VhkiJvpCP2qQasnUpx5PXNeI+p1Q==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
     peerDependencies:
@@ -1712,13 +1712,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@6.4.3(@types/node@22.20.2))':
+  '@vitest/mocker@4.1.11(vite@6.4.4(@types/node@22.20.2))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 6.4.3(@types/node@22.20.2)
+      vite: 6.4.4(@types/node@22.20.2)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -2129,7 +2129,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite@6.4.3(@types/node@22.20.2):
+  vite@6.4.4(@types/node@22.20.2):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.7)
@@ -2141,10 +2141,10 @@ snapshots:
       '@types/node': 22.20.2
       fsevents: 2.3.3
 
-  vitest@4.1.11(@types/node@22.20.2)(vite@6.4.3(@types/node@22.20.2)):
+  vitest@4.1.11(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@6.4.3(@types/node@22.20.2))
+      '@vitest/mocker': 4.1.11(vite@6.4.4(@types/node@22.20.2))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -2161,7 +2161,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 6.4.3(@types/node@22.20.2)
+      vite: 6.4.4(@types/node@22.20.2)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.20.2
