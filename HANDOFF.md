@@ -21,10 +21,10 @@ the finale. `docs/PLAN.md` has where the struck back half went.
 - **Chris on the current games: "kinda weak."** That is the most important
   input in this file. Find out what, specifically, before adding content.
 
-**Quick fixes queued:** Python's `random` is unseeded (a rule-1 break, fix in
-`GAME5_REPASS.md` §7); heredocs in the shell; LUNA's aside memory lives in the
-game's own filesystem at `/var/lib/sigkill/companion.json`, where a player can
-read or delete it, and moves into the save.
+**Quick fixes, done:** Python's `random` (and `os.urandom`) is seeded from the
+virtual clock per command, closing a rule-1 break; the shell has heredocs, with
+a `> ` continuation prompt in the app; LUNA's memory of what she has said lives
+in the questbook's save rather than in a file in the game's filesystem.
 
 ## Playability pass, 2026-10-03
 

@@ -174,7 +174,7 @@ can hold, and the beat still does not say what it means.
 Probed before writing this, per policy, with `NodePythonRuntime` against a
 real Machine:
 
-1. **`random` is not deterministic. This is a bug and it comes first.**
+1. **`random` is not deterministic. This is a bug and it comes first.** *(Fixed 2026-10-20: seeded per command from the virtual clock, with `os.urandom` pinned too; `packages/python/test/python.test.ts`.)*
    `import random; print(random.random())` gave a different value on every
    run, within one Machine and across two. Rule 1 says the Machine is
    deterministic, and the Python bridge pins `time.time()` but not the seed.
