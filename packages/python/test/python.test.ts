@@ -357,6 +357,51 @@ describe('time.time() is the machine clock', () => {
   });
 });
 
+describe('randomness is seeded from the machine clock', () => {
+  /*
+   * Found by the game-seven repass probe: `random.random()` differed on every
+   * run, in one machine and across two. A player who shuffled a split or
+   * initialised weights would get a different model each time, and no save
+   * could replay it -- rule 1, broken from inside the interpreter.
+   */
+  const draw = `python3 -c 'import random; print(random.random(), random.sample(range(100), 5))'`;
+  const entropy =
+    `python3 -c 'import os, secrets, uuid, random; ` +
+    `print(os.urandom(4).hex(), secrets.token_hex(4), uuid.uuid4(), random.SystemRandom().random())'`;
+
+  it('gives two fresh machines the same draws at the same moment', async () => {
+    const a = boot();
+    const b = boot();
+    a.tick(7_000);
+    b.tick(7_000);
+    const ra = await a.exec(draw);
+    expect(ra.stderr).toBe('');
+    expect(ra.stdout).toBe((await b.exec(draw)).stdout);
+  });
+
+  it('pins os.urandom, secrets, uuid4 and SystemRandom as well', async () => {
+    const a = boot();
+    const b = boot();
+    const ra = await a.exec(entropy);
+    expect(ra.stderr).toBe('');
+    expect(ra.stdout).toBe((await b.exec(entropy)).stdout);
+  });
+
+  it('still differs from one moment to the next, like a fresh process', async () => {
+    const m = boot();
+    const first = (await m.exec(draw)).stdout;
+    m.tick(1_000);
+    expect((await m.exec(draw)).stdout).not.toBe(first);
+  });
+
+  it('does not let one command reseed the next', async () => {
+    const a = boot();
+    const b = boot();
+    await a.exec(`python3 -c 'import random; random.seed(99); random.random()'`);
+    expect((await a.exec(draw)).stdout).toBe((await b.exec(draw)).stdout);
+  });
+});
+
 /*
  * Running a script is not the same as a script being `__main__`.
  *

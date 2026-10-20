@@ -285,8 +285,29 @@ export async function runRequest(py: PyodideLike, request: PythonRequest): Promi
      * source timestamp, so writing them would put a clock reading inside the
      * player's filesystem -- and replay is invariant #1.
      */
+    /*
+     * Randomness, seeded from the machine clock.
+     *
+     * A real python seeds `random` from the operating system on every start,
+     * and Pyodide's operating system is the host's `crypto`, so a player who
+     * shuffled a split or initialised weights got a different answer on every
+     * run and no replay could reproduce it -- rule 1, broken from inside the
+     * interpreter. Seeding from the virtual clock keeps what a fresh process
+     * looks like (the clock moves between commands, so two runs differ) while
+     * making every run reproducible from a save.
+     *
+     * `os.urandom` and the copy `random` keeps of it are pinned too, because
+     * `secrets`, `uuid.uuid4` and `random.SystemRandom` all read through them.
+     * What stays out of reach is a bare `random.seed()` with no argument,
+     * which CPython resolves in C; a player who asks for the OS's entropy by
+     * name gets it, and the default path does not.
+     */
+    const seed = Math.trunc(request.now ?? 0);
     py.runPython(`
-import sys, os, io
+import sys, os, io, random as __sk_random
+__sk_random.seed(${seed})
+__sk_entropy = __sk_random.Random(${seed} ^ 0x5EED)
+os.urandom = __sk_random._urandom = lambda n: __sk_entropy.randbytes(n)
 sys.argv = ${JSON.stringify(request.argv)}
 os.environ.clear()
 os.environ.update(${JSON.stringify(request.env)})
