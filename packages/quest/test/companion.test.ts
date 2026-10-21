@@ -21,17 +21,44 @@ describe('companion',()=>{
     expect((await s.machine.exec('talk constructor')).stdout).toContain('Try talk');
     expect(s.afterCommand?.()).toEqual([]);
   });
-  it('reacts to a state change once and remembers across reload',()=>{
-    const raw=fresh();const s=withCompanion(raw,options);
+  /** A save as the host writes it: both halves through JSON, nothing shared. */
+  function reload(s:{machine:Machine;questbook:Questbook}){
+    const machine=Machine.restore(JSON.parse(JSON.stringify(s.machine.snapshot())));
+    const questbook=new Questbook([objective]);
+    questbook.restore(JSON.parse(JSON.stringify(s.questbook.snapshot())));
+    return {machine,questbook};
+  }
+  function speakUp(s:ReturnType<typeof withCompanion>){
     s.afterCommand?.();s.afterCommand?.();
     s.machine.vfs.writeText('/tmp/first','seen',ROOT_USER);
-    expect(s.afterCommand?.()).toEqual(['LUNA: That changed something.']);
+    return s.afterCommand?.();
+  }
+  it('reacts to a state change once and remembers across reload',()=>{
+    const s=withCompanion(fresh(),options);
+    expect(speakUp(s)).toEqual(['LUNA: That changed something.']);
     expect(s.afterCommand?.()).toEqual([]);
-    const machine=Machine.restore(s.machine.snapshot());
-    machine.vfs.unlink('/tmp/first',ROOT_USER);
-    const back=withCompanion({machine,questbook:raw.questbook},options);
-    back.afterCommand?.();back.afterCommand?.();
-    machine.vfs.writeText('/tmp/first','seen',ROOT_USER);
-    expect(back.afterCommand?.()).toEqual([]);
+    const back=withCompanion(reload(s),options);
+    back.machine.vfs.unlink('/tmp/first',ROOT_USER);
+    back.afterCommand?.();
+    expect(speakUp(back)).toEqual([]);
+  });
+  it('keeps its memory in the save, not in the player\'s filesystem',()=>{
+    const s=withCompanion(fresh(),options);
+    speakUp(s);
+    expect(s.machine.vfs.exists('/var/lib/sigkill',ROOT_USER)).toBe(false);
+    expect(s.questbook.snapshot().remembered).toEqual(['aside:fix']);
+  });
+  it('carries a memory file from an older save over, then removes it',()=>{
+    const raw=fresh();
+    raw.machine.vfs.mkdirp('/var/lib/sigkill',ROOT_USER);
+    raw.machine.vfs.writeText('/var/lib/sigkill/companion.json','["fix"]',ROOT_USER);
+    const s=withCompanion(raw,options);
+    expect(s.machine.vfs.exists('/var/lib/sigkill',ROOT_USER)).toBe(false);
+    expect(speakUp(s)).toEqual([]);
+  });
+  it('still speaks when an old save never remembered anything',()=>{
+    const raw=fresh();
+    raw.questbook.restore({version:1,revealed:{},asked:0});
+    expect(speakUp(withCompanion(raw,options))).toEqual(['LUNA: That changed something.']);
   });
 });

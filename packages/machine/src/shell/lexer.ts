@@ -16,12 +16,33 @@ export type TokenType =
   | 'REDIR_ERR_APPEND'
   | 'LPAREN'
   | 'RPAREN'
+  /** `<<WORD` or `<<-WORD`, with its body attached once the line has ended. */
+  | 'HEREDOC'
   | 'EOF';
+
+export interface Heredoc {
+  delimiter: string;
+  /** A quoted delimiter (`<<'EOF'`) makes the body literal: no `$`, no `$(...)`. */
+  quoted: boolean;
+  /** `<<-`: leading tabs come off every body line and the delimiter line. */
+  strip: boolean;
+  body: Word;
+}
 
 export interface Token {
   type: TokenType;
   /** Present for WORD. */
   word?: Word;
+  /** Present for HEREDOC. */
+  heredoc?: Heredoc;
+  /**
+   * On EOF only: the delimiter of a here-document the input ended inside.
+   *
+   * Not an error by itself. A script that ends inside one runs with what it
+   * has, the way bash does, and an interactive line that ends inside one is a
+   * line that wants more input -- the caller decides which this is.
+   */
+  unterminated?: string;
   /** Raw source text, for error messages. */
   text: string;
 }
@@ -84,6 +105,56 @@ function scanBacktick(input: string, start: number): { inner: string; end: numbe
   throw new ShellSyntaxError('unterminated command substitution: missing `');
 }
 
+/**
+ * The parts of an unquoted here-document body.
+ *
+ * Expanded the way double quotes are -- `$VAR`, `$(...)` and backticks -- with
+ * two differences that are the point of a heredoc: a `"` is just a character,
+ * and the newlines are the content. An escaped `$`, backtick or backslash
+ * becomes a single-quoted part, so expansion can never reach it.
+ */
+function heredocParts(body: string): WordPart[] {
+  const parts: WordPart[] = [];
+  let text = '';
+  const flush = (): void => {
+    if (text.length > 0) { parts.push({ kind: 'dquoted', value: text }); text = ''; }
+  };
+  let i = 0;
+  while (i < body.length) {
+    const c = body[i]!;
+    const next = body[i + 1] ?? '';
+    if (c === '\\' && (next === '$' || next === '`' || next === '\\')) {
+      flush();
+      parts.push({ kind: 'squoted', value: next });
+      i += 2;
+      continue;
+    }
+    if (c === '\\' && next === '\n') { i += 2; continue; }
+    if (c === '$' && next === '(') {
+      flush();
+      const sub = scanSubstitution(body, i + 1);
+      parts.push({ kind: 'subst', value: sub.inner, quoted: true });
+      i = sub.end;
+      continue;
+    }
+    if (c === '`') {
+      flush();
+      const sub = scanBacktick(body, i);
+      parts.push({ kind: 'subst', value: sub.inner, quoted: true });
+      i = sub.end;
+      continue;
+    }
+    text += c;
+    i++;
+  }
+  flush();
+  return parts;
+}
+
+/** The delimiter as the shell compares it: quotes and backslashes removed. */
+function delimiterOf(parts: readonly WordPart[]): string {
+  return parts.map((part) => part.value).join('');
+}
 
 /**
  * Tokenise a command line.
@@ -97,58 +168,37 @@ export function lex(input: string): Token[] {
 
   const peek = (off = 0): string => input[i + off] ?? '';
 
-  while (i < input.length) {
-    const c = peek();
+  /** Here-documents opened on the current line, waiting for it to end. */
+  const pending: Token[] = [];
+  let unterminated: string | undefined;
 
-    // A backslash at end of line joins it to the next one, which is how any
-    // script longer than eighty columns is written.
-    if (c === '\\' && peek(1) === '\n') {
-      i += 2;
-      continue;
-    }
-
-    if (c === '\n') {
-      tokens.push({ type: 'NEWLINE', text: '\n' });
-      i++;
-      continue;
-    }
-
-    if (c === ' ' || c === '\t') {
-      i++;
-      continue;
-    }
-
-    if (c === '#') {
-      while (i < input.length && peek() !== '\n') i++;
-      continue;
-    }
-
-    // 2>> and 2>
-    if (c === '2' && peek(1) === '>') {
-      if (peek(2) === '>') {
-        tokens.push({ type: 'REDIR_ERR_APPEND', text: '2>>' });
-        i += 3;
-      } else {
-        tokens.push({ type: 'REDIR_ERR', text: '2>' });
-        i += 2;
+  /*
+   * Read the bodies of every here-document opened on the line that just
+   * ended, in order, each up to its delimiter line. Running out of input
+   * before a delimiter is recorded rather than thrown -- see `unterminated`.
+   */
+  const readBodies = (): void => {
+    for (const token of pending) {
+      const spec = token.heredoc!;
+      let body = '';
+      let closed = false;
+      while (i < input.length) {
+        const nl = input.indexOf('\n', i);
+        const end = nl === -1 ? input.length : nl;
+        let line = input.slice(i, end);
+        i = nl === -1 ? input.length : nl + 1;
+        if (spec.strip) line = line.replace(/^\t+/, '');
+        if (line === spec.delimiter) { closed = true; break; }
+        body += `${line}\n`;
       }
-      continue;
+      if (!closed) unterminated ??= spec.delimiter;
+      spec.body = { parts: spec.quoted ? [{ kind: 'squoted', value: body }] : heredocParts(body) };
     }
+    pending.length = 0;
+  };
 
-    if (OPERATOR_START.has(c)) {
-      if (c === '|' && peek(1) === '|') { tokens.push({ type: 'OR_IF', text: '||' }); i += 2; continue; }
-      if (c === '|') { tokens.push({ type: 'PIPE', text: '|' }); i += 1; continue; }
-      if (c === '&' && peek(1) === '&') { tokens.push({ type: 'AND_IF', text: '&&' }); i += 2; continue; }
-      if (c === '&') { tokens.push({ type: 'AMP', text: '&' }); i += 1; continue; }
-      if (c === ';') { tokens.push({ type: 'SEMI', text: ';' }); i += 1; continue; }
-      if (c === '>' && peek(1) === '>') { tokens.push({ type: 'DGT', text: '>>' }); i += 2; continue; }
-      if (c === '>') { tokens.push({ type: 'GT', text: '>' }); i += 1; continue; }
-      if (c === '<') { tokens.push({ type: 'LT', text: '<' }); i += 1; continue; }
-      if (c === '(') { tokens.push({ type: 'LPAREN', text: '(' }); i += 1; continue; }
-      if (c === ')') { tokens.push({ type: 'RPAREN', text: ')' }); i += 1; continue; }
-    }
-
-    // A word: accumulate until unquoted whitespace or an operator.
+  /** A word: accumulate until unquoted whitespace or an operator. */
+  function readWord(): { parts: WordPart[]; raw: string } {
     const parts: WordPart[] = [];
     let bare = '';
     let raw = '';
@@ -254,9 +304,83 @@ export function lex(input: string): Token[] {
     }
 
     flushBare();
+    return { parts, raw };
+  }
+
+  while (i < input.length) {
+    const c = peek();
+
+    // A backslash at end of line joins it to the next one, which is how any
+    // script longer than eighty columns is written.
+    if (c === '\\' && peek(1) === '\n') {
+      i += 2;
+      continue;
+    }
+
+    if (c === '\n') {
+      tokens.push({ type: 'NEWLINE', text: '\n' });
+      i++;
+      readBodies();
+      continue;
+    }
+
+    if (c === ' ' || c === '\t') {
+      i++;
+      continue;
+    }
+
+    if (c === '#') {
+      while (i < input.length && peek() !== '\n') i++;
+      continue;
+    }
+
+    // 2>> and 2>
+    if (c === '2' && peek(1) === '>') {
+      if (peek(2) === '>') {
+        tokens.push({ type: 'REDIR_ERR_APPEND', text: '2>>' });
+        i += 3;
+      } else {
+        tokens.push({ type: 'REDIR_ERR', text: '2>' });
+        i += 2;
+      }
+      continue;
+    }
+
+    if (OPERATOR_START.has(c)) {
+      if (c === '|' && peek(1) === '|') { tokens.push({ type: 'OR_IF', text: '||' }); i += 2; continue; }
+      if (c === '|') { tokens.push({ type: 'PIPE', text: '|' }); i += 1; continue; }
+      if (c === '&' && peek(1) === '&') { tokens.push({ type: 'AND_IF', text: '&&' }); i += 2; continue; }
+      if (c === '&') { tokens.push({ type: 'AMP', text: '&' }); i += 1; continue; }
+      if (c === ';') { tokens.push({ type: 'SEMI', text: ';' }); i += 1; continue; }
+      if (c === '>' && peek(1) === '>') { tokens.push({ type: 'DGT', text: '>>' }); i += 2; continue; }
+      if (c === '>') { tokens.push({ type: 'GT', text: '>' }); i += 1; continue; }
+      if (c === '<' && peek(1) === '<') {
+        const strip = peek(2) === '-';
+        i += strip ? 3 : 2;
+        while (peek() === ' ' || peek() === '\t') i++;
+        const { parts, raw } = readWord();
+        if (parts.length === 0) throw new ShellSyntaxError(`expected a delimiter after '<<${strip ? '-' : ''}'`);
+        const quoted = parts.some((part) => part.kind !== 'bare') || raw.includes('\\');
+        const token: Token = {
+          type: 'HEREDOC',
+          text: `<<${strip ? '-' : ''}${raw}`,
+          heredoc: { delimiter: delimiterOf(parts), quoted, strip, body: { parts: [] } },
+        };
+        tokens.push(token);
+        pending.push(token);
+        continue;
+      }
+      if (c === '<') { tokens.push({ type: 'LT', text: '<' }); i += 1; continue; }
+      if (c === '(') { tokens.push({ type: 'LPAREN', text: '(' }); i += 1; continue; }
+      if (c === ')') { tokens.push({ type: 'RPAREN', text: ')' }); i += 1; continue; }
+    }
+
+    const { parts, raw } = readWord();
     tokens.push({ type: 'WORD', word: { parts }, text: raw });
   }
 
-  tokens.push({ type: 'EOF', text: '' });
+  // A line that ends without a newline still owes its here-documents a body.
+  if (pending.length > 0) readBodies();
+  tokens.push({ type: 'EOF', text: '', ...(unterminated !== undefined ? { unterminated } : {}) });
   return tokens;
 }

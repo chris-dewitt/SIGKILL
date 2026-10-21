@@ -11,10 +11,11 @@ export interface Word {
   parts: WordPart[];
 }
 
-export type RedirectOp = '>' | '>>' | '<' | '2>' | '2>>';
+export type RedirectOp = '>' | '>>' | '<' | '2>' | '2>>' | '<<';
 
 export interface Redirect {
   op: RedirectOp;
+  /** For `<<`, the here-document's body rather than a filename. */
   target: Word;
 }
 
@@ -54,6 +55,13 @@ export interface AndOr {
 export interface Script {
   type: 'script';
   statements: AndOr[];
+  /**
+   * The delimiter of a here-document the input ended inside, if it did.
+   *
+   * A script file runs anyway, the way bash does, with a warning. An
+   * interactive line uses it to ask for more input instead -- `needsMoreInput`.
+   */
+  unterminatedHeredoc?: string;
 }
 
 export class ShellSyntaxError extends Error {

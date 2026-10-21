@@ -23,7 +23,26 @@ const REDIRECTS: Partial<Record<TokenType, RedirectOp>> = {
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
 
 export function parse(input: string): Script {
-  return new Parser(lex(input)).script();
+  const tokens = lex(input);
+  const script = new Parser(tokens).script();
+  const open = tokens[tokens.length - 1]?.unterminated;
+  return open === undefined ? script : { ...script, unterminatedHeredoc: open };
+}
+
+/**
+ * Whether an interactive line is waiting on more lines before it can run.
+ *
+ * True while a here-document is open: `cat > notes <<'EOF'` on its own is the
+ * start of a command, not the whole of one, and a terminal shows `> ` for the
+ * next line. A line with any other syntax error is complete -- it runs, and
+ * reports the error.
+ */
+export function needsMoreInput(input: string): boolean {
+  try {
+    return parse(input).unterminatedHeredoc !== undefined;
+  } catch {
+    return false;
+  }
 }
 
 class Parser {
@@ -103,6 +122,10 @@ class Parser {
   private redirects(): Redirect[] {
     const out: Redirect[] = [];
     for (;;) {
+      if (this.at('HEREDOC')) {
+        out.push({ op: '<<', target: this.next().heredoc!.body });
+        continue;
+      }
       const op = REDIRECTS[this.peek().type];
       if (!op) break;
       this.next();

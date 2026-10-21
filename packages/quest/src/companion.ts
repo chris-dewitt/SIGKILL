@@ -12,12 +12,21 @@ export interface CompanionOptions {
 /** Authored conversations and state-driven, once-per-objective interjections. */
 export function withCompanion<T extends AdventureSession>(session: T, options: CompanionOptions): T & AdventureSession {
   const { machine, questbook } = session;
-  const memory = '/var/lib/sigkill/companion.json';
-  let seen = new Set<string>();
+  const said = (id: string): string => `aside:${id}`;
+  /*
+   * Saves from before the memory moved into the questbook kept it as a file
+   * in the player's own filesystem. Read it once, carry it over, and take the
+   * file away -- it was bookkeeping that a curious player could find and edit.
+   */
+  const legacy = '/var/lib/sigkill/companion.json';
   try {
-    const saved: unknown = JSON.parse(machine.vfs.readText(memory, ROOT_USER));
-    if (Array.isArray(saved)) seen = new Set(saved.filter((x): x is string => typeof x === 'string'));
-  } catch { /* A new run, or a save from before conversations existed. */ }
+    const saved: unknown = JSON.parse(machine.vfs.readText(legacy, ROOT_USER));
+    if (Array.isArray(saved)) {
+      for (const id of saved) if (typeof id === 'string') questbook.remember(said(id));
+    }
+    machine.vfs.unlink(legacy, ROOT_USER);
+    try { machine.vfs.rmdir('/var/lib/sigkill', ROOT_USER); } catch { /* Not empty, or not ours. */ }
+  } catch { /* No legacy memory, which is every run since. */ }
   const progress = () => {
     const objective = questbook.current(machine);
     return { id: objective?.id, step: objective && questbook.step(machine, objective)?.id };
@@ -64,13 +73,11 @@ export function withCompanion<T extends AdventureSession>(session: T, options: C
       quietTurns++;
       const suppress = talked;
       talked = false;
-      if (suppress || prior.length || !changed || quietTurns < 3 || !next.id || seen.has(next.id)) return prior;
+      if (suppress || prior.length || !changed || quietTurns < 3 || !next.id || questbook.remembers(said(next.id))) return prior;
       const aside = options.asides?.[next.id];
       if (!aside) return prior;
-      seen.add(next.id);
+      questbook.remember(said(next.id));
       quietTurns = 0;
-      machine.vfs.mkdirp('/var/lib/sigkill', ROOT_USER);
-      machine.vfs.writeText(memory, JSON.stringify([...seen]), ROOT_USER);
       return speak([aside]);
     },
   };

@@ -117,6 +117,11 @@ the editor in the *prose* — it is the humane route and usually the one a playe
 should take — and put the one-line equivalent in `command` so CI has something
 it can check.
 
+A whole file is one non-interactive command now that the shell has heredocs:
+`cat > calc.py <<'EOF'` followed by the body and `EOF` runs through the real
+shell like anything else, so a rung that hands over a short script can carry
+the script itself rather than a `printf` with escaped newlines.
+
 ---
 
 ## Validation

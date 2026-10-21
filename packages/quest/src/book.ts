@@ -28,6 +28,8 @@ export interface QuestSnapshot {
   asked: number;
   /** Objectives whose completion beat has already played. */
   announced?: string[];
+  /** What a companion has already said, so a reload does not repeat it. */
+  remembered?: string[];
 }
 
 export interface QuestbookOptions {
@@ -55,10 +57,26 @@ export class Questbook {
   private asked = 0;
   /** Objectives whose completion beat has already played. */
   private announced = new Set<string>();
+  private remembered = new Set<string>();
 
   constructor(objectives: readonly Objective[], opts: QuestbookOptions = {}) {
     this.objectives = assertObjectives(objectives);
     this.track = opts.track ?? 'operator';
+  }
+
+  /**
+   * Whether a companion has already said this.
+   *
+   * Kept here, with the save, rather than in the machine's filesystem: an
+   * aside the game has spoken is bookkeeping about the player, not part of the
+   * world, and a file for it would be something to find, read and delete.
+   */
+  remembers(key: string): boolean {
+    return this.remembered.has(key);
+  }
+
+  remember(key: string): void {
+    this.remembered.add(key);
   }
 
   /** Total rungs taken across the adventure. Zero is worth something. */
@@ -247,6 +265,7 @@ export class Questbook {
       revealed: Object.fromEntries(this.revealed),
       asked: this.asked,
       announced: [...this.announced],
+      remembered: [...this.remembered],
     };
   }
 
@@ -255,5 +274,6 @@ export class Questbook {
     this.asked = snapshot.asked;
     // Without this a restored save replays every beat the player already saw.
     this.announced = new Set(snapshot.announced ?? []);
+    this.remembered = new Set(snapshot.remembered ?? []);
   }
 }

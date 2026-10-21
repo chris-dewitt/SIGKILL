@@ -41,7 +41,7 @@
     "pyodide": "^0.28.3",
     "@playwright/test": "^1.55.0",
     "typescript": "^5.7.2",
-    "vite": "^6.4.3",
+    "vite": "^6.4.4",
     "vitest": "^4.1.11",
     "wa-sqlite": "^1.0.0"
   }

@@ -325,6 +325,11 @@ export async function run(ctx: ShellContext, input: string): Promise<RunResult> 
     return { stdout: '', stderr: `sh: syntax error: ${message}\n`, code: 2, segments: [] };
   }
 
+  // bash runs a script that ends inside a here-document, and says so.
+  if (script.unterminatedHeredoc !== undefined) {
+    err += `sh: warning: here-document delimited by end-of-file (wanted '${script.unterminatedHeredoc}')\n`;
+  }
+
   let code: number;
   try {
     code = await runScript(ctx, script, io);
@@ -779,6 +784,12 @@ async function withRedirects(
   const writes: Array<{ path: string; append: boolean; buffer: { text: string } }> = [];
 
   for (const redirect of redirects) {
+    // A here-document is the command's input, written inline. Its body is
+    // already one field -- every part is quoted -- so nothing splits it.
+    if (redirect.op === '<<') {
+      stdin = (await expandWord(redirect.target, expand)).join('');
+      continue;
+    }
     const targets = await expandWord(redirect.target, expand);
     if (targets.length !== 1) {
       io.err(`sh: ambiguous redirect\n`);
