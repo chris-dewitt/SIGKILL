@@ -76,7 +76,7 @@ export function seedShip(vfs: Vfs): void {
     '',
     'Your stay expires Thursday 09:00. I will hear you then.',
     '',
-    'Mr Merrick has filed a draft certification in your name. It is the',
+    'Ms Merrick has filed a draft certification in your name. It is the',
     'best-argued document that has crossed my desk this quarter and it is not',
     'evidence of anything except that Chief Vasquez intended something.',
     '',

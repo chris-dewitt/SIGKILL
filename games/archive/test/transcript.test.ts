@@ -40,6 +40,15 @@ const SCRIPT = [
   `sqlite3 ${CLAIMS_DB} "SELECT c.name, x.number FROM crew c LEFT JOIN certifications x ON x.crew_id = c.id WHERE c.vessel_id = 1140;" > gap.txt`,
   `sqlite3 ${CLAIMS_DB} "SELECT * FROM filings WHERE subject = 'dewitt';" >> gap.txt`,
   'cat gap.txt',
+  // What the count leaves out.
+  `sqlite3 -header -column ${CLAIMS_DB} "SELECT status, count(*) AS n FROM crew WHERE vessel_id = 1140 GROUP BY status;" > count.txt`,
+  // The registry.
+  'cat /srv/archive/README',
+  'curl -s http://registry/',
+  'curl -s http://registry/v1/vessels/KV-1140/crew',
+  'curl -s "http://registry/v1/vessels/KV-1140/crew?page=3" > registry.json',
+  'cat mail/2-hollis',
+  'yard',
   // Filing it.
   'cat /srv/archive/intake/README',
   `sqlite3 ${EVIDENCE_DB} "CREATE TABLE evidence (id INTEGER PRIMARY KEY, subject TEXT NOT NULL, source TEXT NOT NULL, detail TEXT NOT NULL); INSERT INTO evidence (subject,source,detail) VALUES ('dewitt','filings 4402','draft certification'),('dewitt','crew 5','apprentice aboard'),('NAV-7','carried','declared unmanned');"`,
@@ -49,17 +58,19 @@ const SCRIPT = [
   `sqlite3 ${CLAIMS_DB} "SELECT * FROM transits;"`,
   `sqlite3 ${CLAIMS_DB} "SELECT at, bytes, account, bound_for FROM transits ORDER BY bytes DESC LIMIT 1;" > transit.txt`,
   `sqlite3 ${CLAIMS_DB} "SELECT * FROM accounts WHERE code = 'RG-NAV7-03';"`,
-  'cat /home/pell/correspondence.txt',
+  'cat mail/3-pell',
+  'cardread carried/luna-v42.card',
+  `sqlite3 ${CLAIMS_DB} "SELECT * FROM filings WHERE subject LIKE 'LUNA%';" > luna.txt`,
   'objectives',
   'date',
 ];
 
 it('prints a transcript', async () => {
-  const { machine, questbook } = await bootArchive({ sql: new NodeSqlRuntime() });
+  const { machine, questbook, afterCommand } = await bootArchive({ sql: new NodeSqlRuntime() });
   const lines: string[] = [];
   const say = (text: string): void => { lines.push(text); };
 
-  say(spoken(coldOpen()) + '\n');
+  say(spoken(coldOpen(machine)) + '\n');
 
   for (const command of SCRIPT) {
     say(`\ndewitt@ferryman:${machine.shell.cwd}$ ${command}\n`);
@@ -70,9 +81,11 @@ it('prints a transcript', async () => {
     for (const objective of questbook.drainCompleted(machine)) {
       say(spoken(questbook.beat(objective, machine)) + '\n');
     }
+    const news = afterCommand();
+    if (news.length > 0) say(spoken(news) + '\n');
   }
 
-  if (questbook.complete(machine)) say('\n' + spoken(epilogue()) + '\n');
+  if (questbook.complete(machine)) say('\n' + spoken(epilogue(machine)) + '\n');
   else say('\n!!! NOT COMPLETE: ' +
     JSON.stringify(questbook.status(machine).filter((o) => !o.done).map((o) => o.id)) + '\n');
 

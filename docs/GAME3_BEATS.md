@@ -36,7 +36,7 @@ and rigour is a harder opponent than malice because you cannot appeal to her
 better nature — she already has one, and it is why she will not take his word.
 Her rule, delivered in the cold open:
 
-> KERR: I have read Mr Merrick's filing. It is the best-argued document that
+> KERR: I have read Ms Merrick's filing. It is the best-argued document that
 > has crossed my desk this quarter, and it is not evidence.
 >
 > KERR: You have told me a number. Anyone can tell me a number. I have a

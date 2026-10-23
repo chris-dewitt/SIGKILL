@@ -85,6 +85,11 @@ export function atlasCodepoints(): number[] {
   for (let c = 0x2500; c <= 0x257f; c++) points.push(c); // box drawing
   for (let c = 0x2580; c <= 0x259f; c++) points.push(c); // block elements
   points.push(0x2022, 0x00b7, 0x2026, 0x2190, 0x2191, 0x2192, 0x2193);
+  // What the games' own text uses. A glyph outside the atlas is drawn by the
+  // slow path, and an em dash drawn that way read as a macron on a phone.
+  points.push(0x2013, 0x2014, 0x2018, 0x2019, 0x201c, 0x201d, 0x203e, 0x203f);
+  points.push(0x00a7, 0x00b0, 0x00b1, 0x00d7, 0x02da);
+  points.push(0x25b2, 0x25b8, 0x25be, 0x25c6, 0x25c7, 0x25cf, 0x25cb, 0x25d6);
   return points;
 }
 

@@ -14,6 +14,9 @@ export type TokenType =
   | 'LT'
   | 'REDIR_ERR'
   | 'REDIR_ERR_APPEND'
+  /** `2>&1` and `>&2`: one stream pointed at wherever the other goes now. */
+  | 'DUP_ERR_TO_OUT'
+  | 'DUP_OUT_TO_ERR'
   | 'LPAREN'
   | 'RPAREN'
   /** `<<WORD` or `<<-WORD`, with its body attached once the line has ended. */
@@ -331,6 +334,25 @@ export function lex(input: string): Token[] {
 
     if (c === '#') {
       while (i < input.length && peek() !== '\n') i++;
+      continue;
+    }
+
+    // 2>&1, 1>&2 and >&2. Spelled out rather than parsed as a general
+    // descriptor syntax: these two are what every real script uses, and a
+    // shell that rejects them rejects the first thing people paste.
+    if (c === '2' && peek(1) === '>' && peek(2) === '&' && peek(3) === '1') {
+      tokens.push({ type: 'DUP_ERR_TO_OUT', text: '2>&1' });
+      i += 4;
+      continue;
+    }
+    if (c === '1' && peek(1) === '>' && peek(2) === '&' && peek(3) === '2') {
+      tokens.push({ type: 'DUP_OUT_TO_ERR', text: '1>&2' });
+      i += 4;
+      continue;
+    }
+    if (c === '>' && peek(1) === '&' && peek(2) === '2') {
+      tokens.push({ type: 'DUP_OUT_TO_ERR', text: '>&2' });
+      i += 3;
       continue;
     }
 
