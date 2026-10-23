@@ -81,6 +81,8 @@ export class TerminalRenderer {
   private readonly gutter: number;
   private readonly overscan: number;
   private font: string;
+  /** Where the fallback path puts the baseline: the atlas's, measured per frame. */
+  private baseline = 0;
   private scale = 1;
   private grid: GridSize = { cols: 20, rows: 4 };
   private originX = 0;
@@ -223,8 +225,13 @@ export class TerminalRenderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     // Only the fallback path draws text directly, but the baseline has to be
-    // set before it is needed, not inside the per-glyph loop.
-    ctx.textBaseline = 'top';
+    // set before it is needed, not inside the per-glyph loop -- and it is the
+    // atlas's baseline, or a glyph drawn this way sits higher than its
+    // neighbours. An em dash at the top of the cell read as a macron.
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = scaleFont(faceFont(this.font, 'out'), this.scale);
+    const ascent = ctx.measureText('M').actualBoundingBoxAscent || cellH * 0.75;
+    this.baseline = Math.round((cellH + ascent) / 2);
 
     const pinned = Math.min(status.length, this.grid.rows);
     for (let i = 0; i < pinned; i++) {
@@ -273,7 +280,7 @@ export class TerminalRenderer {
       // an emoji in a log. Slower, but a missing glyph would be worse.
       this.ctx.font = scaleFont(faceFont(this.font, color), this.scale);
       this.ctx.fillStyle = onCursor ? this.palette.background : this.palette[color];
-      this.ctx.fillText(ch, x, top);
+      this.ctx.fillText(ch, x, top + this.baseline);
     }
   }
 }

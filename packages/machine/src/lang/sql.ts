@@ -132,6 +132,27 @@ function expandDot(line: string): string | undefined {
   }
 }
 
+/** The options this sqlite3 implements. Anything else is refused by name. */
+const KNOWN_OPTIONS = new Set(['header', 'csv', 'column', 'version']);
+
+/**
+ * `-column`: left-aligned, two spaces between, as wide as the widest value.
+ *
+ * With `-header`, the names and a rule of dashes under them, the way the real
+ * shell lays it out. Trailing spaces are trimmed so a saved result greps the
+ * same as it reads.
+ */
+function columns(header: readonly string[] | undefined, rows: readonly (readonly string[])[]): string[] {
+  const all = header && header.length > 0 ? [header, ...rows] : rows;
+  const count = Math.max(0, ...all.map((row) => row.length));
+  const widths = Array.from({ length: count }, (_, i) => Math.max(0, ...all.map((row) => (row[i] ?? '').length)));
+  const line = (row: readonly string[]): string =>
+    row.map((value, i) => value.padEnd(widths[i] ?? 0)).join('  ').trimEnd();
+  const body = rows.map(line);
+  if (!header || header.length === 0) return body;
+  return [line(header), widths.map((w) => '-'.repeat(w)).join('  '), ...body];
+}
+
 export function sqlCommands(getRuntime: () => SqlRuntime | undefined): CommandSpec[] {
   const run: CommandSpec['run'] = async (ctx, argv, io) => {
     const runtime = getRuntime();
@@ -144,6 +165,18 @@ export function sqlCommands(getRuntime: () => SqlRuntime | undefined): CommandSp
     const switches = new Set(argv.slice(1).filter((a) => a.startsWith('-')));
     const has = (name: string): boolean => switches.has(`-${name}`) || switches.has(`--${name}`);
     const operands = argv.slice(1).filter((a) => !a.startsWith('-'));
+
+    /*
+     * An option this sqlite3 does not implement is refused, in the real
+     * tool's words. It used to be ignored, so `-box` printed pipes and the
+     * player had no way to know the flag had done nothing.
+     */
+    for (const option of switches) {
+      if (!KNOWN_OPTIONS.has(option.replace(/^--?/, ''))) {
+        io.err(`sqlite3: Error: unknown option: ${option}\nSee: man sqlite3\n`);
+        return 1;
+      }
+    }
 
     if (has('version')) {
       if (!runtime) {
@@ -226,11 +259,16 @@ export function sqlCommands(getRuntime: () => SqlRuntime | undefined): CommandSp
       return 1;
     }
 
-    const separator = has('csv') ? ',' : '|';
-    if (has('header') && result.columns.length > 0) {
-      emit(io, [result.columns.join(separator)]);
+    const rows = result.rows.map((row) => row.values.map((v) => v ?? ''));
+    if (has('column')) {
+      emit(io, columns(has('header') ? result.columns : undefined, rows));
+    } else {
+      const separator = has('csv') ? ',' : '|';
+      if (has('header') && result.columns.length > 0) {
+        emit(io, [result.columns.join(separator)]);
+      }
+      emit(io, rows.map((values) => values.join(separator)));
     }
-    emit(io, result.rows.map((row) => row.values.map((v) => v ?? '').join(separator)));
 
     /*
      * Write the database back as the player.
@@ -259,6 +297,7 @@ export function sqlCommands(getRuntime: () => SqlRuntime | undefined): CommandSp
     '\n' +
     '  -header   print column names above the rows\n' +
     '  -csv      separate with commas instead of |\n' +
+    '  -column   line the values up in columns\n' +
     '  -version  print the SQLite version\n' +
     '\n' +
     "  sqlite3 archive.db 'SELECT name FROM crew;'\n" +

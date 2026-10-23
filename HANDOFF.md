@@ -1,5 +1,34 @@
 # SIGKILL — handoff
 
+## The Archive, rebuilt, 2026-10-21
+
+Chris played the seven and called them "kinda weak": not enough story, reads
+like a tutorial, not exciting to look at or hear. This is the answer for one
+game, and the model for the other five. Details, and four calls that are
+Chris's, in [docs/GAME2_BEATS.md §12](docs/GAME2_BEATS.md).
+
+**Still to come: the cross-game feel pass** -- the pinned rows showing place
+and condition instead of a checklist, no unprompted "NEXT:", title cards,
+completion cards and per-room motifs. It was built and lost with a recycled
+container before it could be pushed, and is being rebuilt as its own PR.
+
+- **Two new objectives.** `what-the-count-leaves-out` (GROUP BY: three dead,
+  one missing, one unknown, and the claim counted the last two as nobody) and
+  `ask-the-registry` (curl, JSON and pagination against `http://registry/`, a
+  second institution that is stale and not lying). Plus the optional
+  `the-other-draft`: LUNA's card, refused by `cardread`, and filing 4403.
+- **The town writes.** Letters from Kerr, Hollis and Pell land in `~/mail`
+  as the story moves, and the yard camera (`yard`) shows NAV-7 bonded, then
+  held, then stayed. The `dewitt|` result is a framed set piece. Merrick's
+  `talk` topics are people.
+- **The pattern for the rest**: an `afterCommand` that delivers mail from
+  world state, remembered in the questbook (`games/archive/src/act1/mail.ts`);
+  a place you can look at that changes (`act1/yard.ts`); the act's one key
+  result drawn rather than printed.
+- **Engine**: `2>&1` and `>&2`; `sqlite3 -column`, and unknown options refused;
+  the glyph atlas carries the em dash, so `—` no longer reads as `¯`.
+- **Canon**: Kerr is the adjuster in both games, and Merrick is she in both.
+
 ## State of play, 2026-10-20
 
 **Seven games, all playable, and the series ends at seven** (Chris,

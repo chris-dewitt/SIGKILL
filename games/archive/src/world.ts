@@ -1,7 +1,11 @@
 import { Machine, ROOT_USER, type MachineSnapshot, type SqlRuntime, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
-import { Questbook, questCommands, type BeatLine, type QuestSnapshot } from '@sigkill/quest';
+import { asArt, Questbook, questCommands, type BeatLine, type QuestSnapshot } from '@sigkill/quest';
 import { CLAIMS_DB, SCHEMA_PATH, SCHEMA_SQL } from './act1/schema.js';
+import { BERTH_STATUS, seedYard, yardArt, yardCommands } from './act1/yard.js';
+import { CARD, cardCommands, seedCard } from './act1/card.js';
+import { deliver } from './act1/mail.js';
+import { joinTown, townNetwork } from './act1/registry.js';
 import { seedTown } from './town.js';
 import { ARCHIVE_OBJECTIVES } from './objectives.js';
 
@@ -43,11 +47,22 @@ export interface ArchiveOptions {
 export interface Archive {
   machine: Machine;
   questbook: Questbook;
+  /** The town answering back: letters that arrive as the act moves. */
+  afterCommand(): BeatLine[];
 }
 
 /** Adventure commands that must be re-attached after a restore. */
 export function archiveCommands(questbook: Questbook) {
-  return [...questCommands(questbook, { speaker: 'MERRICK' }), ...editorCommands()];
+  return [
+    ...questCommands(questbook, { speaker: 'MERRICK' }),
+    ...editorCommands(),
+    ...yardCommands(),
+    ...cardCommands(),
+  ];
+}
+
+function session(machine: Machine, questbook: Questbook): Archive {
+  return { machine, questbook, afterCommand: () => deliver(machine, questbook) };
 }
 
 /**
@@ -92,20 +107,26 @@ async function buildClaims(machine: Machine): Promise<void> {
 export async function bootArchive(opts: ArchiveOptions): Promise<Archive> {
   const track = opts.track ?? 'operator';
   const questbook = new Questbook(ARCHIVE_OBJECTIVES, { track });
+  const network = townNetwork(ARRIVAL_MS);
   const machine = new Machine({
     hostname: 'ferryman',
     epoch: ARRIVAL_MS,
     track,
     sql: opts.sql,
+    network,
     commands: archiveCommands(questbook),
   });
+  joinTown(network, machine);
 
   seedTown(machine.vfs);
+  seedYard(machine.vfs);
+  seedCard(machine.vfs);
+  questbook.remember('card:seeded');
   await buildClaims(machine);
 
   machine.shell.cwd = '/home/dewitt';
   machine.shell.env['PWD'] = '/home/dewitt';
-  return { machine, questbook };
+  return session(machine, questbook);
 }
 
 /** Bring a saved run back. The database is a file, so it comes with it. */
@@ -116,13 +137,29 @@ export function restoreArchive(
   const track = opts.track ?? 'operator';
   const questbook = new Questbook(ARCHIVE_OBJECTIVES, { track });
   questbook.restore(snap.quest);
+  // The registry is a pure function of the path, so it is rebuilt rather
+  // than saved; a save from before it existed simply gains it.
+  const network = townNetwork(ARRIVAL_MS);
   const machine = Machine.restore(snap.machine, {
     hostname: 'ferryman',
     track,
     sql: opts.sql,
+    network,
     commands: archiveCommands(questbook),
   });
-  return { machine, questbook };
+  joinTown(network, machine);
+  /*
+   * Saves from before the yard and the card existed. The yard is the town's
+   * and always comes back; the card comes back only if the player still has
+   * the folder it travels in, because a player who deleted carried/ meant it.
+   * Letters need nothing here -- any that are due arrive on the next command.
+   */
+  if (!machine.vfs.exists(BERTH_STATUS)) seedYard(machine.vfs);
+  if (!machine.vfs.exists(CARD) && machine.vfs.exists('/home/dewitt/carried') && !questbook.remembers('card:seeded')) {
+    seedCard(machine.vfs);
+  }
+  questbook.remember('card:seeded');
+  return session(machine, questbook);
 }
 
 /**
@@ -132,30 +169,51 @@ export function restoreArchive(
  * voice in game two is a person on a shift who is on DeWitt's side and
  * cannot help, which is a different kind of company and deliberately less
  * comfortable.
+ *
+ * It opens on the ship, through the yard camera, because the stake of the
+ * act is three hundred metres away and he cannot board it. The picture is
+ * the same one `yard` draws, from the same file, so the player can go back
+ * and look -- and it will have changed by the end.
  */
-export function coldOpen(): BeatLine[] {
+export function coldOpen(machine: Machine): BeatLine[] {
   return [
     "",
     "  FERRYMAN'S REST — ARCHIVE, TERMINAL 4",
     "",
+    ...asArt(yardArt(machine.vfs)),
+    "",
+    "MERRICK: That is your ship. Berth seventeen, third row. They bonded her this morning.",
     "MERRICK: NAV-7. Recovered under tow. They have listed you as cargo.",
     "MERRICK: The manifest has no box for survivors. I need a certification number.",
     "MERRICK: ... Take your time.",
     "MERRICK: Terminal four. cat README. I will deal with the queue.",
     "MERRICK: hint if you need me. I am not paying for this terminal.",
-    "",
-    "  talk: ask MERRICK about the work or the world",
   ];
 }
 
-/** What the act closes on, once the line item is found. */
-export function epilogue(): BeatLine[] {
+/**
+ * What the act closes on, once the line item is found.
+ *
+ * The yard again, because it has moved: the berth that said BONDED says STAY.
+ * Then Merrick noticing what he found, which is not the same in every run --
+ * a player who went after the card hears about it, and one who did not hears
+ * where it can be opened. Either way the card goes to the tug, which is where
+ * game three finds it.
+ */
+export function epilogue(machine: Machine): BeatLine[] {
+  const lunaFound = ARCHIVE_OBJECTIVES.find((o) => o.id === 'the-other-draft')?.done(machine) === true;
   return [
-    'MERRICK: Filed before Thursday. It buys us a stay while the adjuster reads it.',
-    'MERRICK: A draft in Vasquez\'s name. A transfer billed to your grant. Keep both.',
+    '',
+    ...asArt(yardArt(machine.vfs)),
+    '',
+    'MERRICK: Filed before Thursday. It buys us a stay while Kerr reads it.',
+    "MERRICK: A draft in Vasquez's name. Hours she signed off. A transfer billed to the grant. Keep all of it.",
+    'MERRICK: Whatever left at four twelve, the lane was paid to carry it. Somebody chose that.',
+    ...(lunaFound
+      ? ['MERRICK: And take that card to the tug. Two of her drafts are enough for one week.']
+      : ["MERRICK: The card in your bag. The reader here will not take it. Hollis's galley is not a public terminal."]),
     'MERRICK: Hollis has a berth for you. Eat something before you argue with anyone else.',
     '', '  THE ARCHIVE — COMPLETE',
     '  Keep exploring, or type games for The Harness.', '',
   ];
 }
-
