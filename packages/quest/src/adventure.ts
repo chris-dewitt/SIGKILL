@@ -55,6 +55,24 @@ export interface AdventureSession {
    */
   afterCommand?(): BeatLine[];
   /**
+   * Let the world take its own turn, before anything is checked.
+   *
+   * `afterCommand` speaks after the objective beats, which is right for a
+   * companion reacting to what just closed and wrong for a world that moves by
+   * itself. The finale has agents: a clerk that files what arrives and a relay
+   * that writes to it, each acting once per command. If they acted in
+   * `afterCommand`, an objective they completed would be announced one command
+   * late, under the output of something unrelated.
+   *
+   * So the host calls this first, after the command and the clock, and before
+   * it asks which objectives closed. Whatever it returns is printed ahead of
+   * the beats -- the clerk filed the exhibit, then LUNA remarks on it. A route
+   * harness that wants to play the same game calls it too.
+   *
+   * Optional. Six adventures have no world that moves on its own.
+   */
+  turn?(): BeatLine[];
+  /**
    * Save the world, when one machine is not the world.
    *
    * The host used to call `machine.snapshot()` itself, which was right for as

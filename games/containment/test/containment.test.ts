@@ -40,8 +40,8 @@ describe('the act is structurally sound', () => {
     expect(problems, problems.join('\n')).toEqual([]);
   });
 
-  it('ships nine required and two optional', () => {
-    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(9);
+  it('ships twelve required and two optional', () => {
+    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(12);
     expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional === true)).toHaveLength(2);
   });
 

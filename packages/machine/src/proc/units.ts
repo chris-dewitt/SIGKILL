@@ -57,6 +57,7 @@ export function loadUnit(vfs: Vfs, name: string): Unit | undefined {
       description: ini['Unit']?.['Description'] ?? base,
       execStart: ini['Service']?.['ExecStart'] ?? '',
       restart: ini['Service']?.['Restart'] ?? 'no',
+      ...(ini['Service']?.['User'] ? { user: ini['Service']['User'] } : {}),
       requires: unitList(ini['Unit']?.['Requires']),
       after: unitList(ini['Unit']?.['After']),
       wantedBy: ini['Install']?.['WantedBy'] ?? '',

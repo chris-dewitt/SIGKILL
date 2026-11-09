@@ -59,6 +59,14 @@ export interface Unit {
   /** `Restart=` — parsed and reported, not yet acted on. */
   restart: string;
   /**
+   * `User=` — the account the unit's process runs as. Absent means root.
+   *
+   * Honoured, because `ps` shows a uid and `kill` checks it: a unit that said
+   * `User=relay` and ran as root would hand the player a process table that
+   * lies about who owns what, and a permission error from the wrong account.
+   */
+  user?: string;
+  /**
    * `Requires=` — units that must be active before this one may start.
    *
    * A hard dependency: starting this unit while one of these is not active is

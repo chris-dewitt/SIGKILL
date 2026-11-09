@@ -1,6 +1,7 @@
 import type { CommandSpec } from '../shell/exec.js';
 import { isFsError } from '../errors.js';
 import { emit, expandTree, lines, parseArgs, readInputs, takeCountOperand, usage } from './helpers.js';
+import { sha256 } from './sha256.js';
 
 export const textCommands: CommandSpec[] = [
   {
@@ -232,6 +233,46 @@ export const textCommands: CommandSpec[] = [
         out.push(...all.slice(Math.max(0, all.length - count)));
       }
       emit(io, out);
+      return code;
+    },
+  },
+
+  {
+    name: 'sha256sum',
+    summary: 'print the SHA-256 digest of files',
+    manual:
+      'sha256sum [FILE...]\n\n' +
+      'Print the SHA-256 digest of each FILE, then its name. With no FILE, or\n' +
+      'when FILE is -, read standard input.\n\n' +
+      'Two files with the same digest have the same bytes. That is the whole\n' +
+      'use of it: a name can be changed and a size can coincide, and neither\n' +
+      'says whether two files are one file. A digest does.',
+    plain:
+      'Prints a long fingerprint for a file -- 64 letters and digits.\n' +
+      '  sha256sum weights.bin\n' +
+      'Change one byte and the fingerprint is completely different. If two\n' +
+      'files have the same fingerprint, they are the same file, whatever they\n' +
+      'are called.',
+    run: (ctx, argv, io) => {
+      const { operands } = parseArgs(argv);
+      const enc = new TextEncoder();
+      if (operands.length === 0) {
+        io.out(`${sha256(enc.encode(io.stdin))}  -\n`);
+        return 0;
+      }
+      let code = 0;
+      for (const operand of operands) {
+        if (operand === '-') {
+          io.out(`${sha256(enc.encode(io.stdin))}  -\n`);
+          continue;
+        }
+        try {
+          io.out(`${sha256(ctx.vfs.read(ctx.resolve(operand), ctx.user))}  ${operand}\n`);
+        } catch (e) {
+          io.err(`sha256sum: ${operand}: ${isFsError(e) ? e.reason : String(e)}\n`);
+          code = 1;
+        }
+      }
       return code;
     },
   },

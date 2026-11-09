@@ -210,13 +210,46 @@ export class ServiceManager {
       return { ok: false, reason: verdict.reason };
     }
 
-    const process = this.procs.spawn(unit.execStart.split(/\s+/), { uid: 0, unit: unit.name });
+    let uid = 0;
+    if (unit.user !== undefined) {
+      const found = this.uidOf(unit.user);
+      if (found === undefined) {
+        // systemd's own refusal, near enough: status=217/USER.
+        const reason = `Failed to determine user credentials: No such process (User=${unit.user})`;
+        r.state = 'failed';
+        r.error = reason;
+        r.since = this.now();
+        delete r.pid;
+        this.log(unit.name, reason);
+        this.log(unit.name, 'Failed to start ' + unit.description + '.');
+        return { ok: false, reason };
+      }
+      uid = found;
+    }
+    const process = this.procs.spawn(unit.execStart.split(/\s+/), { uid, unit: unit.name });
     r.state = 'active';
     r.pid = process.pid;
     r.since = this.now();
     delete r.error;
     this.log(unit.name, `Started ${unit.description}.`);
     return { ok: true };
+  }
+
+  /** A user's uid from /etc/passwd, the way every other lookup aboard does it. */
+  private uidOf(name: string): number | undefined {
+    if (name === 'root') return 0;
+    if (/^\d+$/.test(name)) return Number(name);
+    let text: string;
+    try {
+      text = this.vfs.readText('/etc/passwd', ROOT_USER);
+    } catch {
+      return undefined;
+    }
+    for (const line of text.split('\n')) {
+      const fields = line.split(':');
+      if (fields[0] === name && fields[2] !== undefined && /^\d+$/.test(fields[2])) return Number(fields[2]);
+    }
+    return undefined;
   }
 
   stop(name: string): ServiceResult {

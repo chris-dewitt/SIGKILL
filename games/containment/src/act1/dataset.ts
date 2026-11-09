@@ -189,10 +189,22 @@ export function buildDataset(): Dataset {
   }
   for (let i = train.length; i < TRAIN_ROWS; i++) {
     const isCrewed = i % 83 === 0;
+    /*
+     * A crewed training row is drawn from exactly the same columns as an
+     * abandoned one. That is the repass's finding, made true of the data
+     * rather than claimed about it: nothing in a filing measures whether
+     * anyone is aboard, so a model trained honestly on these rows can learn
+     * the base rate and nothing else.
+     *
+     * These used to be research vessels under PRIV-7, every one, which gave
+     * an honest model a real signal the act then said did not exist. The four
+     * numbers the act turns on are all computed from the test split, which is
+     * built above and does not move.
+     */
     train.push({
       id: `R${String(i + 1).padStart(4, '0')}`,
-      filing: isCrewed ? 'research' : FILINGS[Math.floor(random() * FILINGS.length)]!,
-      grant: isCrewed ? 'PRIV-7' : GRANTS[Math.floor(random() * GRANTS.length)]!,
+      filing: FILINGS[Math.floor(random() * FILINGS.length)]!,
+      grant: GRANTS[Math.floor(random() * GRANTS.length)]!,
       transits: Math.floor(random() * 40),
       lastFiling: Math.floor(random() * 900),
       truth: isCrewed ? 'crewed' : 'abandoned',

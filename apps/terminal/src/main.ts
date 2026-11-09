@@ -957,7 +957,9 @@ const SILENT: AudioState = { scene: 'silent', scrubber: false, monitor: false, b
 
 function playBeats(): void {
   let closed = false;
-  const spoken: BeatLine[] = [];
+  // The world's own turn first: an agent that files something can close an
+  // objective, and that has to be announced now rather than one command late.
+  const spoken: BeatLine[] = [...(session.turn?.() ?? [])];
   for (const objective of questbook.drainCompleted(machine)) {
     // The hull turning out to be open is the one piece of good news that is
     // also bad news, so it gets the alarm rather than the chime.

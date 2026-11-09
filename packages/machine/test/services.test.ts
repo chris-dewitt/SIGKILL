@@ -307,3 +307,43 @@ describe('Act I, end to end', () => {
     expect(goal(m)).toBe(false);
   });
 });
+
+describe('User=', () => {
+  const UNIT = (user: string): string =>
+    ['[Unit]', 'Description=Registry relay', '', '[Service]', 'ExecStart=/opt/relay/bin/agent', `User=${user}`, ''].join('\n');
+
+  function machine(user: string): Machine {
+    const m = new Machine({ hostname: 'annexe' });
+    m.vfs.mkdirp('/etc/systemd/system', ROOT_USER);
+    m.vfs.writeText('/etc/passwd', 'root:x:0:0::/root:/bin/sh\nrelay:x:4300:4300::/opt/relay:/bin/sh\n', ROOT_USER);
+    m.vfs.writeText('/etc/systemd/system/relay.service', UNIT(user), ROOT_USER);
+    return m;
+  }
+
+  it('runs the process as that account, so ps and kill tell the truth', async () => {
+    const m = machine('relay');
+    expect(m.services.start('relay').ok).toBe(true);
+    const proc = m.procs.byUnit('relay')[0]!;
+    expect(proc.uid).toBe(4300);
+
+    // dewitt may not kill it, and neither could he if it ran as root -- but
+    // the error is now about the account the unit actually names.
+    const r = await m.exec(`kill ${proc.pid}`);
+    expect(r.stderr).toContain('Operation not permitted');
+  });
+
+  it('refuses to start as an account that does not exist, and says which', () => {
+    const m = machine('nobody-here');
+    const result = m.services.start('relay');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('User=nobody-here');
+    expect(m.services.get('relay')!.state).toBe('failed');
+  });
+
+  it('leaves a unit without User= running as root, as before', () => {
+    const m = machine('relay');
+    m.vfs.writeText('/etc/systemd/system/plain.service', '[Service]\nExecStart=/bin/plain\n', ROOT_USER);
+    m.services.start('plain');
+    expect(m.procs.byUnit('plain')[0]!.uid).toBe(0);
+  });
+});

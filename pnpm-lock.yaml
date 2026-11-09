@@ -285,6 +285,19 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
 
+  packages/agent:
+    dependencies:
+      '@sigkill/machine':
+        specifier: workspace:*
+        version: link:../machine
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@22.20.2)(vite@6.4.4(@types/node@22.20.2))
+
   packages/ascii:
     devDependencies:
       typescript:

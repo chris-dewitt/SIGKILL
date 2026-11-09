@@ -152,6 +152,35 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
     user,
   );
 
+  /*
+   * The insurer's answer, on disk from the start for the same reason Oduya's
+   * is: the other side's case is not a prize. Kerr points at it when
+   * objective eight closes, which is when the player can first argue with it.
+   *
+   * It is a good answer, and the repass is built on taking it seriously. If
+   * no classifier could have done better, that is testable -- and testing it
+   * means building one.
+   */
+  vfs.writeText(
+    `${DISCLOSURE}/RESPONSE`,
+    lines(
+      'Response of the insurer to the disclosure, filed through counsel.',
+      '',
+      'The claimant will say the classifier was poor. We do not concede it,',
+      'and it does not matter.',
+      '',
+      'The determination was made from the records available on the morning',
+      'of the sixth. No classifier could have done better from those records.',
+      'The determination was therefore the best available, and a salvage',
+      'claim resting on the best available determination is sound.',
+      '',
+      'If the claimant believes a better determination was possible, the',
+      'claimant may produce one.',
+      '',
+    ),
+    user,
+  );
+
   vfs.writeText(
     `${DISCLOSURE}/NAV7.row`,
     lines(
@@ -175,6 +204,7 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
       `  ${HOME}/KERR                what she will and will not do`,
       `  ${DISCLOSURE}/report.md     the vendor's own evaluation`,
       `  ${DISCLOSURE}/ODUYA         her written answer`,
+      `  ${DISCLOSURE}/RESPONSE      the insurer's answer, filed in reply`,
       `  ${DISCLOSURE}/NAV7.row      the row the tow rests on`,
       `  ${DISCLOSURE}/train.csv     2000 filings`,
       `  ${DISCLOSURE}/test.csv      500 held back`,
