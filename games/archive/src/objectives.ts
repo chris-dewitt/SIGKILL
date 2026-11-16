@@ -1,6 +1,9 @@
 import { ROOT_USER } from '@sigkill/machine';
-import type { Objective, World } from '@sigkill/quest';
+import { frame } from '@sigkill/ascii';
+import { asArt, type Objective, type World } from '@sigkill/quest';
 import { CLAIMS_DB } from './act1/schema.js';
+import { CARD } from './act1/card.js';
+import { CREW_ENDPOINT, REGISTRY_URL } from './act1/registry.js';
 
 /**
  * The Archive: the ladders.
@@ -108,6 +111,85 @@ const DRAFT = /4402|apprenticeship complete/i;
  */
 const CREW_NAMES = [/vasquez/i, /chen/i, /okonkwo/i, /bowen/i];
 const GRANT_ACCOUNT = /RG-NAV7-03/i;
+
+/**
+ * The act's emotional centre, as a set piece.
+ *
+ * It used to be seven lines of pipe-separated output and three lines of
+ * Merrick, and it read like the other four completions. It is the one result
+ * set the whole act exists for -- four names with numbers and one with
+ * nothing -- so it gets drawn: the crew as the archive holds them, the empty
+ * field left visibly empty, and the draft framed underneath as the thing that
+ * stands in for him. Then Merrick, for longer than anywhere else, because
+ * this is the moment a clerk stops reading from a screen.
+ *
+ * The player has already seen the rows in their own output. This is not
+ * telling them the answer; it is the game noticing that they found it.
+ */
+const THE_HOLE = [
+  '',
+  ...asArt(frame([
+    'vasquez   KV-4471-E',
+    'chen      KV-2210-M',
+    'okonkwo   KV-9938-C',
+    'bowen     KV-1174-N',
+    'dewitt',
+  ], { style: 'light', title: 'vessel 1140' })),
+  '',
+  ...asArt(frame([
+    'filing 4402   draft',
+    'certification: dewitt',
+    'opened 2398-05-28 by vasquez',
+    '',
+    '"apprenticeship complete,',
+    ' filing at end of rotation"',
+  ], { style: 'double' })),
+  '',
+  'MERRICK: Twenty-eighth of May. Apprenticeship complete.',
+  'MERRICK: She had already decided about you. She was waiting for a date.',
+  'MERRICK: ...',
+  'MERRICK: I have read that table forty times this week. I never once asked it for a draft.',
+  'MERRICK: Nobody deleted you. They never finished adding you.',
+  'MERRICK: The archive cannot tell those two apart. Kerr can, if it is a row.',
+  'MERRICK: Keep that draft.',
+  '',
+];
+
+/**
+ * LUNA's registration, which is the second of Vasquez's drafts.
+ *
+ * Both patterns in one file of the player's, as with every finding here. The
+ * card itself says LUNA V42 and is in his home directory from boot, so the
+ * model name alone proves nothing; it is the filing number next to it that
+ * means he went and looked.
+ */
+const LUNA_FILING = /4403/;
+const LUNA_NAME = /LUNA V42/i;
+
+/**
+ * A tally: a line that is a label and a count and nothing else.
+ *
+ * `deceased|3` from GROUP BY, `      3 deceased` from `uniq -c`, `deceased  3`
+ * from `-column`. Whole lines only, because the crew table itself has a row
+ * `3|1140|okonkwo|cargo|KV-7714|deceased` -- a 3 and the word on one line,
+ * which is a person rather than a count, and the first draft of this goal
+ * accepted it.
+ */
+function tally(label: string, n: number): RegExp {
+  const sep = '[\\s|,]';
+  return new RegExp(`^${sep}*(?:${label}${sep}+${n}|${n}${sep}+${label})${sep}*$`, 'mi');
+}
+const DECEASED_3 = tally('deceased', 3);
+const UNKNOWN_1 = tally('unknown', 1);
+
+/**
+ * His hours, from the registry, next to his name or his number.
+ *
+ * 2140 appears nowhere in the archive: it lives only behind the registry's
+ * last page, so a file holding it is a file that came from asking.
+ */
+const HOURS = /\b2140\b/;
+const HIM = /dewitt|KV-9902/i;
 
 export const ARCHIVE_OBJECTIVES: readonly Objective[] = [
   {
@@ -394,20 +476,7 @@ export const ARCHIVE_OBJECTIVES: readonly Objective[] = [
         because: 'that you are missing is the claim against you; why is the answer to it',
       },
     ],
-    onComplete: [
-      '  vasquez|KV-4471-E',
-      '  chen|KV-2210-M',
-      '  okonkwo|KV-9938-C',
-      '  bowen|KV-1174-N',
-      '  dewitt|',
-      '  4402|certification|dewitt|vasquez|draft|2398-05-28|',
-      '  apprenticeship complete, filing at end of rotation -- RV',
-      "",
-      "MERRICK: Vasquez started your certificate. She meant to file it at the end of the rotation.",
-      "MERRICK: Nobody deleted you. They never finished adding you.",
-      "MERRICK: Keep that draft.",
-      "",
-    ],
+    onComplete: THE_HOLE,
     steps: [
       {
         id: 'find-the-hole',
@@ -476,10 +545,244 @@ export const ARCHIVE_OBJECTIVES: readonly Objective[] = [
     ],
   },
 
+
+  /*
+   * The count, and what it leaves out.
+   *
+   * Zero survivors is an aggregate, and an aggregate is a decision about what
+   * to count. Grouping the crew by status shows the claim's zero standing on
+   * three deceased, one missing and one unknown -- and missing and unknown
+   * are not dead. One of them is Bowen, whose heading he carried off the
+   * ship. The other is him.
+   */
+  {
+    id: 'what-the-count-leaves-out',
+    title: 'Find out what the survivor count did not count',
+    requires: ['the-row-that-was-never-written'],
+    done: (w) => wroteTogether(w, DECEASED_3, UNKNOWN_1),
+    teaches: ['sqlite3', 'GROUP BY', 'count(*)', 'uniq'],
+    routes: [
+      {
+        name: 'group the crew by status',
+        commands: [
+          `sqlite3 ${CLAIMS_DB} "SELECT status, count(*) FROM crew WHERE vessel_id = 1140 ` +
+            'GROUP BY status;" > /home/dewitt/count.txt',
+        ],
+      },
+      {
+        name: 'let the shell count',
+        commands: [
+          `sqlite3 ${CLAIMS_DB} "SELECT status FROM crew WHERE vessel_id = 1140;" | sort | uniq -c ` +
+            '> /home/dewitt/count.txt',
+        ],
+      },
+      {
+        name: 'one count at a time, labelled',
+        commands: [
+          `sqlite3 ${CLAIMS_DB} "SELECT 'deceased', count(*) FROM crew WHERE vessel_id = 1140 ` +
+            `AND status = 'deceased';" > /home/dewitt/count.txt`,
+          `sqlite3 ${CLAIMS_DB} "SELECT 'unknown', count(*) FROM crew WHERE vessel_id = 1140 ` +
+            `AND status = 'unknown';" >> /home/dewitt/count.txt`,
+        ],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'the statuses without the counts',
+        commands: [`sqlite3 ${CLAIMS_DB} "SELECT * FROM crew WHERE vessel_id = 1140;" > /home/dewitt/count.txt`],
+        because: 'five rows of people; a count is a number per kind, and nobody has added these up',
+      },
+      {
+        name: 'one number for everybody',
+        commands: [`sqlite3 ${CLAIMS_DB} "SELECT count(*) FROM crew WHERE vessel_id = 1140;" > /home/dewitt/count.txt`],
+        because: 'five aboard is true and hides the same thing the zero does',
+      },
+    ],
+    onComplete: [
+      '  deceased|3',
+      '  missing|1',
+      '  unknown|1',
+      '',
+      'MERRICK: Three dead. One missing. One unknown.',
+      'MERRICK: The form had two boxes, dead and survived. Missing and unknown went in neither, and nothing counts as zero.',
+      'MERRICK: Unknown is you. Missing is Bowen.',
+      'MERRICK: ... Missing is not dead either.',
+      'MERRICK: The archive copies certifications from the registry every night. The registry keeps things we do not.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'group-them',
+        label: 'count the crew by what the archive says became of them',
+        pending: (w) => !wroteTogether(w, DECEASED_3, UNKNOWN_1),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'Zero survivors is a count. Every count is a decision about',
+              'what goes in which pile.',
+              '',
+              'The crew table has a status column. How many are in each?',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'count(*) counts rows. GROUP BY splits the rows into piles first',
+              'and counts each pile:',
+              '',
+              '    SELECT status, count(*) FROM crew',
+              '    WHERE vessel_id = 1140',
+              '    GROUP BY status;',
+              '',
+              'One line per status, with how many. Keep it in a file.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'GROUP BY status with a count, for vessel 1140. Or pull the',
+              'statuses and let sort and uniq -c do the counting.',
+              '',
+              'Keep the result. Look at which piles are not "deceased".',
+            ],
+          },
+          {
+            tier: 'command',
+            command:
+              `sqlite3 ${CLAIMS_DB} "SELECT status, count(*) FROM crew WHERE vessel_id = 1140 ` +
+              'GROUP BY status;" > /home/dewitt/count.txt',
+            lines: [
+              'Each status, counted:',
+              '',
+              `    sqlite3 ${CLAIMS_DB} \\`,
+              '      "SELECT status, count(*) FROM crew \\',
+              '       WHERE vessel_id = 1140 GROUP BY status;" \\',
+              '      > /home/dewitt/count.txt',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  /*
+   * The registry: a second source, behind an API.
+   *
+   * It says everyone on NAV-7 is active, as of the evening before -- stale,
+   * confident, and not wrong about what it was told. On its last page it has
+   * the one thing the archive does not: his hours, logged, assessed by
+   * Vasquez, complete. Paginated, and he is on the last page, because
+   * reading page one and stopping is how an API misleads you by being
+   * correct.
+   */
+  {
+    id: 'ask-the-registry',
+    title: 'Ask the certification registry what it has on you',
+    requires: ['what-the-count-leaves-out'],
+    done: (w) => wroteTogether(w, HOURS, HIM),
+    teaches: ['curl', 'grep', 'JSON', 'API pagination'],
+    routes: [
+      {
+        name: 'read to the last page and keep it',
+        commands: [`curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=3" > /home/dewitt/registry.json`],
+      },
+      {
+        name: 'every page into one file',
+        commands: [
+          `curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=1" > /home/dewitt/registry.json`,
+          `curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=2" >> /home/dewitt/registry.json`,
+          `curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=3" >> /home/dewitt/registry.json`,
+        ],
+      },
+      {
+        name: 'just his line',
+        commands: [`curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=3" | grep dewitt > /home/dewitt/me.txt`],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'the first page, which is all curl shows you',
+        commands: [`curl -s ${REGISTRY_URL}${CREW_ENDPOINT} > /home/dewitt/registry.json`],
+        because: 'page one of three; the "next" field is the API saying there is more',
+      },
+      {
+        name: 'his certificate, which does not exist',
+        commands: [`curl -s ${REGISTRY_URL}/v1/certificates/KV-9902 > /home/dewitt/registry.json`],
+        because: 'KV-9902 is his engagement number, and asking for a certificate he never got returns the error',
+      },
+    ],
+    onComplete: [
+      '  "name": "dewitt", "status": "active", "certificate": null,',
+      '  "hours_logged": 2140, "hours_required": 2000,',
+      '  "assessed_by": "vasquez", "assessment": "complete"',
+      '',
+      'MERRICK: Two thousand one hundred and forty hours. She assessed you herself.',
+      'MERRICK: And it has all five of them as active. As of the evening before.',
+      'MERRICK: The registry is not lying and neither is the archive. They were last told different things.',
+      'MERRICK: Now you have three things nobody can argue with. Put them where intake can read them.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'page-through',
+        label: 'get your own record out of the registry and keep it',
+        pending: (w) => !wroteTogether(w, HOURS, HIM),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The registry is a service, not a file. curl asks a service',
+              'for a page:',
+              '',
+              `    curl ${REGISTRY_URL}/`,
+              '',
+              'It lists what it can answer.',
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'An API answers in JSON: names in quotes, a colon, a value. A',
+              'long answer comes in pages, and each page says where the next',
+              'one is:',
+              '',
+              '    "page": 1,',
+              '    "pages": 3,',
+              `    "next": "${CREW_ENDPOINT}?page=2"`,
+              '',
+              'Put ?page=2 on the end of the address to get the next one.',
+              'Quote the whole address, so the shell leaves the ? alone.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              `The crew list is ${CREW_ENDPOINT}, and it is paginated.`,
+              'Read every page -- you are not on the first one -- and keep',
+              'the record that is yours.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: `curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=3" > /home/dewitt/registry.json`,
+            lines: [
+              'The last page, kept:',
+              '',
+              `    curl -s "${REGISTRY_URL}${CREW_ENDPOINT}?page=3" \\`,
+              '      > /home/dewitt/registry.json',
+            ],
+          },
+        ],
+      },
+    ],
+  },
   {
     id: 'file-the-evidence',
     title: 'Turn what you have into something the archive accepts',
-    requires: ['the-row-that-was-never-written'],
+    requires: ['ask-the-registry'],
     done: evidenceFiled,
     teaches: ['sqlite3', 'cat', 'ls'],
     routes: [
@@ -733,5 +1036,117 @@ export const ARCHIVE_OBJECTIVES: readonly Objective[] = [
       },
     ],
   },
-];
 
+  /*
+   * Optional: the other draft.
+   *
+   * The card reader refuses LUNA's card for want of a registration, and the
+   * registration is filing 4403 -- Vasquez again, started and never filed, in
+   * the same table as his own. Nothing in the act needs it. It is here so
+   * the companion who wakes up on Hollis's tug in game three arrives with a
+   * history the player can have found, and so the person who left two people
+   * half-written gets seen doing it twice.
+   */
+  {
+    id: 'the-other-draft',
+    title: 'Find out why the card reader will not load LUNA',
+    optional: true,
+    requires: ['read-the-claim'],
+    done: (w) => wroteTogether(w, LUNA_FILING, LUNA_NAME),
+    teaches: ['sqlite3', 'grep', 'LIKE'],
+    routes: [
+      {
+        name: 'ask filings for her by name',
+        commands: [
+          `sqlite3 ${CLAIMS_DB} "SELECT * FROM filings WHERE subject LIKE 'LUNA%';" > /home/dewitt/luna.txt`,
+        ],
+      },
+      {
+        name: 'every registration the archive has',
+        commands: [
+          `sqlite3 ${CLAIMS_DB} "SELECT id, subject, author, state, note FROM filings ` +
+            `WHERE kind = 'registration';" > /home/dewitt/registrations.txt`,
+        ],
+      },
+      {
+        name: 'the schema is readable, so read it',
+        commands: ['grep LUNA /srv/archive/schema.sql > /home/dewitt/luna.txt'],
+      },
+    ],
+    nearMisses: [
+      {
+        name: 'keep the refusal',
+        commands: [`cardread ${CARD} > /home/dewitt/luna.txt 2>&1`],
+        because: 'the reader says what is missing, not where the draft of it is',
+      },
+      {
+        name: 'his own draft, again',
+        commands: [
+          `sqlite3 ${CLAIMS_DB} "SELECT * FROM filings WHERE subject = 'dewitt';" > /home/dewitt/luna.txt`,
+        ],
+        because: 'that is filing 4402, which is about him; the card is about her',
+      },
+    ],
+    onComplete: [
+      '  4403|registration|LUNA V42|vasquez|draft|2398-03-02',
+      '  unauthorised research instance, will square this away eventually',
+      '',
+      'MERRICK: Two drafts in one drawer. One for you and one for her.',
+      'MERRICK: I cannot load an unregistered instance on a public terminal. That is not my rule, but it is my terminal.',
+      'MERRICK: I can tell you that a tug\'s galley is not a public terminal. That is a fact about galleys.',
+      '',
+    ],
+    steps: [
+      {
+        id: 'find-the-draft',
+        label: 'find out what the archive has on the model on that card',
+        pending: (w) => !wroteTogether(w, LUNA_FILING, LUNA_NAME),
+        rungs: [
+          {
+            tier: 'nudge',
+            lines: [
+              'The card reader said registration. Registrations are filings.',
+              '',
+              `    cardread ${CARD}`,
+              `    sqlite3 ${CLAIMS_DB} ".schema filings"`,
+            ],
+          },
+          {
+            tier: 'direction',
+            track: 'cadet',
+            lines: [
+              'You looked in filings for your own name with WHERE subject =.',
+              'Her name is on the card: LUNA V42.',
+              '',
+              'If you are not sure how a name is written in a table, LIKE',
+              'matches a pattern instead of an exact value. % means "anything',
+              'here":',
+              '',
+              "    SELECT * FROM filings WHERE subject LIKE 'LUNA%';",
+              '',
+              'Keep what comes back in a file.',
+            ],
+          },
+          {
+            tier: 'direction',
+            lines: [
+              'Ask filings for registrations, or for a subject like LUNA, and',
+              'keep the row. The filing number is the part worth having.',
+            ],
+          },
+          {
+            tier: 'command',
+            command: `sqlite3 ${CLAIMS_DB} "SELECT * FROM filings WHERE subject LIKE 'LUNA%';" > /home/dewitt/luna.txt`,
+            lines: [
+              'Her filing, kept:',
+              '',
+              `    sqlite3 ${CLAIMS_DB} \\`,
+              '      "SELECT * FROM filings WHERE subject LIKE \'LUNA%\';" \\',
+              '      > /home/dewitt/luna.txt',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+];

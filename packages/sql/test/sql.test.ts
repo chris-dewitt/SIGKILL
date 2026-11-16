@@ -146,6 +146,25 @@ describe('input routes', () => {
     expect((await m.exec('sqlite3 -csv archive.db "SELECT a, b FROM t;"')).stdout).toBe('x,y\n');
   });
 
+  it('-column lines values up, with a rule under the header', async () => {
+    const m = ship();
+    await m.exec("sqlite3 archive.db \"CREATE TABLE t(status,n); INSERT INTO t VALUES ('deceased',3),('unknown',1);\"");
+    expect((await m.exec('sqlite3 -column archive.db "SELECT status, n FROM t;"')).stdout).toBe(
+      'deceased  3\nunknown   1\n',
+    );
+    expect((await m.exec('sqlite3 -header -column archive.db "SELECT status, n FROM t;"')).stdout).toBe(
+      'status    n\n--------  -\ndeceased  3\nunknown   1\n',
+    );
+  });
+
+  it('refuses an option it does not implement, rather than ignoring it', async () => {
+    const m = ship();
+    await m.exec("sqlite3 archive.db 'CREATE TABLE t(a);'");
+    const r = await m.exec('sqlite3 -box archive.db "SELECT * FROM t;"');
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('unknown option: -box');
+  });
+
   it('says plainly that there is no interactive shell', async () => {
     const m = ship();
     const r = await m.exec('sqlite3 archive.db');

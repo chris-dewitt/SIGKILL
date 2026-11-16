@@ -11,11 +11,11 @@ export interface Word {
   parts: WordPart[];
 }
 
-export type RedirectOp = '>' | '>>' | '<' | '2>' | '2>>' | '<<';
+export type RedirectOp = '>' | '>>' | '<' | '2>' | '2>>' | '<<' | '2>&1' | '>&2';
 
 export interface Redirect {
   op: RedirectOp;
-  /** For `<<`, the here-document's body rather than a filename. */
+  /** For `<<`, the here-document's body rather than a filename. Empty for a duplication. */
   target: Word;
 }
 

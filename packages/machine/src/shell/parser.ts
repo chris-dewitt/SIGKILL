@@ -126,6 +126,11 @@ class Parser {
         out.push({ op: '<<', target: this.next().heredoc!.body });
         continue;
       }
+      if (this.at('DUP_ERR_TO_OUT') || this.at('DUP_OUT_TO_ERR')) {
+        const op = this.next().type === 'DUP_ERR_TO_OUT' ? '2>&1' : '>&2';
+        out.push({ op, target: { parts: [] } });
+        continue;
+      }
       const op = REDIRECTS[this.peek().type];
       if (!op) break;
       this.next();

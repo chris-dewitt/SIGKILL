@@ -145,6 +145,14 @@ describe('the act can be finished', () => {
         'ON x.crew_id = c.id WHERE c.vessel_id = 1140;" > gap.txt',
     );
     await run(`sqlite3 ${CLAIMS_DB} "SELECT * FROM filings WHERE subject = 'dewitt';" >> gap.txt`);
+    await run(
+      `sqlite3 ${CLAIMS_DB} "SELECT status, count(*) FROM crew WHERE vessel_id = 1140 GROUP BY status;" > count.txt`,
+    );
+    // The registry is named in the archive's own README; its root lists the endpoints.
+    expect(await run('cat /srv/archive/README')).toContain('http://registry/');
+    expect(await run('curl -s http://registry/')).toContain('/v1/vessels/KV-1140/crew');
+    expect(await run('curl -s http://registry/v1/vessels/KV-1140/crew')).toContain('"pages": 3');
+    await run('curl -s "http://registry/v1/vessels/KV-1140/crew?page=3" > registry.json');
 
     expect(await run('cat /srv/archive/intake/README')).toContain('CREATE TABLE evidence');
     await run(
@@ -162,9 +170,17 @@ describe('the act can be finished', () => {
     expect(questbook.hintsTaken).toBe(0);
   }, 120_000);
 
-  it('has an opening and an ending, and they do not repeat each other', () => {
-    const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
-    const close = epilogue().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
+  /*
+   * The words, not the pictures. Both open on the yard camera on purpose --
+   * the ending is the same berth with a different status under it -- so only
+   * what is said has to be different.
+   */
+  it('has an opening and an ending, and they do not repeat each other', async () => {
+    const { machine } = await boot();
+    const prose = (lines: ReturnType<typeof coldOpen>): string =>
+      lines.filter((l): l is string => typeof l === 'string').join('\n');
+    const open = prose(coldOpen(machine));
+    const close = prose(epilogue(machine));
     expect(open).toContain('listed you as cargo');
     expect(close).toContain('THE ARCHIVE — COMPLETE');
     const shared = open.split('\n').filter((l) => l.trim().length > 20 && close.includes(l));

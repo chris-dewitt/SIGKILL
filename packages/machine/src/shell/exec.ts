@@ -790,6 +790,20 @@ async function withRedirects(
       stdin = (await expandWord(redirect.target, expand)).join('');
       continue;
     }
+    /*
+     * Duplication copies where the other stream points *now*, which is why
+     * order matters: `> f 2>&1` sends both to f, and `2>&1 > f` sends errors
+     * to the screen and only output to f. Real shells do exactly this and it
+     * is one of the things worth learning by getting it wrong once.
+     */
+    if (redirect.op === '2>&1') {
+      errSink = outSink ?? ((t: string) => io.out(t));
+      continue;
+    }
+    if (redirect.op === '>&2') {
+      outSink = errSink ?? ((t: string) => io.err(t));
+      continue;
+    }
     const targets = await expandWord(redirect.target, expand);
     if (targets.length !== 1) {
       io.err(`sh: ambiguous redirect\n`);

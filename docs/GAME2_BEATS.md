@@ -492,3 +492,105 @@ Ranked by how much they block writing.
 inventory — the actual schemas, the seeded rows, and the hint ladders — plus a
 spike on `packages/sql` to prove wa-sqlite can be made deterministic before any
 content is written against it.
+
+---
+
+## 12. The rebuild, 2026-10-21 — what shipped
+
+Chris played the series and said the people did not land, it read like a
+tutorial, and it did not look or sound like much. *The Archive* was rebuilt as
+the model for answering that, because it had the strongest premise and the
+thinnest telling: five objectives, a cold open, three lines of ending, and
+every character present only as a file read in the first two minutes.
+
+### The spine, now seven required and one optional
+
+| # | Objective | Teaches | New |
+|---|---|---|---|
+| 1 | `read-the-claim` | `SELECT`, `WHERE` | |
+| 2 | `find-the-crew` | `JOIN` | |
+| 3 | `the-row-that-was-never-written` | `LEFT JOIN`, `NULL` | set piece |
+| 4 | `what-the-count-leaves-out` | `GROUP BY`, `count(*)`, `uniq -c` | yes |
+| 5 | `ask-the-registry` | `curl`, JSON, pagination | yes |
+| 6 | `file-the-evidence` | `CREATE TABLE`, `INSERT` | |
+| 7 | `the-line-item` | `ORDER BY`, `LIMIT` | |
+| — | `the-other-draft` (optional) | `LIKE` | yes |
+
+**The count.** Grouping NAV-7's crew by status gives three deceased, one
+missing, one unknown. The claim's zero is a form with two boxes, and the two
+people who fit neither -- Bowen and DeWitt -- were counted as nobody. The goal
+accepts a tally line from SQL, from `sort | uniq -c`, or from one labelled
+count at a time, and refuses `3|1140|okonkwo|...|deceased`, which is a person
+rather than a count; the first draft of the goal accepted it.
+
+**The registry.** A second institution behind `http://registry/`, a stateless
+JSON service on the town's network. It lists all five of NAV-7's crew as
+*active*, as of the evening before -- stale, confident, and not wrong about
+what it was told. It pages two to a page, and DeWitt is on page three with the
+one fact the archive lacks: 2,140 hours logged against 2,000 required,
+assessed by Vasquez, complete. Not a certificate. Proof that only the form was
+missing. Two sources of truth, neither lying.
+
+### The people, now in the act rather than on its disk
+
+- **Mail.** Letters land in `~/mail` when the story moves, as ordinary files:
+  Kerr when the claim is read (the determination is Thursday 09:00, on the
+  record as it stands), Hollis when the crew are proven (the yard camera, a
+  light left on in the galley), Pell when the evidence is filed (the grant
+  statement is wrong by a morning). No letter carries a query. Delivery is
+  remembered in the questbook, so deleting one does not bring it back and a
+  reload does not redeliver. A goal satisfied out of order sends nothing until
+  it is unblocked.
+- **The yard.** `yard` is the bonded-yard camera, NAV-7 in berth 17 among 412
+  ships, with the berth's status read from `/srv/yard/berth-17`. It reads
+  BONDED at the open, HELD once Kerr has written, STAY once evidence is on
+  file. The act opens on it and ends on it.
+- **The `dewitt|` moment.** The crew drawn in a frame with the empty field
+  left empty, the draft framed under it, and Merrick for longer than anywhere
+  else in the act.
+- **LUNA's card.** `carried/luna-v42.card`, which the public `cardread` will
+  not load for want of a registration. The registration is filing 4403 --
+  Vasquez again, started and never filed, in the same table as his own. The
+  ending sends the card to the tug either way, which is where game three
+  finds it; a player who found the draft hears about it.
+- **Merrick's topics** are people now: `talk kerr`, `hollis`, `pell`,
+  `vasquez`, `yard`, `card`. Never the next query.
+
+### Canon fixed on the way
+
+- The adjuster is **E. Kerr**, she, as in game three. The desk notes had "the
+  Kepler-Vance adjuster ... he".
+- Merrick is **she**, as written here since draft one. Game three's HEARING
+  said "Mr Merrick"; it now says "Ms Merrick".
+
+### Engine gaps the probe found
+
+Found by writing the act's commands before its content, per CLAUDE.md:
+
+- `cmd > f 2>&1` was a syntax error. `2>&1`, `1>&2` and `>&2` now work, with
+  real order-dependence (`2>&1 > f` leaves errors on the screen).
+- `sqlite3 -column` and `-box` were silently ignored. `-column` is implemented;
+  any other unknown option is refused by name.
+- The glyph atlas had no em dash, so every `—` in the series was drawn by the
+  fallback path at the wrong baseline and read as a macron on a phone. The
+  atlas now carries the punctuation the games use, and the fallback uses the
+  atlas's baseline.
+
+### Not done, and why
+
+- **Transactions** (`file-it-properly`). SQLite does not roll a transaction
+  back on a constraint error -- only the failing statement -- so "wrap it in
+  BEGIN/COMMIT" teaches something false unless the puzzle also teaches
+  `ROLLBACK` or `-bail`. That needs its own design, and the goal has to read a
+  half-filed state from the file. Next.
+- **Indexes** (`make-it-finish`). A query that is slow in a deterministic
+  machine has to be slow in virtual time, which means the engine charging
+  for a full scan. Not designed yet.
+
+### Chris's calls, cheap to overrule
+
+1. Kerr's letter arrives at the first objective. The alternative is holding the
+   clock back until the crew are found.
+2. The registry says *active* for the dead. It could instead omit them.
+3. The LUNA thread is optional and gated only on reading the claim.
+4. `yard` is a command. It could be a file the player `cat`s.
