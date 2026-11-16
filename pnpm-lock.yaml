@@ -33,6 +33,9 @@ importers:
       '@sigkill/archive':
         specifier: workspace:*
         version: link:../../games/archive
+      '@sigkill/ascii':
+        specifier: workspace:*
+        version: link:../../packages/ascii
       '@sigkill/audio':
         specifier: workspace:*
         version: link:../../packages/audio

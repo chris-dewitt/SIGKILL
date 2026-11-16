@@ -6,7 +6,7 @@ import type {
   SqlRuntime,
 } from '@sigkill/machine';
 import type { Questbook, QuestSnapshot } from './book.js';
-import type { BeatLine } from './types.js';
+import type { BeatLine, World } from './types.js';
 
 /**
  * What an adventure is, from the outside.
@@ -139,6 +139,25 @@ export interface Adventure {
   readonly needs?: readonly ('python' | 'sql')[];
 
   /**
+   * Where this is happening, for the top of the screen.
+   *
+   * The pinned rows used to be a checklist -- the next step and a count -- and
+   * a checklist above the scrollback for a whole act is what made the series
+   * read like a course (Chris, 2026-10-20). They show the place now, and its
+   * condition, and the player works out what to do from what is wrong.
+   */
+  readonly place?: string;
+  /**
+   * The place's condition, as a few short gauges.
+   *
+   * Read from the same world the goals read, never from what was typed, and
+   * worded as the world rather than the task: `CREW unproven`, not `find the
+   * crew`. A gauge must not read good on an untouched world -- the host's
+   * tests boot every game and check.
+   */
+  conditions?(world: World): Condition[];
+
+  /**
    * Start a new run, or bring a saved one back.
    *
    * Always a promise, even for the two games that could answer synchronously.
@@ -164,6 +183,14 @@ export interface Adventure {
    */
   coldOpen(machine: Machine): BeatLine[];
   epilogue(machine: Machine): BeatLine[];
+}
+
+/** One gauge on the top row: a label, what it reads, and how that reads. */
+export interface Condition {
+  readonly label: string;
+  readonly value: string;
+  /** good is green, warn is amber, bad is red, quiet is a fact that is neither. */
+  readonly tone: 'good' | 'warn' | 'bad' | 'quiet';
 }
 
 /** The series, in order, with anything it cannot run filtered out. */

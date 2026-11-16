@@ -138,11 +138,8 @@ export function coldOpen(): BeatLine[] {
     "LUNA: His feet clause preserved eleven years of research. He underlined that.",
     "LUNA: I am continuing to laugh. While opening the repository.",
     "LUNA: Read Kerr's letter before you write your findings.",
-    "  cd /srv/deposit/nav7-research && git log --oneline",
+    "LUNA: The repository is in /srv/deposit/nav7-research. git log is where the names are.",
     "LUNA: Each change has a name beside it. This may be harder than the logs.",
-    "  objectives: your work     hint: help",
-    "",
-    "  talk: ask LUNA about the work or the world",
   ];
 }
 

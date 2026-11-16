@@ -2,6 +2,12 @@ import { withCompanion } from '@sigkill/quest';
 import { COMPANION } from './companion.js';
 import { require_, type Adventure } from '@sigkill/quest';
 import { bootArchive, restoreArchive, coldOpen, epilogue } from './world.js';
+import type { World } from '@sigkill/quest';
+import { ARCHIVE_OBJECTIVES } from './objectives.js';
+
+/** Whether one of this act's objectives holds in the world -- what every gauge below reads. */
+const met = (id: string, world: World): boolean =>
+  ARCHIVE_OBJECTIVES.find((o) => o.id === id)?.done(world) === true;
 
 /**
  * Adventure two.
@@ -11,6 +17,15 @@ import { bootArchive, restoreArchive, coldOpen, epilogue } from './world.js';
  * of it -- so the contract allows a promise for this game's sake.
  */
 export const ARCHIVE: Adventure = {
+  place: "FERRYMAN'S REST — ARCHIVE",
+  conditions: (world) => [
+    met('file-the-evidence', world)
+      ? { label: 'DEWITT', value: 'on file', tone: 'good' }
+      : { label: 'DEWITT', value: 'cargo', tone: 'warn' },
+    met('find-the-crew', world)
+      ? { label: 'CREW', value: '4 aboard', tone: 'good' }
+      : { label: 'CREW', value: 'unproven', tone: 'warn' },
+  ],
   id: 'archive',
   number: 2,
   title: 'The Archive',

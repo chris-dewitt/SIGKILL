@@ -248,3 +248,38 @@ describe('the series hangs together in the order it is played', () => {
     }
   });
 });
+
+/**
+ * The top of the screen, for every game.
+ *
+ * It shows the place and its condition instead of a checklist, so the two
+ * ways it can go wrong are a gauge that says the work is done before anybody
+ * has touched the world, and a row too wide for a phone.
+ */
+describe('the place and its condition', () => {
+  it('every game but The Wreck says where it is and how it stands', () => {
+    for (const { adventure } of LIBRARY) {
+      if (adventure.id === 'wreck') continue;
+      expect(adventure.place, adventure.title).toBeTruthy();
+      expect(adventure.conditions, adventure.title).toBeDefined();
+    }
+  });
+
+  it('no gauge reads good on an untouched world', () => {
+    for (const { adventure } of LIBRARY) {
+      const gauges = adventure.conditions?.(new Machine()) ?? [];
+      for (const gauge of gauges) {
+        expect(gauge.tone, `${adventure.title}: ${gauge.label} ${gauge.value}`).not.toBe('good');
+      }
+    }
+  });
+
+  it('fits a portrait phone without clipping a word', () => {
+    for (const { adventure } of LIBRARY) {
+      const gauges = adventure.conditions?.(new Machine()) ?? [];
+      const row = gauges.map((g) => `${g.label} ${g.value}`).join('  ');
+      expect(row.length, `${adventure.title}: ${row}`).toBeLessThanOrEqual(34);
+      expect((adventure.place ?? '').length, adventure.title).toBeLessThanOrEqual(34);
+    }
+  });
+});

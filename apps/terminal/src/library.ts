@@ -33,10 +33,9 @@ import type { ShipStatus } from './status.js';
 
 export interface HostHooks {
   /**
-   * The top rows, beyond the progress the host fills in for everybody.
-   *
-   * Air and hull are NAV-7's. A public terminal in a claims office has neither,
-   * and inventing a gauge for it would be the readout lying.
+   * NAV-7's air and hull, which come from the ship rather than from the
+   * adventure's own `conditions`. Every other game says where it is and what
+   * condition it is in on its descriptor, where the world is.
    */
   readonly readout?: (machine: Machine) => Partial<ShipStatus>;
   /**
@@ -61,6 +60,7 @@ export interface Entry {
  * panel cannot drift from what `deck` and `pressure` say.
  */
 const wreckReadout = (machine: Machine): Partial<ShipStatus> => ({
+  place: 'NAV-7 — DECK C',
   target: oxygenTarget(machine),
   scrubber: machine.services.get('scrubber')?.state === 'active',
   sealed: COMPARTMENT_IDS.filter((id) => readCompartment(machine.vfs, id).sealed).length,
@@ -85,22 +85,22 @@ export const LIBRARY: readonly Entry[] = [
   { adventure: WRECK, hooks: { readout: wreckReadout, sound: wreckSound } },
   {
     adventure: ARCHIVE,
-    hooks: { sound: () => ({ scene: 'archive', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: "FERRYMAN'S REST — ARCHIVE" }) },
+    hooks: { sound: () => ({ scene: 'archive', scrubber: false, monitor: false, breached: false, reserve: 1 }) },
   },
   {
     adventure: HARNESS,
-    hooks: { sound: () => ({ scene: 'harness', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'ELLEN MAY — GALLEY' }) },
+    hooks: { sound: () => ({ scene: 'harness', scrubber: false, monitor: false, breached: false, reserve: 1 }) },
   },
   {
     adventure: FORK,
-    hooks: { sound: () => ({ scene: 'fork', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'PELL DEPOSIT OFFICE' }) },
+    hooks: { sound: () => ({ scene: 'fork', scrubber: false, monitor: false, breached: false, reserve: 1 }) },
   },
   {
     adventure: DEPOSIT,
     // The same office as game four, two floors down and two years on.
-    hooks: { sound: () => ({ scene: 'deposit', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'DEPOSIT OFFICE -- MACHINE FLOOR' }) },
+    hooks: { sound: () => ({ scene: 'deposit', scrubber: false, monitor: false, breached: false, reserve: 1 }) },
   },
-  { adventure: PIPELINE, hooks: { readout: () => ({ place: 'INTAKE DESK' }), sound: () => ({ scene: 'pipeline', scrubber: false, monitor: false, breached: false, reserve: 1 }) } },
+  { adventure: PIPELINE, hooks: { sound: () => ({ scene: 'pipeline', scrubber: false, monitor: false, breached: false, reserve: 1 }) } },
   /*
    * Last, and that is the point.
    *
@@ -111,7 +111,7 @@ export const LIBRARY: readonly Entry[] = [
    */
   {
     adventure: CONTAINMENT,
-    hooks: { sound: () => ({ scene: 'containment', scrubber: false, monitor: false, breached: false, reserve: 1 }), readout: () => ({ place: 'HEARING ANNEXE' }) },
+    hooks: { sound: () => ({ scene: 'containment', scrubber: false, monitor: false, breached: false, reserve: 1 }) },
   },
 ];
 

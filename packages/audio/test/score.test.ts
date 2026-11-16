@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  mixFor, audible, cue, cueDuration, CUE_NAMES, SILENT_SHIP, type ShipState,
+  mixFor, audible, cue, cueDuration, motif, CUE_NAMES, SILENT_SHIP, type ShipState, type Cue,
 } from '../src/index.js';
 
 const ship = (over: Partial<ShipState> = {}): ShipState => ({ ...SILENT_SHIP, ...over });
@@ -143,5 +143,32 @@ describe('cues', () => {
     expect(cue('alarm').bend ?? 0).toBeLessThan(0);
     expect(cue('error').bend ?? 0).toBeLessThan(0);
     expect(cue('resolve').bend ?? 0).toBe(0);
+  });
+});
+
+describe('each room has its own opening phrase', () => {
+  const ROOMS = ['wreck', 'archive', 'harness', 'fork', 'deposit', 'pipeline', 'containment'] as const;
+  const notes = (c: Cue): number[] => [c.frequency, ...(c.then ? notes(c.then) : [])];
+
+  it('is a phrase of three or four notes, short enough to sit under the opening', () => {
+    for (const room of ROOMS) {
+      const phrase = motif(room)!;
+      expect(notes(phrase).length, room).toBeGreaterThanOrEqual(3);
+      expect(notes(phrase).length, room).toBeLessThanOrEqual(4);
+      expect(cueDuration(phrase), room).toBeLessThan(4);
+    }
+  });
+
+  it('is different in every room, so arriving somewhere sounds like somewhere', () => {
+    const tunes = ROOMS.map((room) => notes(motif(room)!).join(','));
+    expect(new Set(tunes).size).toBe(ROOMS.length);
+  });
+
+  it('stays quieter than the act chime, because it opens a room rather than closing one', () => {
+    for (const room of ROOMS) expect(motif(room)!.gain, room).toBeLessThan(cue('act').gain);
+  });
+
+  it('is silent for a room with no tone', () => {
+    expect(motif('silent')).toBeUndefined();
   });
 });

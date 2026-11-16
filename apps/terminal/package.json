@@ -22,6 +22,7 @@
     "@capacitor/android": "^7.6.9",
     "@capacitor/core": "^7.6.9",
     "@sigkill/archive": "workspace:*",
+    "@sigkill/ascii": "workspace:*",
     "@sigkill/audio": "workspace:*",
     "@sigkill/containment": "workspace:*",
     "@sigkill/crt": "workspace:*",

@@ -81,28 +81,26 @@ test.describe('phone dock', () => {
 });
 
 test.describe('the ship says where you are', () => {
-  test('shows air, hull and the current step, and keeps them current', async ({ page }) => {
+  test('shows the place, air and hull, and lights the rule as the act is put right', async ({ page }) => {
     await openWreck(page);
     const status = page.locator('[aria-label="Ship status"]');
+    await expect(status).toContainText('NAV-7');
     await expect(status).toContainText('AIR --');
     await expect(status).toContainText('HULL 8/9');
+    // The world, not a checklist: no next step and no count.
+    await expect(status).not.toContainText('▸');
 
-    // Not a hard-coded total: the act grows, and a spec that has to be edited
-    // every time an objective is added is a spec people start ignoring. The
-    // counter is the one number sitting in the rule, between the box rows --
-    // matching on that context keeps it off HULL 8/9.
-    const done = async (): Promise<number> => {
-      const text = (await status.textContent()) ?? '';
-      return Number(/─\s*(\d+)\/\d+\s*─/.exec(text)?.[1] ?? -1);
-    };
-    expect(await done()).toBe(0);
+    // Progress is light in the rule, not a number. Counting the heavy cells
+    // keeps the spec off the total, which grows as the act does.
+    const lit = async (): Promise<number> => ((await status.textContent()) ?? '').split('━').length - 1;
+    expect(await lit()).toBe(0);
 
     await run(page, "sed -i 's/^O2_TARGET=.*/O2_TARGET=21/' /etc/life_support.conf");
     await run(page, 'sudo systemctl start scrubber');
 
     // The air is real now, and the readout says so without being asked.
     await expect(status).toContainText('AIR 21');
-    await expect.poll(done).toBe(1);
+    await expect.poll(lit).toBeGreaterThan(0);
   });
 });
 

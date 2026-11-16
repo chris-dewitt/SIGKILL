@@ -16,4 +16,5 @@ export type {
   AdventureRuntimes,
   AdventureSession,
   AdventureSnapshot,
+  Condition,
 } from './adventure.js';

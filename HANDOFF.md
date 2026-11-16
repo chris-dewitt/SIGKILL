@@ -1,5 +1,36 @@
 # SIGKILL — handoff
 
+## The feel pass, 2026-11-16
+
+The cross-game half of the answer to "kinda weak": not enough story, reads
+like a tutorial, not exciting to look at or hear. *The Archive* (below) is
+the per-game half.
+
+- **The top of the screen shows the world, not a checklist.** The pinned rows
+  are the place, its condition, and a rule that lights from the left as the
+  act is put right. No "▸ next step", no "0/9". Each game declares `place`
+  and `conditions(world)` on its `Adventure`; a gauge reads the same world
+  its goals do, and `apps/terminal/test/library.test.ts` fails if any gauge
+  reads good on an untouched world or a row is too wide for a phone. *The
+  Deposit*'s gauge reads `CHECK green`, quietly, rather than the dead index:
+  the act's reveal is that the check lied.
+- **No unprompted "NEXT: ... stuck? type hint".** The chip bar always offers
+  `hint`, `objectives` and, where there is company, `talk`.
+- **Openings end on people, not menus.** The indented command lists in five
+  cold opens were cut; where a pointer mattered it moved into a character's
+  line.
+- **Moments.** Every game but *The Wreck* (which has its own logo) opens on a
+  block-capital title card, or a framed one where the name is too long --
+  tight tracking made CONTAINMENT unreadable. Each room has a three- or
+  four-note synthesised motif (`packages/audio`, `motif(scene)`), held until
+  the first keypress because no browser sounds before a gesture. Closing an
+  objective draws a card with what it changed -- `AIR  -- → 21`, `CREW
+  unproven → 4 aboard` -- or a quiet `━━ ◆ ━━` when no gauge moved.
+
+This was first built on 2026-10-21 and lost with a recycled container before
+it could be pushed; this is the rebuild. Lesson kept in the commit history:
+do not hold finished work locally behind an open PR for long.
+
 ## The Archive, rebuilt, 2026-10-21
 
 Chris played the seven and called them "kinda weak": not enough story, reads
@@ -7,10 +38,7 @@ like a tutorial, not exciting to look at or hear. This is the answer for one
 game, and the model for the other five. Details, and four calls that are
 Chris's, in [docs/GAME2_BEATS.md §12](docs/GAME2_BEATS.md).
 
-**Still to come: the cross-game feel pass** -- the pinned rows showing place
-and condition instead of a checklist, no unprompted "NEXT:", title cards,
-completion cards and per-room motifs. It was built and lost with a recycled
-container before it could be pushed, and is being rebuilt as its own PR.
+The cross-game half of the answer is the feel pass, below.
 
 - **Two new objectives.** `what-the-count-leaves-out` (GROUP BY: three dead,
   one missing, one unknown, and the claim counted the last two as nobody) and
