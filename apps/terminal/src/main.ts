@@ -6,8 +6,8 @@ import { applyWrite, chipKeystrokes, flushPendingWrite } from '@sigkill/editor';
 import { needsMoreInput, parse, path as vpath, type CommandSpec, type ScreenProgram } from '@sigkill/machine';
 import { WorkerPythonRuntime } from '@sigkill/python';
 import { WorkerSqlRuntime } from '@sigkill/sql';
-import { Soundtrack, type ShipState as AudioState } from '@sigkill/audio';
-import { whatNow, type AdventureSession, type BeatLine } from '@sigkill/quest';
+import { Soundtrack, type ShipState as AudioState, type SoundScene } from '@sigkill/audio';
+import type { AdventureSession, BeatLine } from '@sigkill/quest';
 import {
   clearSave,
   readLastPlayed,
@@ -16,7 +16,8 @@ import {
   writeLastPlayed,
   writeSave,
 } from './save.js';
-import { statusRows } from './status.js';
+import { gaugesOf, statusRows, type Gauge, type ShipStatus } from './status.js';
+import { changeRows, gaugeChanges, ornament, titleRows } from './cards.js';
 import { chooserLines, chosen, entry, offered, LIBRARY, type Entry } from './library.js';
 
 /*
@@ -668,7 +669,7 @@ view.highlighter = (text) => highlight(text, { commands: new Set(machine.shell.c
  */
 input.addEventListener('beforeinput', (event) => {
   if (event.isComposing || !/^(insertText|deleteContentBackward|deleteContentForward)$/.test(event.inputType)) return;
-  void sound.resume();
+  wakeSound();
   sound.play('key');
 });
 
@@ -722,7 +723,7 @@ async function submit(raw: string): Promise<void> {
   let command = raw.trim();
   // Every browser refuses to start an AudioContext outside a gesture, and is
   // right to. This is the first one that reliably happens.
-  void sound.resume();
+  wakeSound();
   sound.play('submit');
 
   /*
@@ -758,7 +759,7 @@ async function submit(raw: string): Promise<void> {
     choosing = false;
     if (picked.adventure.id === current.adventure.id) {
       // Already booted underneath the chooser, which is why this is free.
-      sayBeat([...current.adventure.coldOpen(machine), ...whatNow(questbook, machine)]);
+      openAct();
       writeLastPlayed(current.adventure.id);
       refreshStatus();
       sound.setState(shipSound());
@@ -889,11 +890,11 @@ const COMPARTMENTS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'] as c
 
 /**
  * The readout, built from the same files and the same process table that
- * `deck`, `pressure` and `objectives` read.
+ * `deck`, `pressure` and the goals read.
  *
  * No parallel state to keep in step. If the scrubber is running there is air,
- * if a compartment says SEALED=no there is a hole, and if the questbook says
- * you are on a step then that is what you are doing.
+ * if a compartment says SEALED=no there is a hole, and if a goal holds then
+ * its gauge says so. What the player should do next is theirs to work out.
  */
 function refreshStatus(): void {
   /*
@@ -910,27 +911,28 @@ function refreshStatus(): void {
     return;
   }
 
+  view.setStatus(statusRows(readoutNow(), view.columns));
+}
+
+/**
+ * The place as it reads right now: where, its gauges, and how much of the
+ * spine is done. NAV-7's air and hull come from the ship's own hook; every
+ * other game declares its place and conditions on its descriptor.
+ */
+function readoutNow(): ShipStatus {
   const rows = questbook.status(machine);
-  const objective = questbook.current(machine);
-  view.setStatus(
-    statusRows(
-      {
-        ...current.hooks.readout?.(machine),
-        // The spine only, matching the board. An optional thread that is not
-        // going to hold the act open must not sit in the progress count
-        // looking like something the player has failed to finish.
-        done: rows.filter((row) => !row.optional && row.done).length,
-        goals: rows.filter((row) => !row.optional).length,
-        // The step, or the objective it belongs to. Undefined means finished,
-        // and saying "act one complete" while something is still open would
-        // be the readout lying, which is the one thing it must never do.
-        ...(objective
-          ? { step: questbook.step(machine, objective)?.label ?? objective.title }
-          : { step: undefined }),
-      },
-      view.columns,
-    ),
-  );
+  const ship = current.hooks.readout?.(machine) ?? {};
+  const place = current.adventure.place ?? ship.place;
+  const conditions = current.adventure.conditions?.(machine);
+  return {
+    ...ship,
+    ...(place !== undefined ? { place } : {}),
+    ...(conditions !== undefined ? { conditions } : {}),
+    // The spine only, matching the board. An optional thread that is not
+    // going to hold the act open must not light the rule as though it were.
+    done: rows.filter((row) => !row.optional && row.done).length,
+    goals: rows.filter((row) => !row.optional).length,
+  };
 }
 
 function shipSound(): AudioState {
@@ -955,9 +957,53 @@ function shipSound(): AudioState {
  */
 const SILENT: AudioState = { scene: 'silent', scrubber: false, monitor: false, breached: false, reserve: 1 };
 
+/** What the gauges read the last time anything was drawn, for the completion card. */
+let shownGauges: Gauge[] = [];
+
+/**
+ * A room's opening phrase, waiting for the first gesture.
+ *
+ * No browser will start audio before the player touches the page, so the
+ * motif an act opens with is held here and played on the first keypress or
+ * submit -- late by a second, which is better than never.
+ */
+let pendingMotif: SoundScene | undefined;
+
+/** Which room each adventure sounds like. Its own id, where it has a tone. */
+const SCENES: Record<string, SoundScene> = {
+  wreck: 'wreck', archive: 'archive', harness: 'harness', fork: 'fork',
+  deposit: 'deposit', pipeline: 'pipeline', containment: 'containment',
+};
+
+/** Start the mixer on a gesture, and play the room's phrase if one is waiting. */
+function wakeSound(): void {
+  void sound.resume().then(() => {
+    if (pendingMotif !== undefined && sound.playMotif(pendingMotif)) pendingMotif = undefined;
+  });
+}
+
+/**
+ * Open the act: its title, its phrase, and its first scene.
+ *
+ * Every game but The Wreck opens on its name in block capitals -- The Wreck
+ * has its own logo in its cold open, and a title card over a ship's alarm
+ * would be a title card over the point. Then the people, and nothing after
+ * them: no "NEXT:", no menu. The chip bar offers hint and objectives.
+ */
+function openAct(): void {
+  if (current.adventure.id !== 'wreck') {
+    view.writeArt(titleRows(current.adventure.title, current.adventure.teaches, view.columns), 'heading');
+  }
+  pendingMotif = SCENES[current.adventure.id];
+  sayBeat(current.adventure.coldOpen(machine));
+  shownGauges = gaugesOf(readoutNow());
+}
+
 function playBeats(): void {
   let closed = false;
   const spoken: BeatLine[] = [];
+  const before = shownGauges;
+  shownGauges = gaugesOf(readoutNow());
   for (const objective of questbook.drainCompleted(machine)) {
     // The hull turning out to be open is the one piece of good news that is
     // also bad news, so it gets the alarm rather than the chime.
@@ -971,19 +1017,28 @@ function playBeats(): void {
    * And whatever the world itself has to say.
    *
    * After the objective beats, because a companion arriving is a reaction to
-   * the thing that just closed and reads wrong ahead of it -- and before the
-   * "so now what", which has to be the last thing on the screen or it is not
-   * doing its job. Runs on every command, not only the ones that finish
-   * something: she answers a signal that was sent in the middle of one.
+   * the thing that just closed and reads wrong ahead of it. Runs on every
+   * command, not only the ones that finish something: she answers a signal
+   * that was sent in the middle of one, and the town's mail arrives here.
    */
   const reaction = session.afterCommand?.() ?? [];
   if (reaction.length > 0 && !closed) sound.play('message');
   spoken.push(...reaction);
 
-  // Finishing one thing is exactly the moment a player asks "so now what".
-  // Answering unprompted is the difference between a board they have to know
-  // to ask for and one they cannot miss.
-  if (closed && !questbook.complete(machine)) spoken.push(...whatNow(questbook, machine));
+  /*
+   * The moment, before the words.
+   *
+   * What the player just did to the place, read off the gauges -- "CREW
+   * unproven → 4 aboard" -- or, when no gauge moved, a quiet mark that
+   * something closed. The unprompted "NEXT:" that used to follow is gone: the
+   * board is one `objectives` away, and a checklist after every success is
+   * what made the series read like a course (Chris, 2026-10-20).
+   */
+  if (closed) {
+    const changes = gaugeChanges(before, shownGauges);
+    if (changes.length > 0) view.writeArt(changeRows(changes, view.columns), 'good');
+    else view.writeArt(ornament(view.columns), 'muted');
+  }
 
   if (spoken.length > 0) {
     sayBeat(spoken);
@@ -1250,7 +1305,8 @@ function suggestions(): string[] {
      * useful exactly when a stuck player looked at it. Reserved now, and
      * asserted in a test.
      */
-    const always = ['hint', 'objectives'];
+    // And talk, where there is somebody to talk to.
+    const always = ['hint', 'objectives', ...(machine.shell.commands.has('talk') ? ['talk'] : [])];
 
     const here = listHere();
     const rest = ['ls', 'cat', 'cd', 'pwd', 'grep'];
@@ -1699,6 +1755,9 @@ document.addEventListener('visibilitychange', () => {
   else void sound.resume();
 });
 sound.setState(shipSound());
+// A restored run has gauges already on screen; a completion card on its first
+// command should compare against those, not against nothing.
+shownGauges = gaugesOf(readoutNow());
 
 if (choosing) {
   // A brand-new player picks first. The first adventure is already booted
@@ -1707,15 +1766,13 @@ if (choosing) {
 } else if (staleSave) {
   write(`${current.adventure.title}: the saved run could not be opened.`, 'err');
   write('It was left where it is. Type  newgame  to start clean.', 'system');
-  const opening = [...current.adventure.coldOpen(machine), ...whatNow(questbook, machine)];
-  sayBeat(opening);
+  openAct();
 } else if (saved) {
   write(`${current.adventure.title}: session restored.`, 'system');
   write('Type:  objectives      other games:  games      start over:  newgame', 'system');
 } else {
   writeLastPlayed(current.adventure.id);
-  const opening = [...current.adventure.coldOpen(machine), ...whatNow(questbook, machine)];
-  sayBeat(opening);
+  openAct();
 }
 refreshPrompt();
 buildSymbolRow();

@@ -175,6 +175,48 @@ const CUES: Record<CueName, Cue> = {
   reveal: { partials: [1, 3], frequency: 880, attack: 0.002, release: 0.1, gain: 0.045 },
 };
 
+/**
+ * A short phrase for each room, played once when the act opens.
+ *
+ * Chris on the series: not exciting to look at or hear. The room tones are a
+ * floor, deliberately low, and nothing announced arriving anywhere. These are
+ * three or four notes each, synthesised like every other cue -- no audio
+ * files -- and pitched to the place: the archive is a patient descending
+ * fourth, the tug a warm low rocking, the annexe a question that does not
+ * resolve.
+ *
+ * Built as a chain of `then` cues, so the mixer that already plays a chime
+ * plays a motif without learning anything new.
+ */
+function phrase(notes: readonly (readonly [number, number])[], partials: readonly number[], gain: number): Cue {
+  const [first, ...rest] = notes;
+  const [frequency, release] = first!;
+  const cue: Cue = { partials, frequency, attack: 0.02, release, gain };
+  return rest.length === 0 ? cue : { ...cue, then: phrase(rest, partials, gain * 0.92) };
+}
+
+const MOTIFS: Record<Exclude<SoundScene, 'silent'>, Cue> = {
+  // Low and level, then a step up: a ship that is still running.
+  wreck: phrase([[110, 0.5], [110, 0.35], [146.83, 0.9]], [1, 2, 3], 0.07),
+  // A patient descending fourth, the sound of a queue that will get to you.
+  archive: phrase([[392, 0.35], [349.23, 0.35], [293.66, 0.8]], [1, 2], 0.05),
+  // Warm, low, rocking, like a galley at anchor.
+  harness: phrase([[196, 0.4], [246.94, 0.4], [196, 0.4], [293.66, 0.9]], [1, 2], 0.055),
+  // Two voices that start together and part: a branch.
+  fork: phrase([[261.63, 0.3], [329.63, 0.3], [392, 0.3], [311.13, 0.9]], [1, 3], 0.05),
+  // Machinery: a low pulse and a fifth.
+  deposit: phrase([[73.42, 0.25], [73.42, 0.25], [110, 0.7]], [1, 2, 4], 0.075),
+  // Even steps, the same distance each time: a pipeline.
+  pipeline: phrase([[220, 0.22], [261.63, 0.22], [329.63, 0.22], [440, 0.7]], [1, 2], 0.05),
+  // A question that does not resolve.
+  containment: phrase([[293.66, 0.4], [415.3, 0.4], [369.99, 1.1]], [1, 2, 3], 0.05),
+};
+
+/** The room's opening phrase, or nothing for a room with no tone. */
+export function motif(scene: SoundScene): Cue | undefined {
+  return scene === 'silent' ? undefined : MOTIFS[scene];
+}
+
 export function cue(name: CueName): Cue {
   return CUES[name];
 }

@@ -4,52 +4,87 @@ import type { Line, LineKind, Span } from '@sigkill/crt';
 const NARROW = 34;
 
 /**
- * The two rows pinned to the top of the tube.
+ * The rows pinned to the top of the tube.
  *
- * Act I is a long scroll, and everything a player needs to hold in their head
- * -- is there air, is the hull shut, what am I doing -- was only ever visible
- * by scrolling back or typing `objectives`. A readout that is simply always
- * there is the difference between a game you are playing and a log you are
- * reading.
+ * They were a checklist: the next step, and a count of steps, above the
+ * scrollback for the whole act. Chris played the seven and said they read
+ * like a tutorial (2026-10-20), and the checklist was the loudest reason --
+ * a game that tells you the next step forever is a course with a story
+ * attached.
  *
- * Pure on purpose: it takes numbers and gives back lines, so what it says in
+ * So the top of the screen shows the world instead. Where you are, what
+ * condition the place is in, and a rule that lights from the left as it is
+ * put right. What to do next is the player's to work out from what is wrong,
+ * and `objectives` is one tap away for anybody who wants the board.
+ *
+ * Pure on purpose: it takes values and gives back lines, so what it says in
  * each state is a unit test rather than something you have to boot a ship to
  * find out.
  */
 
-/*
- * The readout, for three games instead of one.
- *
- * The air-and-hull row is NAV-7's and nothing else's -- an archive terminal on
- * a planet has no compartments and a tug's galley has no scrubber. So the
- * ship fields became optional and an adventure without them says where it is
- * instead. What stays on every screen is the part that is true everywhere:
- * what you are doing, and how far through you are.
- */
+/** One gauge: a label, what it reads, and how that reads. */
+export interface Gauge {
+  readonly label: string;
+  readonly value: string;
+  readonly tone: 'good' | 'warn' | 'bad' | 'quiet';
+}
+
 export interface ShipStatus {
   /** O2_TARGET as the controller currently reads it, or null if unreadable. */
   target?: number | null;
   /** Is the scrubber actually running? A good target it refused is not air. */
   scrubber?: boolean;
   sealed?: number;
-  /** Present only for an adventure with a hull. Its absence hides the row. */
+  /** Present only for an adventure with a hull. */
   compartments?: number;
   /** Compartments shut and losing pressure anyway. */
   venting?: number;
   /**
-   * Where this is happening, for an adventure with no ship to read.
+   * Where this is happening.
    *
-   * Not decoration. The top row is the only thing on screen that survives a
-   * scroll, and on a phone that matters: two of the three games open on a
-   * terminal belonging to somebody else, and which one you are sitting at is
-   * the thing a returning player has forgotten.
+   * The top row is the only thing on screen that survives a scroll, and on a
+   * phone that matters: six of the seven games open on a terminal belonging
+   * to somebody else, and which one you are sitting at is the thing a
+   * returning player has forgotten.
    */
   place?: string;
+  /** The place's condition, from the adventure. NAV-7's come from the ship. */
+  conditions?: readonly Gauge[];
+  /** The spine, done and total. Drawn as light in the rule, never as numbers. */
   done: number;
   goals: number;
-  /** What the player is doing right now, in the questbook's words. */
-  step: string | undefined;
 }
+
+/**
+ * NAV-7's two gauges, from the ship.
+ *
+ * Kept exactly as strict as the old readout: a breathable target the
+ * scrubber has refused is not air, it is a file; and nine of nine shut while
+ * one empties anyway is true and not the whole truth.
+ */
+function shipGauges(s: ShipStatus): Gauge[] {
+  if (s.compartments === undefined) return [];
+  const air: Gauge = s.scrubber === true && s.target !== null && s.target !== undefined
+    ? { label: 'AIR', value: String(s.target), tone: 'good' }
+    : { label: 'AIR', value: '--', tone: 'bad' };
+  const hull = `${s.sealed}/${s.compartments}`;
+  const venting = (s.venting ?? 0) > 0;
+  return [
+    air,
+    {
+      label: 'HULL',
+      value: venting ? `${hull} VENTING` : hull,
+      tone: !venting && s.sealed === s.compartments ? 'good' : 'warn',
+    },
+  ];
+}
+
+/** Every gauge on the row, ship first. What the completion card compares. */
+export function gaugesOf(s: ShipStatus): Gauge[] {
+  return [...shipGauges(s), ...(s.conditions ?? [])];
+}
+
+const TONE: Record<Gauge['tone'], LineKind> = { good: 'good', warn: 'warn', bad: 'err', quiet: 'muted' };
 
 /** Builds one line by appending coloured chunks, so offsets are never counted by hand. */
 class Row {
@@ -74,48 +109,37 @@ class Row {
 }
 
 /**
- * Air, hull, what you are doing, and how far through you are.
+ * The place, its condition, and how far it has been put right.
  *
- * Three rows, and the third is the one that makes it a panel instead of the
- * first two lines of output -- without a rule under it the readout and the
- * ship's own words run together and neither reads. The progress lives in the
- * rule rather than on a row of its own, which is how three rows cost two.
+ * Three rows. The rule is what makes it a panel instead of the first lines
+ * of output, and it carries the progress as light: heavy where the act has
+ * been put right, thin where it has not, and no numbers anywhere -- a count
+ * is a checklist by another name.
  */
 export function statusRows(s: ShipStatus, cols = NARROW): Line[] {
-  const air = new Row();
-  if (s.compartments === undefined) {
-    air.add(s.place ?? '', 'muted');
-  } else {
-    air.add('AIR ', 'muted');
-    // A breathable target the controller has refused is not air, it is a file.
-    if (s.scrubber === true && s.target !== null && s.target !== undefined) {
-      air.add(String(s.target).padEnd(3), 'good');
-    } else {
-      air.add('--'.padEnd(3), 'err');
-    }
+  const rows: Line[] = [];
+  if (s.place !== undefined) rows.push(new Row().add(s.place, 'muted').line('muted', cols));
 
-    air.add(' HULL ', 'muted');
-    const hull = `${s.sealed}/${s.compartments}`;
-    // Shut and emptying anyway is its own state, and the worst one to be quiet
-    // about: the count reads nine of nine while the compartment goes down.
-    if ((s.venting ?? 0) > 0) air.add(`${hull} VENTING`, 'warn');
-    else air.add(hull, s.sealed === s.compartments ? 'good' : 'warn');
+  const gauges = gaugesOf(s);
+  if (gauges.length > 0) {
+    const row = new Row();
+    for (const [i, gauge] of gauges.entries()) {
+      if (i > 0) row.add('  ');
+      row.add(`${gauge.label} `, 'muted').add(gauge.value, TONE[gauge.tone]);
+    }
+    rows.push(row.line('muted', cols));
   }
 
-  const now = new Row();
-  if (s.step === undefined) now.add('▸ ', 'good').add('act one complete', 'good');
-  else now.add('▸ ', 'warn').add(s.step, 'system');
-
-  return [air.line('muted', cols), now.line('system', cols), rule(s, cols)];
+  rows.push(rule(s, cols));
+  return rows;
 }
 
-/** The line under it, with the act's progress sitting in the gap. */
+/** The line under it, lit from the left as the act is put right. */
 function rule(s: ShipStatus, cols: number): Line {
-  const count = ` ${s.done}/${s.goals} `;
-  const left = Math.max(1, cols - count.length - 3);
+  const share = s.goals <= 0 ? 0 : Math.min(1, Math.max(0, s.done / s.goals));
+  const lit = Math.round(share * cols);
   const row = new Row();
-  row.add('─'.repeat(left), 'muted');
-  row.add(count, s.done === s.goals ? 'good' : 'value');
-  row.add('─'.repeat(Math.max(0, cols - left - count.length)), 'muted');
+  row.add('━'.repeat(lit), 'good');
+  row.add('─'.repeat(cols - lit), 'muted');
   return row.line('muted', cols);
 }

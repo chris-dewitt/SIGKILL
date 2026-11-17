@@ -261,7 +261,9 @@ describe('the ending', () => {
   it('opens on an empty room, which was the decision', () => {
     const open = coldOpen().map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
     expect(open).toContain('There is nobody here');
-    expect(open).toContain('git log --oneline');
+    // The pointer is LUNA's, not an indented command to copy.
+    expect(open).toMatch(/LUNA: .*git log/);
+    expect(open).not.toMatch(/^\s+cd /m);
   });
 });
 

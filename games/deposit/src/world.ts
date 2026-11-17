@@ -256,11 +256,7 @@ export function coldOpen(): BeatLine[] {
     "PELL: cat ~/PELL, then cat ~/REQUEST. I am out at eight.",
     "PELL: Some of that evidence is yours. You have root. Make it available. Do not make it convenient.",
     "LUNA: He has gone.",
-    "LUNA: I stay on this machine. Come back and tell me what you find.",
-    "  ssh vault01 / index01 / relay01",
-    "  objectives: your work     hint: help",
-    "",
-    "  talk: ask LUNA about the work or the world",
+    "LUNA: I stay on this machine. ssh out to vault01, index01, relay01 -- then come back and tell me.",
   ];
 }
 

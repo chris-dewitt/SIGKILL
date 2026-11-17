@@ -1,6 +1,6 @@
 import {
-  audible, cue, mixFor, SILENT_SHIP,
-  type Cue, type CueName, type LayerName, type ShipState,
+  audible, cue, mixFor, motif, SILENT_SHIP,
+  type Cue, type CueName, type LayerName, type ShipState, type SoundScene,
 } from './score.js';
 
 /**
@@ -135,6 +135,20 @@ export class Soundtrack {
   play(name: CueName): void {
     if (this.off || this.ctx?.state !== 'running' || this.master === undefined) return;
     this.schedule(cue(name), this.ctx.currentTime);
+  }
+
+  /**
+   * Play a room's opening phrase.
+   *
+   * Returns whether it sounded, because before the first gesture it cannot:
+   * no browser starts audio unprompted, so the host holds the motif and plays
+   * it on the first keypress instead.
+   */
+  playMotif(scene: SoundScene): boolean {
+    const phrase = motif(scene);
+    if (phrase === undefined || this.off || this.ctx?.state !== 'running' || this.master === undefined) return false;
+    this.schedule(phrase, this.ctx.currentTime);
+    return true;
   }
 
   /** Release everything. The host calls this if it tears the terminal down. */

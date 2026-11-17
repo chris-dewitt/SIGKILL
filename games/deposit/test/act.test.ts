@@ -157,9 +157,10 @@ describe('what the act says for itself', () => {
     expect(art).toEqual(DEPOSIT_ART);
     for (const { art: row } of art) expect(row.length, row).toBeLessThanOrEqual(34);
     expect(lines.join('\n')).toContain('Do not make it convenient');
-    // The two things a new player has to be told exist.
-    expect(lines.join('\n')).toContain('objectives');
-    expect(lines.join('\n')).toContain('hint');
+    // Where to go, said by somebody, not printed as a menu. The chip bar
+    // always offers hint and objectives, so the opening does not have to.
+    expect(lines.join('\n')).toMatch(/LUNA: .*vault01, index01, relay01/);
+    expect(lines.join('\n')).not.toMatch(/^\s+objectives:/m);
   });
 
   it('ends differently for the player who kept their hands clean', async () => {

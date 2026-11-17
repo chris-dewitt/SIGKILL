@@ -108,12 +108,8 @@ export function coldOpen(): BeatLine[] {
     "KERR: Three filings quote 99.2 percent accuracy. None says what it was compared with.",
     "KERR: Reproduce the number. Then tell me what it measures.",
     "LUNA: A pile of numbers made a decision about our friends. Let us ask it to show its work.",
-    "  cat ~/KERR",
-    "  cat /srv/disclosure/report.md",
-    "  model card",
+    "LUNA: Kerr's note is in your home. The vendor's report is in /srv/disclosure. model card says what it claims to be.",
     "LUNA: Read Oduya's answer early. She built the report. hint if you get stuck.",
-    "",
-    "  talk: ask LUNA about the work or the world",
   ];
 }
 
