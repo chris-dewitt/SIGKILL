@@ -40,8 +40,10 @@ describe('the act is structurally sound', () => {
     expect(problems, problems.join('\n')).toEqual([]);
   });
 
-  it('ships nine required and two optional', () => {
-    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(9);
+  // Twelve since the repass (docs/GAME5_REPASS.md): nine that read a model,
+  // three that make one.
+  it('ships twelve required and two optional', () => {
+    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(12);
     expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional === true)).toHaveLength(2);
   });
 

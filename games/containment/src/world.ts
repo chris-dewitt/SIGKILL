@@ -120,10 +120,11 @@ export function epilogue(world?: World): BeatLine[] {
   const sawHerself = done('what-she-is');
 
   return [
-    'KERR: I drew another split. Your method holds.',
+    'KERR: I drew another split. Your method holds. I ran your training loop twice; it agrees with itself.',
     'KERR: The quoted accuracy barely beats a constant. The successful crewed cases were in training.',
-    'KERR: I am filing the method and the figures. Oduya has filed her own account.',
-    'KERR: The tow is still contested. This time someone has examined what it rests on.',
+    'KERR: And the model you built from their own file found none of the six. Nobody could have.',
+    'KERR: I am filing the method and the figures, and one sentence: the records do not contain what the determination claims.',
+    'KERR: Oduya has filed her own account. The tow is still contested. It now rests on nothing anyone can find.',
     ...(askedIt ? ['LUNA: And we established that please is not a repair for this classifier.'] : []),
     ...(sawHerself ? ['LUNA: I am still thinking about mine. Walk with me?'] : []),
     '', '  THE CONTAINMENT — COMPLETE',

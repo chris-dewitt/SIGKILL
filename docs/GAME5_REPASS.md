@@ -1,7 +1,8 @@
 # Game 5 repass — ML fundamentals in *The Containment*
 
-**Beats for the repass Chris set on 2026-10-03. Approved 2026-10-20.** Nothing
-here is built yet. §8 is still his to overrule cheaply.
+**Beats for the repass Chris set on 2026-10-03. Approved 2026-10-20. Built
+2026-11-17 -- §9 is what shipped and where it differs.** §8 is still his to
+overrule cheaply.
 
 > Since this was written the series became seven games: *The Containment* is
 > now game **seven** and the finale, and "game 9" below -- practical AI -- is
@@ -219,3 +220,63 @@ real Machine:
    corrected to match the code.
 4. **The `random` fix (§7 item 1) is an engine bug, not content.** It can ship
    on its own ahead of any of this.
+
+---
+
+## 9. What shipped, 2026-11-17
+
+Built as written, with four differences; each is cheap to reverse.
+
+**The spine is twelve required, two optional.** In order, after the nine as
+built: `downhill` (9), `it-learned-the-paperwork` (10), `hold-some-back` (11),
+and `the-honest-number` re-scoped (12). The player's scripts live in
+`games/containment/src/act1/training.ts`, so the ladders, routes and tests
+share one copy; `test/repass.test.ts` runs them in the real Python runtime
+and holds every quoted number to what they print.
+
+**Differences from §3:**
+
+1. **Log loss is `downhill`'s first step, not an extension of
+   `not-confidence`.** Changing `not-confidence`'s goal would have reopened it
+   in every save where it was already done. As a step it also reads better:
+   the loss is met, then minimised.
+2. **The underwriter's answer is a document.** `/srv/disclosure/ANSWER`,
+   seeded with the rest, and Kerr points at it when `not-confidence` closes.
+   Her line from §4 is the nudge rung of `downhill`'s second step; her filing
+   line is in `the-honest-number`'s beat.
+3. **`hold-some-back` uses the same sixty rows as `it-learned-the-paperwork`.**
+   On the full training file the validation curve never turns, so early
+   stopping had nothing to show. On the sixty it bottoms out at step 40 and
+   climbs to 0.072 by step 300 -- the cure shown on the patient.
+4. **No dataset change was needed.** §7 item 3 asked the generator to
+   guarantee two things; probing showed both already hold, and
+   `repass.test.ts` now asserts them: the vendor's mean log loss is 0.0862
+   against the constant model's 0.0650, and sixty rows of paperwork train to
+   0.0006 while unseen rows score 0.089, worse than guessing.
+
+**The numbers the beats quote**, all printed by the scripts:
+
+| | |
+|---|---|
+| `downhill`, rate 10, 100 steps | 0.6931 → 0.0676, bias −4.44 (one in eighty), weights near zero |
+| rate 1000 / rate 0.1 | stalls at 0.359 / reaches only 0.142 -- both near-misses |
+| `it-learned-the-paperwork` | train 0.0006, unseen 0.0886 |
+| `hold-some-back` | validation lowest at step 40 (0.0562), test 0.0554, measured once |
+| his own model on `test.csv` | 98.8%, the base rate exactly; crewed found 0 of 6 |
+
+**Something the probe found that the act does not yet say.** With the filing
+and grant columns on the *whole* training file, an honest model learns that
+research ships on private grants are crewed roughly one time in three. It
+still never calls one crewed, but it would have put NAV-7 near 15–30%, where
+the vendor put it at 3%. That is a stronger line than "no determination was
+available" and it is the finale's to use if Chris wants it.
+
+**Still owed: a real phone.** §7 item 2 asked for the training objectives to
+be timed on a phone before content is built on them. Under Node each script
+runs in about 0.3 s. In the built app, in Chromium at phone size with the CPU
+throttled 4x, `downhill.py` took 1.3 s and scoring took 1.0 s, after the
+usual one-off 3 s interpreter load. That is a stand-in, not a device; Chris's
+phone is the real gate.
+
+**Canon fixed on the way:** Kerr is **E. Kerr** in games four and seven too,
+matching games two and three (both had "A. Kerr").

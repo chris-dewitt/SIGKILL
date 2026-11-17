@@ -82,7 +82,7 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
   vfs.writeText(
     `${HOME}/KERR`,
     lines(
-      'From: A. Kerr, adjuster',
+      'From: E. Kerr, adjuster',
       'To:   C. DeWitt',
       'Re:   disclosure, occupancy-v4',
       '',
@@ -110,7 +110,7 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
       'in tension and a tribunal will not understand why until somebody',
       'shows them. That is the whole of my advice.',
       '',
-      '                                                            -- A. Kerr',
+      '                                                            -- E. Kerr',
       '',
     ),
     user,
@@ -152,6 +152,38 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
     user,
   );
 
+  /*
+   * The underwriter's answer, which is the repass's whole question.
+   *
+   * Seeded with everything else: it is a document in the disclosure, and a
+   * player who reads it early has found the next argument early, which is
+   * the kind of reading the act rewards. Its claim is a good one -- that no
+   * classifier could have done better from those records -- and the only
+   * reply Kerr will take is a method that tests it.
+   */
+  vfs.writeText(
+    `${DISCLOSURE}/ANSWER`,
+    lines(
+      'Response of counsel for the underwriter, under disclosure.',
+      '',
+      'We do not dispute that the vendor\'s evaluation was flawed in method.',
+      'We dispute that it matters.',
+      '',
+      'The determination was made from the filing as submitted. Any',
+      'classifier, built by anyone, would have had the same five columns to',
+      'work from. No classifier could have done better from that record, and',
+      'the claimant has not shown otherwise.',
+      '',
+      'The determination was therefore the best available. A better',
+      'evaluation of a model does not produce a better model. It produces a',
+      'longer report.',
+      '',
+      '                                     -- for the underwriter, counsel',
+      '',
+    ),
+    user,
+  );
+
   vfs.writeText(
     `${DISCLOSURE}/NAV7.row`,
     lines(
@@ -176,6 +208,7 @@ export function seedAnnexe(vfs: Vfs, user: User): Dataset {
       `  ${DISCLOSURE}/report.md     the vendor's own evaluation`,
       `  ${DISCLOSURE}/ODUYA         her written answer`,
       `  ${DISCLOSURE}/NAV7.row      the row the tow rests on`,
+      `  ${DISCLOSURE}/ANSWER        the underwriter's reply`,
       `  ${DISCLOSURE}/train.csv     2000 filings`,
       `  ${DISCLOSURE}/test.csv      500 held back`,
       `  ${DISCLOSURE}/labels.csv    what the model said about each one`,

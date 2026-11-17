@@ -125,7 +125,7 @@ export function seedOffice(vfs: Vfs, user: User): void {
   vfs.writeText(
     `${HOME}/KERR`,
     lines(
-      'From: A. Kerr, adjuster',
+      'From: E. Kerr, adjuster',
       'To:   C. DeWitt',
       'Re:   NAV-7, your deposit-office visit',
       '',
@@ -157,7 +157,7 @@ export function seedOffice(vfs: Vfs, user: User): void {
       '',
       'Write it down as you go. Somewhere I can read without you present.',
       '',
-      '                                                            -- A. Kerr',
+      '                                                            -- E. Kerr',
       '',
     ),
     user,
