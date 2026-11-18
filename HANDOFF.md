@@ -1,5 +1,30 @@
 # SIGKILL — handoff
 
+## The Containment repass, 2026-11-17
+
+The approved repass (`docs/GAME5_REPASS.md`, §9 is what shipped): the act
+that taught reading and measuring a model now teaches **making one**, in
+plain Python. The underwriter answers that no classifier could have done
+better from those records; DeWitt trains one from their own file to find out.
+
+- **`downhill`** -- log loss (the vendor 0.0862, always-guess 0.0650), then
+  logistic regression by hand. The bias does all the work: the model learns
+  the base rate, because that is everything those columns contain.
+- **`it-learned-the-paperwork`** -- one-hot filing and grant on sixty rows:
+  train loss 0.0006, unseen 0.089. It learned "a tender is crewed" from the
+  two leaked tenders -- the vendor's failure, rebuilt by hand.
+- **`hold-some-back`** -- three disjoint splits, stop at the validation
+  minimum (step 40), score the test part once.
+- **`the-honest-number`**, re-scoped -- his own model scores 98.8%, the base
+  rate, and finds 0 of 6 crewed. Kerr files the sentence: the records do not
+  contain what the determination claims.
+
+Twelve required objectives now. Each new one has routes, near-misses (a
+learning rate too high and too low; stopping at the last step; testing at
+every step) and a ladder whose bottom rung closes it, checked end to end.
+**Not yet timed on a real phone**: 0.3 s per script under Node, 1.3 s in
+Chromium with the CPU throttled 4x. The finale is next, on top of this.
+
 ## The feel pass, 2026-11-16
 
 The cross-game half of the answer to "kinda weak": not enough story, reads
