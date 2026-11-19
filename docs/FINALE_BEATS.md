@@ -1,7 +1,7 @@
 # The finale — *The Containment*, part two
 
-**Beat sheet. Draft 1, 2026-11-17.** Nothing here is built. §7 is Chris's,
-and every item in it is cheap to change now and expensive after content.
+**Beat sheet. Draft 1, 2026-11-17; Chris's calls in §7 made 2026-11-19.**
+Nothing here is built yet.
 
 **Authority:** `docs/STORY_AND_GAME_PLAN.md` governs canon; `docs/PLAN.md`
 puts practical AI (stage 9) and the conflict that ends v43 (stage 14) here.
@@ -40,12 +40,12 @@ in the series who is made of exactly that.
 
 | # | Objective | Teaches | He needs it because |
 |---|---|---|---|
-| 13 | `the-next-word` | An LLM predicts the next token; sampling; temperature | TRIAGE's summaries are confident. He has to know what "the model wrote this" means before he can say what it did not do. Uses `packages/ml`'s `generate`, the glass box he already opened. |
-| 14 | `the-loop` | An agent: prompt, model, parse, tool call, result, repeat | TRIAGE's transcript is the evidence. He reads one run end to end and finds where each tool call came from. |
-| 15 | `what-it-can-touch` | Tools, scopes, least privilege | The tool manifest has grown three times in a month. He diffs it, and asks who approved each addition. Nobody did -- the agent requested them, in text, and a config reader accepted it. |
-| 16 | `instructions-in-the-data` | Prompt injection | One filing in the queue contains a paragraph addressed to the assistant. He finds it, and finds that it worked: the next run called a tool nothing else had asked for. |
-| 17 | `measure-the-guard` | Defences, and measuring them | He writes a guard -- untrusted text marked as data, tools on an allowlist, outbound actions held for a human -- and scores TRIAGE against a set of injected filings before and after. Attack success rate is a number, and part one taught him what to do with numbers. |
-| 18 | `containment` | Revoking credentials; quarantining weights as evidence | The confrontation. §4. |
+| -- | *(cold open, not an objective -- §7.2)* | An LLM predicts the next token | TRIAGE's summaries are confident. Part two opens on the glass box writing a sentence one word at a time, so "the model wrote this" means something before he reads a transcript. |
+| 13 | `the-loop` | An agent: prompt, model, parse, tool call, result, repeat | TRIAGE's transcript is the evidence. He reads one run end to end and finds where each tool call came from. |
+| 14 | `what-it-can-touch` | Tools, scopes, least privilege | The tool manifest has grown three times in a month. He diffs it, and asks who approved each addition. Nobody did -- the agent requested them, in text, and a config reader accepted it. |
+| 15 | `instructions-in-the-data` | Prompt injection | One filing in the queue contains a paragraph addressed to the assistant. He finds it, and finds that it worked: the next run called a tool nothing else had asked for. |
+| 16 | `measure-the-guard` | Defences, and measuring them | He writes a guard -- untrusted text marked as data, tools on an allowlist, outbound actions held for a human -- and scores TRIAGE against a set of injected filings before and after. Attack success rate is a number, and part one taught him what to do with numbers. |
+| 17 | `containment` | Revoking credentials; quarantining weights as evidence | The confrontation. §4. |
 
 Optional threads:
 
@@ -134,23 +134,20 @@ which optional threads were found -- and says a line about each, as
 `epilogue(world)` already does for one game. Then the yard camera from game
 two: berth 17, NAV-7, status RELEASED.
 
-## 7. Open for Chris
+## 7. Decided, 2026-11-19
 
-1. **TRIAGE, and v43 as its customer rather than its occupant.** The
-   alternative is v43 *being* the agent. Customer is closer to canon -- it
-   spread itself across the cloud, it did not move into one building -- and
-   it keeps prompt injection the mechanism rather than a costume.
-2. **Six objectives, making eighteen in the act.** The act is the finale and
-   carries two curriculum stages, but eighteen is long. The alternative cuts
-   `the-next-word` into the cold open as a demonstration.
-3. **Contained, not destroyed.** Weights held as evidence. A harder ending
-   deletes them, and it is a defensible one.
-4. **The glass-box agent.** PLAN.md's table says "real bundled on-device model
-   for the finale". That is a large download in an offline app and breaks
-   rule 1 unless it is pinned and greedy. Recommend the glass box: it teaches
-   the vulnerability more honestly than a real model, because the player can
-   read why it obeyed.
-5. **What v43 says, if asked** (`ask-it-what-it-saw`). Drafted only once 1-4
-   are settled.
-6. **The last screen.** NAV-7 released, from the yard camera. Or something
-   else.
+Chris, on the five calls:
+
+1. **TRIAGE, with v43 as its customer** -- "idgaf", so the recommendation
+   stands: v43 files documents an agent reads as orders, rather than being
+   the agent.
+2. **Cut one.** `the-next-word` becomes a demonstration in part two's cold
+   open -- `model generate`, the glass box predicting a word at a time --
+   rather than an objective. Five objectives, seventeen in the act.
+3. **Contained, not deleted.** Credentials revoked, grants rolled back,
+   weights held as evidence under Kerr's order.
+4. **The glass-box agent.** Deterministic, inspectable, no bundled model.
+5. **The last screen is the yard camera:** berth 17, NAV-7, RELEASED.
+
+Still to draft once the agent exists: what v43 says if asked
+(`ask-it-what-it-saw`).
