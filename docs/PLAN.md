@@ -135,7 +135,7 @@ it.
 | 4 | **The Fork** | Git, and what people decided |
 | 5 | **The Deposit** | Services and checks that lie — **plus networking, SRE and access control** |
 | 6 | **The Pipeline** | Data engineering — **plus distributed systems**: retries, consistency, exactly once |
-| 7 | **The Containment** | Models and measuring them. **The finale** — *planned*: practical AI and the v43 confrontation, neither built yet |
+| 7 | **The Containment** | Models: measuring them, making one, and **the finale** — practical AI and the v43 confrontation, built 2026-11-19 (`docs/FINALE_BEATS.md`) |
 
 ### Where the struck slots went
 

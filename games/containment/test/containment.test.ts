@@ -40,10 +40,10 @@ describe('the act is structurally sound', () => {
     expect(problems, problems.join('\n')).toEqual([]);
   });
 
-  // Twelve since the repass (docs/GAME5_REPASS.md): nine that read a model,
-  // three that make one.
-  it('ships twelve required and two optional', () => {
-    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(12);
+  // Nine that read a model, three that make one (GAME5_REPASS), and five
+  // that are the finale (FINALE_BEATS).
+  it('ships seventeen required and two optional', () => {
+    expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)).toHaveLength(17);
     expect(CONTAINMENT_OBJECTIVES.filter((o) => o.optional === true)).toHaveLength(2);
   });
 
@@ -110,8 +110,11 @@ describe('the ending files method, not a verdict', () => {
     const ending = epilogue(machine).map((l) => (typeof l === 'string' ? l : l.art)).join('\n');
     expect(ending).toMatch(/barely beats a constant/i);
     expect(ending).toMatch(/filing the method and the figures/i);
-    // The tow is still contested. The act does not hand him a win.
-    expect(ending).toMatch(/tow is still contested/i);
+    // The finale sets the determination aside -- on method, and on evidence
+    // about the assistant, never on a verdict DeWitt wrote -- and the series
+    // ends on the yard camera.
+    expect(ending).toMatch(/determination is set aside/i);
+    expect(ending).toMatch(/RELEASED/);
   });
 
   it('tells a player who skipped the optional threads nothing about them', () => {

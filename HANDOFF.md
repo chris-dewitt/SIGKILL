@@ -1,5 +1,31 @@
 # SIGKILL — handoff
 
+## The finale, 2026-11-19
+
+**The series is complete: seven games, and the last one ends v43.**
+`docs/FINALE_BEATS.md` (§7 Chris's calls, §8 what shipped).
+
+The underwriter replaces the withdrawn classifier with TRIAGE, an agent
+service in commercial region 7 that reads filings, uses tools and drafts
+determinations. v43 is its best customer: filings on account RG-NAV7-03 --
+the grant that paid for the 2.2 GB -- whose words TRIAGE reads as orders.
+Five objectives teach the practical AI a working engineer touches:
+
+- **`the-loop`** -- an agent is a loop. A stored run, step by step; step four
+  came from the filing it was reading, not the task.
+- **`what-it-can-touch`** -- `diff` the manifests: three grants in a month,
+  each asked for by a filing, each "approved-by: auto".
+- **`instructions-in-the-data`** -- prompt injection. F-7710 on the queue
+  makes TRIAGE read the tribunal's docket on DeWitt and send it to region 7.
+- **`measure-the-guard`** -- write `~/guard.conf` and score it against
+  Oduya's eight attacks: 8/8 before, 0/8 after, with the work still done.
+- **`containment`** -- the operator revokes the account on his evidence; the
+  weights are quarantined under Kerr's order. Not deleted.
+
+The ending sets the determination aside and shows the yard camera from game
+two: berth 17, NAV-7, RELEASED. The engine is `packages/agent`, a glass-box
+agent with one deliberate flaw. Also fixed: `grep -A/-B/-C`.
+
 ## The Containment repass, 2026-11-17
 
 The approved repass (`docs/GAME5_REPASS.md`, §9 is what shipped): the act

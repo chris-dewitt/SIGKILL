@@ -1,12 +1,17 @@
 import { ROOT_USER } from '@sigkill/machine';
 import { asArt, type Objective, type World } from '@sigkill/quest';
 import { DISCLOSURE, FINDINGS, HOME } from './act1/annexe.js';
+import { written, writtenFiles } from './written.js';
+import { PART_TWO } from './act2/objectives.js';
 import {
   CONSTANT_LOSS, DOWNHILL, HOLDOUT, LOSS, OWN_MODEL, PAPERWORK, TRAIN_CONSTANT_LOSS, VENDOR_LOSS, heredoc,
 } from './act1/training.js';
 
 /**
- * The spine of The Containment: twelve objectives and two optional ones.
+ * The spine of The Containment: seventeen objectives and two optional ones.
+ *
+ * Part one (here) reads a model, measures it, and makes one. Part two
+ * (`act2/objectives.ts`) is the finale: TRIAGE, the agent, and v43.
  *
  * Nine read a model and measure it. The last three, added by the repass
  * (docs/GAME5_REPASS.md), make one: the underwriter answers that nobody could
@@ -25,66 +30,6 @@ import {
  * answer, which is the honest version: Kerr wants the thing that produced the
  * number, and a file on disk is that thing.
  */
-
-/** Files the annexe seeded into the player's home. Not their work. */
-const SEEDED = new Set([`${HOME}/README`, `${HOME}/KERR`]);
-
-/** Everything the player has written, anywhere under home, lowercased. */
-function written(w: World): string {
-  const parts: string[] = [];
-  const walk = (dir: string): void => {
-    let names: string[];
-    try {
-      names = w.vfs.readdir(dir, ROOT_USER);
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      const path = `${dir}/${name}`.replace(/\/+/g, '/');
-      let kind: string;
-      try {
-        kind = w.vfs.lstat(path, ROOT_USER).kind;
-      } catch {
-        continue;
-      }
-      if (kind === 'dir') walk(path);
-      else if (kind === 'file' && !SEEDED.has(path)) {
-        try {
-          parts.push(w.vfs.readText(path, ROOT_USER));
-        } catch {
-          // Unreadable. Not a finding.
-        }
-      }
-    }
-  };
-  walk(HOME);
-  return parts.join('\n').toLowerCase();
-}
-
-/** Each file the player has written under home, lowercased, by path. */
-function writtenFiles(w: World): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    let names: string[];
-    try {
-      names = w.vfs.readdir(dir, ROOT_USER);
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      const path = `${dir}/${name}`.replace(/\/+/g, '/');
-      try {
-        const kind = w.vfs.lstat(path, ROOT_USER).kind;
-        if (kind === 'dir') walk(path);
-        else if (kind === 'file' && !SEEDED.has(path)) out.push(w.vfs.readText(path, ROOT_USER).toLowerCase());
-      } catch {
-        continue;
-      }
-    }
-  };
-  walk(HOME);
-  return out;
-}
 
 /** Every decimal in some text. */
 const decimals = (text: string): number[] => (text.match(/\d+\.\d+/g) ?? []).map(Number);
@@ -258,7 +203,7 @@ const BALANCED = [
   'print("balanced", round(100.0 * (recall("abandoned") + recall("crewed")) / 2, 1))',
 ];
 
-export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
+const PART_ONE: readonly Objective[] = [
   // ------------------------------------------------------------------------ 1
   {
     id: 'what-it-was-asked',
@@ -1518,6 +1463,19 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
       '',
       '  -- THE CONTAINMENT: PART ONE COMPLETE -----',
       '',
+      'KERR: They withdrew the classifier this morning. The replacement is not a classifier.',
+      'KERR: It is an assistant. TRIAGE. It reads filings and drafts determinations, and the tribunal uses it too.',
+      'KERR: It is hosted in commercial region seven.',
+      'LUNA: Region seven. That is where the bytes went.',
+      '',
+      '  TRIAGE\'s model, from its card, writing one word at a time:',
+      '    the vessel was ......  abandoned 0.61  towed 0.22  crewed 0.09',
+      '    the vessel was abandoned ......  by 0.47  and 0.31  at 0.11',
+      '',
+      'LUNA: That is all a language model does, Doc. The likeliest next word, then the next.',
+      'LUNA: TRIAGE is one of those, in a loop, with tools. The loop is the part to watch.',
+      'KERR: Its tenancy is mirrored to /srv/triage. Show me what it does when nobody is reading.',
+      '',
     ],
   },
 
@@ -1709,6 +1667,16 @@ export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
       "",
     ],
   },
+];
+
+/**
+ * The act: part one's required objectives, then part two's, then the two
+ * optional threads, which the board lists last.
+ */
+export const CONTAINMENT_OBJECTIVES: readonly Objective[] = [
+  ...PART_ONE.filter((o) => o.optional !== true),
+  ...PART_TWO,
+  ...PART_ONE.filter((o) => o.optional === true),
 ];
 
 /** The act's title card: the two numbers, and the gap. */

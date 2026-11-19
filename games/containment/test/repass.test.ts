@@ -118,7 +118,7 @@ describe('the act, start to finish, by its own ladders', () => {
    * a ladder that strands somebody at the bottom of it, and the route harness
    * does not run rungs -- it runs routes.
    */
-  it('closes all twelve with the bottom rung of each step', async () => {
+  it('closes all seventeen with the bottom rung of each step', async () => {
     const { machine, questbook } = boot();
     for (const objective of CONTAINMENT_OBJECTIVES.filter((o) => o.optional !== true)) {
       for (const step of objective.steps) {
