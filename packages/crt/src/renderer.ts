@@ -254,6 +254,34 @@ export class TerminalRenderer {
     }
   }
 
+  /**
+   * The row and column drawn at a point on the flat canvas, in CSS pixels --
+   * the same layout `render` just used, read backwards.
+   *
+   * Undefined off the grid and on the pinned status rows: the readout is not
+   * output, and nothing in it belongs on a command line.
+   */
+  textAt(
+    buffer: TerminalBuffer,
+    scroll: number,
+    pinnedCount: number,
+    x: number,
+    y: number,
+  ): { text: string; col: number } | undefined {
+    const cellW = Math.ceil(this.atlas.cell.width * this.scale);
+    const cellH = Math.ceil(this.atlas.cell.height * this.scale);
+    const col = Math.floor((x * this.scale - this.originX) / cellW);
+    const row = Math.floor((y * this.scale - this.originY) / cellH);
+    const pinned = Math.min(pinnedCount, this.grid.rows);
+    if (col < 0 || col >= this.grid.cols || row < pinned || row >= this.grid.rows) return undefined;
+    const laid = buffer.layout(this.grid.cols);
+    const { start, end } = visibleRange(laid.length, this.grid.rows - pinned, scroll);
+    const index = start + row - pinned;
+    if (index >= end) return undefined;
+    const drawn = laid[index];
+    return drawn ? { text: drawn.text, col } : undefined;
+  }
+
   private drawRow(row: Row, left: number, top: number, cellW: number, cellH: number): void {
     // The atlas is keyed by colour name, and a line's kind *is* its colour.
     // Spans override it for the characters they cover.

@@ -1,6 +1,7 @@
 import { TerminalBuffer, type Line, type LineKind, type Span } from './buffer.js';
 import { CrtPass, type CrtOptions } from './crt.js';
 import { atBottom } from './metrics.js';
+import { unbend, wordAt } from './hit.js';
 import { TerminalRenderer, type Palette } from './renderer.js';
 
 /**
@@ -319,6 +320,27 @@ export class TerminalView {
     const total = this.buffer.height(this.renderer.columns);
     const max = Math.max(0, total - this.bodyRows);
     this.scroll = Math.min(Math.max(0, this.scroll + rows), max);
+  }
+
+  /**
+   * The word under a tap, or undefined.
+   *
+   * Traced back through the barrel the shader applied (plain mode applies
+   * none), then through the renderer's own layout -- so it is the word the
+   * player sees under their finger, not the one the DOM would put there.
+   * Nothing while a full-screen program owns the tube: it reads its own keys.
+   */
+  wordAt(clientX: number, clientY: number): string | undefined {
+    if (this.overlay) return undefined;
+    const rect = this.element.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return undefined;
+    const flat = unbend(
+      (clientX - rect.left) / rect.width,
+      (clientY - rect.top) / rect.height,
+      this.crt?.curvature ?? 0,
+    );
+    const hit = this.renderer.textAt(this.buffer, this.scroll, this.status.length, flat.u * rect.width, flat.v * rect.height);
+    return hit ? wordAt(hit.text, hit.col) : undefined;
   }
 
   scrollToBottom(): void {

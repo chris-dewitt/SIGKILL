@@ -21,6 +21,7 @@ export { highlight } from './highlight.js';
 export type { HighlightOptions } from './highlight.js';
 
 export { TerminalView } from './view.js';
+export { unbend, wordAt } from './hit.js';
 export type { ViewOptions } from './view.js';
 
 export {
