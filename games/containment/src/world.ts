@@ -1,6 +1,7 @@
 import { Machine, ROOT_USER, type MachineSnapshot, type PythonRuntime, type Track } from '@sigkill/machine';
 import { editorCommands } from '@sigkill/editor';
 import {
+  asArt,
   Questbook,
   questCommands,
   type BeatLine,
@@ -10,6 +11,7 @@ import {
 import { CONTAINMENT_OBJECTIVES, CONTAINMENT_TITLE } from './objectives.js';
 import { DISCLOSURE, HOME, PEOPLE, ownEverything, seedAnnexe } from './act1/annexe.js';
 import { glassBoxCommands } from './glassbox.js';
+import { CURRENT, seedTriage, triageCommands } from './act2/triage.js';
 
 /**
  * Game five: The Containment.
@@ -57,6 +59,7 @@ export function containmentCommands(questbook: Questbook) {
     ...questCommands(questbook, { speaker: 'LUNA' }),
     ...editorCommands(),
     ...glassBoxCommands(),
+    ...triageCommands(),
   ];
 }
 
@@ -65,6 +68,9 @@ function seed(machine: Machine): void {
   // Seeded as root, then handed over. Without this every objective ending in
   // `> ~/findings/...` fails with "Permission denied", which is six of them.
   ownEverything(machine.vfs, PEOPLE.dewitt, PEOPLE.dewitt);
+  // Part two's world, root's and read-only to him. Seeded with everything
+  // else: the tenancy was mirrored for the hearing, and nobody mentioned it.
+  seedTriage(machine.vfs);
 }
 
 export function bootContainment(opts: ContainmentOptions): Containment {
@@ -96,6 +102,8 @@ export function restoreContainment(
     python: opts.python,
     commands: containmentCommands(questbook),
   });
+  // A save from before part two existed gets its world.
+  if (!machine.vfs.exists(CURRENT)) seedTriage(machine.vfs);
   return { machine, questbook };
 }
 
@@ -113,6 +121,32 @@ export function coldOpen(): BeatLine[] {
   ];
 }
 
+/**
+ * NAV-7 in berth 17, through the yard camera from game two.
+ *
+ * The same picture The Archive opens on, drawn here rather than imported --
+ * games depend on packages, never on each other -- and it has to match that
+ * one row for row, because a returning player will recognise it. What has
+ * changed is the line under it.
+ */
+const YARD = [
+  '┌─ YARD 3  CAM 2 ───────────────┐',
+  '│ ░ ░ ░   ░ ░ ░ ░ ░   ░ ░ ░ ░ ░ │',
+  '│ ░ ░ ░ ░ ░ ░   ░ ░ ░ ░ ░   ░ ░ │',
+  '│ ░   ░ ░ ░ ░ ░ ▓ ░ ░ ░ ░ ░ ░ ░ │',
+  '│ ░ ░ ░ ░   ░ ░ ░ ░ ░ ░   ░ ░ ░ │',
+  '└───────────────────────────────┘',
+  '  ▓ BERTH 17   KV-1140  NAV-7',
+  '    RELEASED  determination set aside',
+];
+
+/**
+ * The last ending in the series.
+ *
+ * It notices what this run did -- the optional threads, the guard he chose --
+ * and then shows the yard. The series began with a ship nobody could board;
+ * it ends with the order that lets him.
+ */
 export function epilogue(world?: World): BeatLine[] {
   const done = (id: string): boolean =>
     world !== undefined && (CONTAINMENT_OBJECTIVES.find((o) => o.id === id)?.done(world) ?? false);
@@ -121,14 +155,21 @@ export function epilogue(world?: World): BeatLine[] {
 
   return [
     'KERR: I drew another split. Your method holds. I ran your training loop twice; it agrees with itself.',
-    'KERR: The quoted accuracy barely beats a constant. The successful crewed cases were in training.',
-    'KERR: And the model you built from their own file found none of the six. Nobody could have.',
+    'KERR: The quoted accuracy barely beats a constant, and the model you built from their own file found none of the six.',
     'KERR: I am filing the method and the figures, and one sentence: the records do not contain what the determination claims.',
-    'KERR: Oduya has filed her own account. The tow is still contested. It now rests on nothing anyone can find.',
-    ...(askedIt ? ['LUNA: And we established that please is not a repair for this classifier.'] : []),
+    'KERR: And their assistant had a customer it should not have had. The account is closed. What it sent is held.',
+    'KERR: The determination is set aside. The yard has the order.',
+    '',
+    ...asArt(YARD),
+    '',
+    ...(askedIt ? ['LUNA: We also established that please is not a repair for a classifier.'] : []),
     ...(sawHerself ? ['LUNA: I am still thinking about mine. Walk with me?'] : []),
-    '', '  THE CONTAINMENT — COMPLETE',
-    '  Keep exploring, or type games to go back to any of the seven.', '',
+    'LUNA: Berth seventeen. Doc, can we go aboard? Hollis says somebody left a light on in the galley.',
+    '',
+    '  THE CONTAINMENT — COMPLETE',
+    '  SIGKILL: seven games, and that is all of them. Thank you for playing.',
+    '  Type games to go back to any of the seven.',
+    '',
   ];
 }
 

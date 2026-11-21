@@ -75,7 +75,7 @@ export const textCommands: CommandSpec[] = [
     name: 'grep',
     summary: 'search text for lines matching a pattern',
     manual:
-      'grep [-i] [-v] [-c] [-n] [-l] [-r] PATTERN [FILE...]\n' +
+      'grep [-i] [-v] [-c] [-n] [-l] [-r] [-A N] [-B N] [-C N] PATTERN [FILE...]\n' +
       '\n' +
       'Print the lines of each FILE that match PATTERN. With no FILE, read\n' +
       'standard input. PATTERN is a regular expression.\n' +
@@ -86,6 +86,7 @@ export const textCommands: CommandSpec[] = [
       '  -n  prefix each line with its number in the file\n' +
       '  -l  print only the names of files with a match\n' +
       '  -r  recurse into directories (defaults to . with no FILE)\n' +
+      '  -A N  also print N lines after each match; -B N, before; -C N, both\n' +
       '\n' +
       'This is the command that makes a large file usable. `cat` a five hundred\n' +
       'line log and you have learned nothing; grep one word out of it and you\n' +
@@ -104,8 +105,25 @@ export const textCommands: CommandSpec[] = [
       'This is the most useful command on the ship. A log with five hundred\n' +
       'lines in it is unreadable and greppable at the same time.',
     run: (ctx, argv, io) => {
-      const { flags, operands } = parseArgs(argv);
+      const { flags, values, operands } = parseArgs(argv, { valued: ['-A', '-B', '-C'] });
       if (operands.length === 0) return usage(io, 'usage: grep [-inv] PATTERN [FILE...]');
+
+      /*
+       * Context, which used to be silently ignored: `-A1` parsed as two
+       * unknown flags and grep printed the match alone, so the line you
+       * asked to see after it never appeared and nothing said why. Found by
+       * the finale, whose ladder reads "the step, and the line after it".
+       */
+      const context = (flag: string): number | undefined => {
+        const raw = values.get(flag) ?? values.get('-C');
+        return raw === undefined ? undefined : Number(raw);
+      };
+      const after = context('-A') ?? 0;
+      const before = context('-B') ?? 0;
+      if (!Number.isInteger(after) || !Number.isInteger(before) || after < 0 || before < 0) {
+        io.err(`grep: invalid context length argument\n`);
+        return 2;
+      }
 
       const pattern = operands[0]!;
       const recursive = flags.has('-r') || flags.has('-R');
@@ -150,13 +168,28 @@ export const textCommands: CommandSpec[] = [
 
       for (const source of sources) {
         let count = 0;
-        for (const [index, line] of lines(source.text).entries()) {
+        const rows = lines(source.text);
+        const hits = new Set<number>();
+        for (const [index, line] of rows.entries()) {
           if (re.test(line) === invert) continue;
           count++;
           matched = true;
-          if (countOnly || namesOnly) continue;
-          const prefix = `${showName ? source.name + ':' : ''}${withNumbers ? index + 1 + ':' : ''}`;
-          out.push(prefix + line);
+          hits.add(index);
+        }
+        if (!countOnly && !namesOnly) {
+          // A match is printed with ':' after its name and number, a context
+          // line with '-', and a gap between groups as '--' -- as GNU grep.
+          const shown = new Set<number>();
+          for (const hit of hits) {
+            for (let i = Math.max(0, hit - before); i <= Math.min(rows.length - 1, hit + after); i++) shown.add(i);
+          }
+          let last = -1;
+          for (const index of [...shown].sort((a, b) => a - b)) {
+            if ((before > 0 || after > 0) && last >= 0 && index > last + 1) out.push('--');
+            const mark = hits.has(index) ? ':' : '-';
+            out.push(`${showName ? source.name + mark : ''}${withNumbers ? index + 1 + mark : ''}${rows[index]}`);
+            last = index;
+          }
         }
         if (countOnly) out.push(`${showName ? source.name + ':' : ''}${count}`);
         if (namesOnly && count > 0) out.push(source.name);

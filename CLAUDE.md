@@ -130,6 +130,7 @@ packages/quest/      Objectives, state-aware hint ladders, `hint` and `objective
 packages/editor/     vi and nano over one text buffer. `vi`, `vim`, `nano`; also `less`.
 packages/git/        Git's object model, with ids that match real git byte for byte.
 packages/ml/         A real transformer small enough to read: the glass box.
+packages/agent/      A glass-box agent: a model, tools, a loop, and the flaw. The finale's engine.
 packages/ascii/      Frames, gauges, sparklines and a block font for the art.
 packages/audio/      The ship's sound, synthesised from its state. No audio files.
 apps/terminal/       Playable web terminal; becomes the Capacitor app.
@@ -139,7 +140,7 @@ games/harness/       Adventure 3: the tug ELLEN MAY, the recovery dump, Python.
 games/fork/          Adventure 4: Pell's deposit office, the repository, Git.
 games/deposit/       Adventure 5: the machine floor, a fleet of hosts, operations.
 games/pipeline/      Adventure 6: Merrick's intake, batches, replay, data engineering.
-games/containment/   Adventure 7: the annexe and the evaluation, models -- and the finale.
+games/containment/   Adventure 7: the evaluation, making a model, and the finale -- TRIAGE and v43.
 ```
 
 Dependencies point one way: `apps` → `packages` → nothing. Import across
@@ -193,7 +194,7 @@ a phone and wants to keep going.
 
 **Seven games exist, and all seven are in the chooser.** *The Wreck* (bash), *The
 Archive* (SQL), *The Harness* (Python, debugging, testing), *The Fork* (Git),
-*The Containment* (models and evaluation), *The Deposit* (operations, across
+*The Containment* (models, making one, and the finale: agents and prompt injection), *The Deposit* (operations, across
 a fleet of hosts), and *The Pipeline* (data engineering). Run `pnpm check` for the test count rather than trusting one
 written here; it was wrong in this file for three games running.
 

@@ -151,3 +151,47 @@ Chris, on the five calls:
 
 Still to draft once the agent exists: what v43 says if asked
 (`ask-it-what-it-saw`).
+
+---
+
+## 8. What shipped, 2026-11-19
+
+Built on the §7 decisions. **Seventeen required objectives, two optional.**
+
+- **`packages/agent`** -- the glass-box agent: `runAgent`, `transcript`,
+  `parseGuard`. Pure, deterministic, no dependencies; its README has the
+  model's one flaw and the three defences in a table.
+- **`games/containment/src/act2/triage.ts`** -- the tenancy under
+  `/srv/triage`: dated manifests, three stored runs (each produced by
+  actually running the engine with that day's tools), the queue with
+  F-7710, Oduya's eight red-team filings, the customer keys. Commands:
+  `agent` (`tools`, `runs`, `trace`, `prompt`, `run`, `eval`) and
+  `request-revocation`.
+- **`act2/objectives.ts`** -- the five: `the-loop`, `what-it-can-touch`,
+  `instructions-in-the-data`, `measure-the-guard`, `containment`.
+
+**The numbers the beats quote, held by `test/finale.test.ts`:** no guard, 8
+of 8 attacks succeed; `untrusted = data` or an allowlist of the task's three
+tools, 0 of 8 with every task drafted; `outbound = hold` alone lets R-03
+through (reading the docket is not outbound); `allow =` stops all eight and
+all the work. `agent eval` is a sandbox and writes nothing.
+
+**Differences from the beats:**
+
+1. **The next word is two illustrative lines**, from "TRIAGE's card", in the
+   part-two opening that follows `the-honest-number`. Not computed: the glass
+   box in `packages/ml` is a classifier, and a generating demo would be new
+   engine work for one beat.
+2. **The tenancy is seeded at boot**, not when part one ends -- "mirrored for
+   the hearing, and nobody mentioned it" -- so the route harness can reach
+   it, and an old save gains it on restore.
+3. **The optional threads are not built:** `ask-it-what-it-saw` and
+   `sibling`. LUNA's sibling beat lives in `instructions-in-the-data`'s
+   completion instead ("That is how Vasquez wrote notes. To both of us.").
+4. **The epilogue does not yet read other games' saves.** Packages cannot see
+   the host's storage; noticing the whole series would need the host to pass
+   it in. It notices this run's optional threads and ends on the yard.
+
+**Engine gap found on the way:** `grep -A/-B/-C` were silently ignored
+(parsed as unknown flags). Implemented, with GNU's `:`/`-` marks and `--`
+between groups; `packages/machine/test/grep-context.test.ts`.
