@@ -42,6 +42,24 @@ export function gridFor(viewport: Viewport, cell: CellSize): GridSize {
   };
 }
 
+/**
+ * The cell as it is actually drawn, in CSS pixels.
+ *
+ * The renderer blits whole device pixels, so a glyph 8.12px wide at a scale
+ * of 2 occupies 17 device pixels -- 8.5 CSS pixels, not 8.12. The grid used
+ * to be counted with the measured width and drawn with the rounded one, so
+ * every line ran about 5% long: on a 400px phone, 35 to 42 columns of text
+ * ended 10-15px past the safe edge, inside the curved overscan the CRT bends
+ * off the glass. The chooser's blurbs were cut mid-word on Chris's phone.
+ * Counting and drawing now use the same number.
+ */
+export function drawnCell(cell: CellSize, scale: number): CellSize {
+  return {
+    width: Math.ceil(cell.width * scale) / scale,
+    height: Math.ceil(cell.height * scale) / scale,
+  };
+}
+
 /** Canvas backing-store size in device pixels, capped so a 4× DPR tablet does not allocate a surface it cannot afford. */
 export function backingSize(viewport: Viewport, maxDpr = 2): { width: number; height: number; scale: number } {
   const scale = Math.min(Math.max(viewport.dpr, 1), maxDpr);

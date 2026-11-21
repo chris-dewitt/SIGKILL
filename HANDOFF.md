@@ -1,5 +1,19 @@
 # SIGKILL — handoff
 
+## Text off the edge of the glass, 2026-11-21
+
+Chris's phone showed the chooser cut mid-word at the right edge. Two bugs:
+
+- **The grid ran ~5% long on every phone.** Columns were counted with the
+  font's measured cell width (8.13px) but drawn at whole device pixels (8.5px
+  at 2x), so a full line ended 10-15px past the safe edge, in the curved
+  overscan the CRT bends off the glass. `drawnCell` in `packages/crt` is now
+  the one cell size for counting, drawing and scrolling. This affected every
+  long line in every game, not only the chooser.
+- **The chooser clipped each authored blurb line** instead of wrapping, so
+  words past the edge simply vanished. It wraps now, and a test checks no
+  word is lost at any width.
+
 ## The finale, 2026-11-19
 
 **The series is complete: seven games, and the last one ends v43.**
