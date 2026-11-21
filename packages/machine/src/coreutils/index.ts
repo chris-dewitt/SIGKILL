@@ -6,8 +6,9 @@ import { netCommands } from './net.js';
 import { procCommands } from './proc.js';
 import { sysCommands } from './sys.js';
 import { textCommands } from './text.js';
+import { withCompletions } from './completions.js';
 
-export const ALL_COMMANDS: CommandSpec[] = [
+export const ALL_COMMANDS: CommandSpec[] = withCompletions([
   ...fsCommands,
   ...inspectCommands,
   ...textCommands,
@@ -15,7 +16,7 @@ export const ALL_COMMANDS: CommandSpec[] = [
   ...jobCommands,
   ...netCommands,
   ...sysCommands,
-];
+]);
 
 /** Build a name -> command map, optionally with adventure-specific extras. */
 export function commandRegistry(extra: CommandSpec[] = []): Map<string, CommandSpec> {

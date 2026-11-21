@@ -664,9 +664,42 @@ export function gitCommands(opts: GitOptions = {}): CommandSpec[] {
         `It is all just files. Try:  ls .git    and    cat .git/HEAD${CRLF}`,
       preformatted: true,
       run,
+      /*
+       * The next word, for a thumb. Subcommands first; then whatever that
+       * subcommand takes -- this repository's own branches and tags for the
+       * ones that take a revision, and the files in front of you for the ones
+       * that take a path.
+       */
+      complete: (ctx, args) => {
+        if (args.length <= 1) return GIT_SUBCOMMANDS;
+        const sub = args[0]!;
+        const repo = open(ctx, opts);
+        const revs = repo ? ['HEAD', ...repo.branches(), ...repo.tags()] : ['HEAD'];
+        let files: string[] = [];
+        try {
+          files = ctx.vfs.readdir(ctx.cwd, ctx.user).filter((n) => !n.startsWith('.'));
+        } catch { /* nowhere to list */ }
+        switch (sub) {
+          case 'log': return ['--oneline', '-n', '--first-parent', '--', ...revs];
+          case 'show': case 'diff': case 'shortlog': case 'merge-base': case 'rev-parse': return revs;
+          case 'cat-file': return ['-t', ...revs];
+          case 'blame': return [...files, ...revs];
+          case 'add': return ['.', ...files];
+          case 'commit': return ['-m'];
+          case 'switch': case 'checkout': return ['-c', ...revs];
+          case 'branch': case 'tag': return args.length === 2 ? [] : revs;
+          case 'bisect': return args.length === 2 ? ['start', 'good', 'bad', 'reset', 'log'] : revs;
+          default: return [];
+        }
+      },
     },
   ];
 }
+
+const GIT_SUBCOMMANDS = [
+  'log', 'show', 'status', 'diff', 'blame', 'branch', 'switch', 'checkout', 'add', 'commit',
+  'tag', 'shortlog', 'bisect', 'merge-base', 'rev-parse', 'cat-file', 'reflog', 'init',
+];
 
 function usage(io: { err: (s: string) => void }, message: string): number {
   io.err(`${message}${CRLF}`);

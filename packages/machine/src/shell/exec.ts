@@ -119,6 +119,19 @@ export interface CommandSpec {
    * from the top-level shell afterwards.
    */
   preformatted?: boolean;
+  /**
+   * What could come next on the line, for a host that offers taps instead of
+   * typing.
+   *
+   * `args` are the words after the command name, the last one possibly
+   * half-typed (empty when the line ends in a space). Return whole words;
+   * the host filters them by what is being typed and swaps that word for the
+   * one tapped. Only the command knows its own grammar -- that sqlite3 takes
+   * a table after FROM, that systemctl takes a unit after start -- so it is
+   * declared here rather than guessed by the host. Pure: read the context,
+   * change nothing.
+   */
+  complete?: (ctx: ShellContext, args: readonly string[]) => readonly string[];
   run: CommandFn;
 }
 
