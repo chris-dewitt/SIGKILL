@@ -210,6 +210,12 @@ export function glassBoxCommands(): CommandSpec[] {
       // host must clip it rather than re-wrap it.
       preformatted: true,
       run,
+      // The subcommand, then the words it knows: a sentence for the model can
+      // be built by tapping, and every word offered is one it has an id for.
+      complete: (_ctx, args) => {
+        if (args.length <= 1) return ['card', 'vocab', 'tokens', 'classify', 'attention'];
+        return ['tokens', 'classify', 'attention'].includes(args[0]!) ? [...VOCAB] : [];
+      },
     },
   ];
 }

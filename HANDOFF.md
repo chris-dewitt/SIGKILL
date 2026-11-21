@@ -1,5 +1,37 @@
 # SIGKILL — handoff
 
+## Tap instead of type, 2026-11-21
+
+Chris: "we need to not type multilingual code". Four ways a thumb now builds
+a line without the soft keyboard:
+
+- **Chips that know what comes next.** `CommandSpec.complete(ctx, args)` in
+  the engine; `apps/terminal/src/next.ts` asks the command under the cursor
+  (after the last pipe) and filters by the half-typed word. `sqlite3` walks a
+  whole `SELECT ... FROM ... WHERE ... ORDER BY` with the database's own
+  tables and columns; `git` offers subcommands then real branches and tags;
+  `systemctl`, `journalctl`, `ssh`, `curl`, `cd`, `sudo`, `agent`, `model`
+  and `deposit` have their own. TAB uses the same words. The bar scrolls past
+  five once it is offering next words.
+- **Tap a word on the tube.** `TerminalView.wordAt` traces the tap back
+  through the shader's barrel (`packages/crt/src/hit.ts`, the same `curve()`
+  -- it is symmetric, so no inverse is needed) and the renderer's layout. File
+  names, hosts, units, filing ids and table cells go onto the line at the
+  caret. A drag is still a scroll; the pinned readout and prompts are not
+  words.
+- **↑ recall**, first on the symbol row. A phone keyboard has no up arrow.
+- **The hinted command as a chip.** `Questbook.offered(world)` returns the
+  command of the last rung taken, and only once it was a command rung for the
+  current step -- never unasked, and gone when the step moves. A one-line
+  command fills the field; a heredoc runs.
+
+Tests: `packages/machine/test/complete.test.ts`, `apps/terminal/test/next.test.ts`,
+`packages/crt/test/hit.test.ts`, the questbook's `offered` cases, and
+`apps/terminal/e2e/tap.spec.ts`, which does all four by touch at phone size.
+
+Next: the density pass -- shorter beats and READMEs, starter files instead of
+scripts typed from nothing, and a test that caps them.
+
 ## Text off the edge of the glass, 2026-11-21
 
 Chris's phone showed the chooser cut mid-word at the right edge. Two bugs:

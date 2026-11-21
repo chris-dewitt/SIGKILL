@@ -1,3 +1,4 @@
+import { withCompletions } from '../coreutils/completions.js';
 import type { CommandSpec } from '../shell/exec.js';
 import { ROOT_USER, type Vfs } from '../vfs/vfs.js';
 import * as p from '../vfs/path.js';
@@ -320,7 +321,7 @@ export function pythonCommands(getRuntime: () => PythonRuntime | undefined): Com
     'they are looking at the same disk.';
 
   return [
-    { name: 'python3', summary: 'run the Python interpreter', manual, plain, run: runPython },
+    withCompletions([{ name: 'python3', summary: 'run the Python interpreter', manual, plain, run: runPython }])[0]!,
     { name: 'python', summary: 'run the Python interpreter', manual, plain, run: runPython },
   ];
 }

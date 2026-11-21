@@ -259,6 +259,29 @@ export class Questbook {
     };
   }
 
+  /**
+   * The command the player has already been shown for the step in front of
+   * them, if the last rung they took was a command rung.
+   *
+   * For the host, so a phone can put it on a chip: once the ladder has given
+   * the answer, making somebody type it out letter by letter from the screen
+   * is a transcription test, not a lesson. Undefined until it has been
+   * earned -- a chip that offered the answer unasked would be the walkthrough
+   * the ladder exists to avoid -- and undefined again the moment the step
+   * moves, because escalation is per step.
+   */
+  offered(world: World): string | undefined {
+    const objective = this.current(world);
+    if (!objective) return undefined;
+    const step = this.step(world, objective);
+    if (!step) return undefined;
+    const ladder = this.ladder(step);
+    const taken = this.revealed.get(key(objective.id, step.id)) ?? 0;
+    if (taken === 0 || ladder.length === 0) return undefined;
+    const rung = ladder[Math.min(taken, ladder.length) - 1]!;
+    return rung.tier === 'command' ? rung.command : undefined;
+  }
+
   snapshot(): QuestSnapshot {
     return {
       version: 1,

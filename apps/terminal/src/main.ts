@@ -19,6 +19,7 @@ import {
 import { gaugesOf, statusRows, type Gauge, type ShipStatus } from './status.js';
 import { changeRows, gaugeChanges, ornament, titleRows } from './cards.js';
 import { chooserLines, chosen, entry, offered, LIBRARY, type Entry } from './library.js';
+import { insertWord, nextWords } from './next.js';
 
 /*
  * The interpreters, built before any adventure is.
@@ -1186,52 +1187,23 @@ function screenKey(key: string, ctrl = false): void {
 
 // ---------------------------------------------------------------- completion
 
-/** Complete a command name at the start of the line, a path anywhere else. */
+/**
+ * TAB: the same words the chip bar offers, filled as far as they agree.
+ *
+ * One source for both, so TAB never knows something the chips do not.
+ */
 function complete(value: string): { completed: string; options: string[] } {
-  const trailingSpace = /\s$/.test(value);
-  const tokens = value.split(/\s+/).filter((t) => t.length > 0);
-  const editing = trailingSpace ? '' : (tokens[tokens.length - 1] ?? '');
-  const isCommandSlot = tokens.length === 0 || (tokens.length === 1 && !trailingSpace);
-
-  let candidates: string[];
-  let replaceFrom = editing;
-
-  if (isCommandSlot) {
-    candidates = [...machine.shell.commands.keys()].filter((n) => n.startsWith(editing)).sort();
-  } else {
-    const slash = editing.lastIndexOf('/');
-    const dir = slash < 0 ? '.' : editing.slice(0, slash + 1);
-    const stem = slash < 0 ? editing : editing.slice(slash + 1);
-    let entries: string[] = [];
-    try {
-      entries = machine.vfs.readdir(machine.shell.resolve(dir), machine.shell.user);
-    } catch {
-      entries = [];
-    }
-    candidates = entries
-      .filter((e) => e.startsWith(stem) && (stem.startsWith('.') || !e.startsWith('.')))
-      .map((e) => {
-        const full = dir === '.' ? e : dir + e;
-        let suffix = '';
-        try {
-          if (machine.vfs.stat(machine.shell.resolve(full), machine.shell.user).kind === 'dir') {
-            suffix = '/';
-          }
-        } catch { /* a broken link still completes, just without the slash */ }
-        return full + suffix;
-      })
-      .sort();
-    replaceFrom = editing;
-  }
-
+  const { words, partial } = nextWords(machine.shell, value);
+  const candidates = [...words];
   if (candidates.length === 0) return { completed: value, options: [] };
 
+  const head = value.slice(0, value.length - partial.length);
+  if (candidates.length === 1) return { completed: insertWord(value, partial, candidates[0]!), options: [] };
+  // Case-insensitive filtering means the candidates may disagree with what is
+  // typed on case; extend only along what they all share exactly.
   const shared = commonPrefix(candidates);
-  const head = value.slice(0, value.length - replaceFrom.length);
-  const only = candidates.length === 1 && candidates[0];
-  const completed = head + (only ? (only.endsWith('/') ? only : only + ' ') : shared);
-
-  return { completed, options: candidates.length > 1 ? candidates : [] };
+  const completed = shared.length > partial.length && shared.startsWith(partial) ? head + shared : value;
+  return { completed, options: candidates };
 }
 
 function commonPrefix(values: string[]): string {
@@ -1284,6 +1256,9 @@ function applyCompletion(): void {
  */
 const CHIP_SLOTS = 5;
 
+/** How many the bar holds once it is offering next words: enough to scroll. */
+const CHIP_SCROLL = 24;
+
 /**
  * The chip bar reads the room: what you have typed, and what is actually
  * in front of you. On a phone this is not a convenience, it is the input method.
@@ -1317,14 +1292,10 @@ function suggestions(): string[] {
     return [...always, ...[...new Set(rest)].filter((c) => !always.includes(c)).slice(0, room)];
   }
 
-  if (tokens.length === 1 && !/\s$/.test(value)) {
-    return [...machine.shell.commands.keys()]
-      .filter((n) => n.startsWith(tokens[0]!) && n !== tokens[0])
-      .sort()
-      .slice(0, CHIP_SLOTS);
-  }
-
-  return listHere().slice(0, CHIP_SLOTS);
+  // Past the empty line, the command under the cursor says what comes next.
+  // More than CHIP_SLOTS: the bar scrolls, and a column name eight chips along
+  // is still one swipe instead of eleven letters.
+  return nextWords(machine.shell, value).words.slice(0, CHIP_SCROLL);
 }
 
 function listHere(): string[] {
@@ -1338,6 +1309,9 @@ function listHere(): string[] {
 function refreshChips(): void {
   refreshTab();
   chips.replaceChildren();
+  chips.scrollLeft = 0;
+  const given = screenProgram || input.value.trim() !== '' ? undefined : questbook.offered(machine);
+  if (given !== undefined) chips.append(givenChip(given));
   for (const suggestion of suggestions()) {
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -1360,15 +1334,44 @@ function refreshChips(): void {
 
     chip.addEventListener('click', () => {
       const value = input.value;
-      const trailing = /\s$/.test(value) || value.length === 0;
-      const tokens = value.split(/\s+/).filter((t) => t.length > 0);
-      if (!trailing && tokens.length > 0) tokens.pop();
-      input.value = [...tokens, suggestion].join(' ') + ' ';
+      input.value = insertWord(value, nextWords(machine.shell, value).partial, suggestion);
+      caretToEnd();
       input.focus();
       refreshChips();
     });
     chips.append(chip);
   }
+}
+
+/**
+ * The command `hint` has already shown, one tap from the line.
+ *
+ * Only once the ladder's bottom rung has been taken for this step (see
+ * `Questbook.offered`), so it is never the answer unasked. A one-line command
+ * goes into the field to be read and sent; a heredoc cannot live in a one-line
+ * field, so that one runs, echoed in full like anything typed.
+ */
+function givenChip(command: string): HTMLButtonElement {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'chip given';
+  const multiline = command.includes('\n');
+  chip.textContent = `\u25b8 ${multiline ? `${command.split('\n')[0]} \u2026` : command}`;
+  chip.title = command;
+  chip.setAttribute('aria-label', multiline ? `Run the hinted command: ${command}` : `Use the hinted command: ${command}`);
+  holdFocusOnTap(chip);
+  chip.addEventListener('click', () => {
+    if (multiline) {
+      if (busy) return;
+      void submit(command);
+      return;
+    }
+    input.value = command;
+    caretToEnd();
+    input.focus();
+    refreshChips();
+  });
+  return chip;
 }
 
 /**
@@ -1388,7 +1391,43 @@ function holdFocusOnTap(button: HTMLElement): void {
   button.addEventListener('mousedown', (event) => event.preventDefault());
 }
 
+/**
+ * Caret to the end, and the end in view. A one-line field on a phone shows the
+ * start of a long line by default, which hides exactly the word just added.
+ */
+function caretToEnd(): void {
+  input.setSelectionRange(input.value.length, input.value.length);
+  input.scrollLeft = input.scrollWidth;
+}
+
+/** The command before the one showing, with the caret at its end. */
+function recallPrevious(): void {
+  if (historyIndex <= 0) return;
+  historyIndex--;
+  input.value = history[historyIndex] ?? '';
+  caretToEnd();
+  refreshChips();
+}
+
 function buildSymbolRow(): void {
+  /*
+   * Recall first, ahead of the symbols. A phone keyboard has no up arrow, and
+   * "the same again with one word changed" is most of what a terminal is: a
+   * query that needs one more WHERE, a path that was one letter off. Retyping
+   * it was the single most common thing a thumb did.
+   */
+  const recall = document.createElement('button');
+  recall.type = 'button';
+  recall.className = 'symbol recall';
+  recall.textContent = '\u2191';
+  recall.setAttribute('aria-label', 'Previous command');
+  holdFocusOnTap(recall);
+  recall.addEventListener('click', () => {
+    recallPrevious();
+    input.focus();
+  });
+  symbols.append(recall);
+
   for (const key of SYMBOL_KEYS) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -1469,11 +1508,7 @@ input.addEventListener('keydown', (event) => {
   }
   if (event.key === 'ArrowUp') {
     event.preventDefault();
-    if (historyIndex > 0) {
-      historyIndex--;
-      input.value = history[historyIndex] ?? '';
-      refreshChips();
-    }
+    recallPrevious();
     return;
   }
   if (event.key === 'ArrowDown') {
@@ -1599,10 +1634,40 @@ document.addEventListener('keydown', (event) => {
 /*
  * Scrolling the canvas is ours to implement: it is a picture, not a document.
  */
+/**
+ * Put a word from the screen into the line, at the caret, spaced.
+ *
+ * The other half of "do not make them type it": a filename in `ls`, a column
+ * in a query's output, a host, a unit, a filing id -- whatever the game just
+ * printed is one tap from the command line instead of a dozen letters copied
+ * by eye from a curved screen on a small phone.
+ */
+function insertTapped(word: string): void {
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? start;
+  const before = input.value.slice(0, start);
+  const after = input.value.slice(end);
+  const lead = before.length === 0 || /[\s/=]$/.test(before) ? '' : ' ';
+  const trail = after.startsWith(' ') ? '' : ' ';
+  input.value = `${before}${lead}${word}${trail}${after}`;
+  const caret = before.length + lead.length + word.length + trail.length;
+  input.setSelectionRange(caret, caret);
+  if (after.length === 0) input.scrollLeft = input.scrollWidth;
+  input.focus();
+  refreshChips();
+}
+
 function bindSurface(surface: HTMLElement): void {
-  surface.addEventListener('click', () => {
+  /** Set by a touch that moved: that was a scroll, and its click is not a tap. */
+  let dragged = false;
+
+  surface.addEventListener('click', (event) => {
     if (window.getSelection()?.toString()) return;
-    if (!input.disabled) input.focus();
+    if (input.disabled) return;
+    const word = !dragged && !screenProgram && !busy ? view.wordAt(event.clientX, event.clientY) : undefined;
+    dragged = false;
+    if (word !== undefined) insertTapped(word);
+    else input.focus();
   });
 
   surface.addEventListener(
@@ -1618,15 +1683,19 @@ function bindSurface(surface: HTMLElement): void {
 
   let touchY: number | null = null;
   let touchRows = 0;
+  let touchFrom = 0;
 
   surface.addEventListener('touchstart', (e) => {
     touchY = e.touches[0]?.clientY ?? null;
+    touchFrom = touchY ?? 0;
     touchRows = 0;
+    dragged = false;
   }, { passive: true });
 
   surface.addEventListener('touchmove', (e) => {
     const y = e.touches[0]?.clientY;
     if (y === undefined || touchY === null) return;
+    if (Math.abs(y - touchFrom) > 10) dragged = true;
 
     // The content follows the thumb: drag down and what was above comes into
     // view, which is further back.
