@@ -79,7 +79,7 @@ export class TerminalRenderer {
   private atlas: GlyphAtlas;
   private palette: Palette;
   private readonly gutter: number;
-  private readonly overscan: number;
+  private overscan: number;
   private font: string;
   /** Where the fallback path puts the baseline: the atlas's, measured per frame. */
   private baseline = 0;
@@ -172,6 +172,14 @@ export class TerminalRenderer {
   /** One buffer row in CSS pixels. */
   get rowHeight(): number {
     return drawnCell(this.atlas.cell, this.scale).height;
+  }
+
+  /**
+   * The share of each edge kept clear for a curved tube to bend into. Takes
+   * effect at the next `resize`; a flat screen wants 0 and its columns back.
+   */
+  setOverscan(overscan: number): void {
+    this.overscan = Math.min(Math.max(overscan, 0), 0.2);
   }
 
   /** Re-measure for a new viewport. Rebuilds the atlas only if the scale changed. */

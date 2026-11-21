@@ -21,6 +21,10 @@ const SETTLE_MS = 320;
  */
 const OVERSCAN = 0.045;
 
+/** Room for the barrel to bend into -- none on a flat screen. */
+const overscanFor = (crt: CrtOptions | undefined): number =>
+  (crt?.curvature ?? 6) > 0 ? OVERSCAN : 0;
+
 /** Probe for WebGL2 without constructing the pass, so the decision is made once. */
 function supportsWebgl2(): boolean {
   try {
@@ -95,7 +99,7 @@ export class TerminalView {
       font: opts.font,
       ...(opts.palette ? { palette: opts.palette } : {}),
       ...(opts.gutter !== undefined ? { gutter: opts.gutter } : {}),
-      overscan: accelerated ? OVERSCAN : 0,
+      overscan: accelerated ? overscanFor(opts.crt) : 0,
     });
 
     this.glCanvas = document.createElement('canvas');
@@ -256,7 +260,15 @@ export class TerminalView {
    * choosing a CRT preset for it is a wish, not a failure.
    */
   setCrt(options: CrtOptions): void {
-    this.crt?.configure(options);
+    if (!this.crt) return;
+    const before = this.crt.curvature;
+    this.crt.configure(options);
+    // Flat and curved inset the grid differently, so a switch between them
+    // re-measures: a flat screen gets its edge columns back.
+    if ((before > 0) !== (this.crt.curvature > 0)) {
+      this.renderer.setOverscan(overscanFor(options));
+      this.measure();
+    }
     this.draw();
   }
 

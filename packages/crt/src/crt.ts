@@ -60,6 +60,9 @@ float hash(vec2 p) {
 
 /** Pull the corners back, the way a real tube does. */
 vec2 curve(vec2 uv) {
+  // 0 is a flat screen. Without this the division below is by zero and the
+  // whole picture is NaN -- which is what the flat preset used to draw.
+  if (u_curvature <= 0.0) return uv;
   uv = uv * 2.0 - 1.0;
   vec2 offset = abs(uv.yx) / u_curvature;
   uv += uv * offset * offset;

@@ -27,13 +27,13 @@ describe('every tube', () => {
     }
   });
 
-  it('leaves `off` genuinely off', () => {
-    for (const key of AMOUNTS) expect(TUBES.off[key] ?? 0, key).toBe(0);
-    expect(TUBES.off.curvature).toBe(0);
+  it('leaves `flat` genuinely flat', () => {
+    for (const key of AMOUNTS) expect(TUBES.flat[key] ?? 0, key).toBe(0);
+    expect(TUBES.flat.curvature).toBe(0);
   });
 
   it('holds still on the two calm presets, for anybody the motion bothers', () => {
-    for (const name of ['off', 'clean'] as const) {
+    for (const name of ['flat', 'clean'] as const) {
       expect(TUBES[name].flicker ?? 0, name).toBe(0);
       expect(TUBES[name].jitter ?? 0, name).toBe(0);
       expect(TUBES[name].roll ?? 0, name).toBe(0);
@@ -66,6 +66,11 @@ describe('every tube', () => {
     expect(tubeByName('nonsense')).toBe(TUBES[DEFAULT_TUBE]);
     expect(tubeByName(null)).toBe(TUBES[DEFAULT_TUBE]);
     for (const name of TUBE_NAMES) expect(tubeByName(name)).toBe(TUBES[name]);
+  });
+
+  it('is flat unless somebody asks for a tube, and still honours a save that said off', () => {
+    expect(DEFAULT_TUBE).toBe('flat');
+    expect(tubeByName('off')).toBe(TUBES.flat);
   });
 });
 
@@ -102,9 +107,9 @@ describe('degradation follows the ship', () => {
     expect(sick.roll ?? 0).toBe(0);
   });
 
-  it('leaves `off` off at every health', () => {
+  it('leaves `flat` still at every health', () => {
     for (const health of [0, 0.5, 1]) {
-      const tube = degrade(TUBES.off, health);
+      const tube = degrade(TUBES.flat, health);
       for (const key of AMOUNTS) expect(tube[key] ?? 0, `${key} at ${health}`).toBe(0);
     }
   });
