@@ -112,12 +112,12 @@ export function coldOpen(): BeatLine[] {
     "",
     "  HEARING ANNEXE — DISCLOSURE TERMINAL",
     "",
-    "KERR: You have the room until four. Model, vocabulary, datasets, vendor report.",
+    "KERR: The room is yours until four.",
     "KERR: Three filings quote 99.2 percent accuracy. None says what it was compared with.",
     "KERR: Reproduce the number. Then tell me what it measures.",
     "LUNA: A pile of numbers made a decision about our friends. Let us ask it to show its work.",
-    "LUNA: Kerr's note is in your home. The vendor's report is in /srv/disclosure. model card says what it claims to be.",
-    "LUNA: Read Oduya's answer early. She built the report. hint if you get stuck.",
+    "LUNA: Kerr's note is in your home; the vendor's report, in /srv/disclosure. model card says what it claims.",
+    "LUNA: Read Oduya's answer early. hint if you get stuck.",
   ];
 }
 

@@ -84,6 +84,9 @@ importers:
       '@playwright/test':
         specifier: ^1.55.0
         version: 1.63.0
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
       pyodide:
         specifier: ^0.28.3
         version: 0.28.3

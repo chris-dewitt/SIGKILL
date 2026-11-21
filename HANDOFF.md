@@ -1,5 +1,26 @@
 # SIGKILL — handoff
 
+## Strip the boring, 2026-11-21
+
+Measured every game at phone width: the first three were the wordy ones.
+*The Wreck*'s README was 408 words; beats ran to 120-188 words; rungs past
+100. Cut to caps, now a test (`apps/terminal/test/density.test.ts`, table in
+`docs/HINTS.md`): rung and beat 60 words, cold open 80, README 150 --
+counting prose only, not indented commands, logs or art.
+
+- *The Wreck*: README 408 -> ~120 words; seal-the-breach beat and five rungs.
+- *The Archive*: both READMEs, two beats.
+- *The Harness*: README, cold open, five rungs.
+- *The Pipeline*: the file contract moved out of the README into `~/DESK`.
+- *The Deposit*, *The Containment*: cold opens; Containment's part-one
+  close and two training rungs.
+
+Nothing a goal reads changed; every route harness still passes. Typing whole
+scripts is mostly answered by #56: the Containment's command rungs are whole
+heredocs, so the hinted script is one chip. Starter files that the player
+edits rather than writes are still open, and need per-objective care so an
+unedited starter is a near-miss and not a route.
+
 ## Tap instead of type, 2026-11-21
 
 Chris: "we need to not type multilingual code". Four ways a thumb now builds
