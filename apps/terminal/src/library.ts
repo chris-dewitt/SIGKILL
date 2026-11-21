@@ -151,12 +151,38 @@ export function chooserLines(
     const mark = saved.has(adventure.id) ? ' [in progress]' : '';
     lines.push(`  ${index + 1}. ${adventure.title}${mark}`);
     lines.push(`     ${adventure.teaches}`);
-    for (const line of adventure.blurb) lines.push(`     ${line.slice(0, Math.max(0, cols - 5))}`);
+    for (const line of wrap(adventure.blurb.join(' '), Math.max(10, cols - 5))) lines.push(`     ${line}`);
     lines.push('');
   }
   lines.push(entries.length === 1 ? '  Type 1 to begin.' : `  Type 1-${entries.length} to begin.`);
   lines.push('');
   return lines;
+}
+
+/**
+ * Words into lines no wider than `width`.
+ *
+ * The blurbs used to be clipped per authored line, which lost words on any
+ * screen narrower than the line was written for -- "a research ship" then
+ * "no idea why", with the words between them gone. Wrapped, the whole
+ * sentence survives at any width. A word longer than the line is broken
+ * rather than allowed to run off the glass.
+ */
+export function wrap(text: string, width: number): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (let word of text.split(/\s+/).filter(Boolean)) {
+    while (word.length > width) {
+      if (line) { out.push(line); line = ''; }
+      out.push(word.slice(0, width));
+      word = word.slice(width);
+    }
+    if (!line) line = word;
+    else if (line.length + 1 + word.length <= width) line += ` ${word}`;
+    else { out.push(line); line = word; }
+  }
+  if (line) out.push(line);
+  return out;
 }
 
 /**

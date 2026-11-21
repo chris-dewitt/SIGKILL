@@ -131,9 +131,22 @@ describe('what the chooser says', () => {
    * width at all.
    */
   it('uses the width it is given', () => {
-    const wide = chooserLines(offered(both), none, 70).join('\n');
-    for (const { adventure } of offered(both)) {
-      for (const line of adventure.blurb) expect(wide, adventure.id).toContain(line);
+    const wide = chooserLines(offered(both), none, 70);
+    expect(Math.max(...wide.map((l) => l.length))).toBeGreaterThan(40);
+    for (const line of wide) expect(line.length).toBeLessThanOrEqual(70);
+  });
+
+  /*
+   * And loses no words at any width -- the bug on Chris's phone, where each
+   * authored line was clipped to the screen and the words past the edge were
+   * simply gone ("a research ship" / "no idea why").
+   */
+  it('keeps every word of every blurb, in order, at any width', () => {
+    for (const cols of [28, 34, 38, 52, 70]) {
+      const text = chooserLines(offered(both), none, cols).join(' ').replace(/\s+/g, ' ');
+      for (const { adventure } of offered(both)) {
+        expect(text, `${adventure.id} at ${cols}`).toContain(adventure.blurb.join(' ').replace(/\s+/g, ' '));
+      }
     }
   });
 });

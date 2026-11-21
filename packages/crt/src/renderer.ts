@@ -1,7 +1,7 @@
 import { GlyphAtlas, scaleFont } from './atlas.js';
 import { faceFont } from './faces.js';
 import { spansFor, type Line, type LineKind, type Row, type TerminalBuffer } from './buffer.js';
-import { backingSize, gridFor, visibleRange, type GridSize } from './metrics.js';
+import { backingSize, drawnCell, gridFor, visibleRange, type GridSize } from './metrics.js';
 
 /**
  * A colour for every `LineKind`, plus the ground they sit on.
@@ -171,7 +171,7 @@ export class TerminalRenderer {
 
   /** One buffer row in CSS pixels. */
   get rowHeight(): number {
-    return this.atlas.cell.height;
+    return drawnCell(this.atlas.cell, this.scale).height;
   }
 
   /** Re-measure for a new viewport. Rebuilds the atlas only if the scale changed. */
@@ -199,7 +199,8 @@ export class TerminalRenderer {
         height: Math.max(0, height - insetY * 2),
         dpr,
       },
-      this.atlas.cell,
+      // Counted at the size it is drawn, or every line runs long. See drawnCell.
+      drawnCell(this.atlas.cell, this.scale),
     );
     this.originX = Math.round((this.gutter + inset) * this.scale);
     this.originY = Math.round(insetY * this.scale);

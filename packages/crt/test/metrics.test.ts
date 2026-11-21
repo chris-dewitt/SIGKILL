@@ -6,6 +6,7 @@ import {
   atlasColumns,
   atlasCodepoints,
   backingSize,
+  drawnCell,
   gridFor,
   slotPosition,
   visibleRange,
@@ -121,5 +122,25 @@ describe('the atlas', () => {
     expect(atlasColumns(250)).toBe(16);
     expect(atlasColumns(1)).toBe(1);
     expect(atlasColumns(0)).toBe(1);
+  });
+});
+
+describe('drawnCell: the grid is counted at the width it is drawn', () => {
+  it('rounds a cell up to whole device pixels, the way the renderer blits it', () => {
+    expect(drawnCell({ width: 8.127685546875, height: 16.4 }, 2)).toEqual({ width: 8.5, height: 16.5 });
+    expect(drawnCell({ width: 8, height: 16 }, 2)).toEqual({ width: 8, height: 16 });
+  });
+
+  /*
+   * The bug Chris saw on his phone: the chooser's blurbs cut mid-word at the
+   * right edge. Counted with the measured width, 35 columns of 8.13px fit in
+   * 286px; drawn at 8.5px each they take 297.5px -- past the safe edge.
+   */
+  it('never lets a full line of drawn cells run past the space it was counted for', () => {
+    for (const [width, cw, scale] of [[286, 8.127685546875, 2], [320, 8.1, 2], [341, 8.127685546875, 2], [398, 8.6, 1.5], [360, 7.2, 3]] as const) {
+      const cell = drawnCell({ width: cw, height: 16 }, Math.min(scale, 2));
+      const { cols } = gridFor({ width, height: 600, dpr: scale }, cell);
+      expect(cols * cell.width, `${width}px at ${cw}`).toBeLessThanOrEqual(width);
+    }
   });
 });
