@@ -150,6 +150,23 @@ Write the `nudge` as something a character would say and the `command` as
 something an engineer would say. The tier is the register, not just the
 specificity.
 
+## Length
+
+A phone shows about thirty-eight columns. `apps/terminal/test/density.test.ts`
+holds every game to:
+
+| What | Cap, in words of prose |
+|------|------|
+| a hint rung | 60 |
+| an objective's beat | 60 |
+| a cold open | 80 |
+| any `README` the world ships | 150 |
+
+Prose is any line that does not start with whitespace. Indented lines --
+commands, logs, tables, art -- are not counted: they are read at a glance, and
+the tap layer turns them into input. If a rung will not fit, it is usually two
+ideas, and the second one belongs on the next rung.
+
 ---
 
 ## Determinism

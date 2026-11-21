@@ -107,7 +107,7 @@ export function coldOpen(): BeatLine[] {
     "",
     "HOLLIS: Sit. Eat that. Terminal is yours until Thursday.",
     "HOLLIS: Adjuster sent a letter. I put it by the berth papers.",
-    "LUNA: I read it. Four days in a pocket, Doc. I have opinions about the fridge.",
+    "LUNA: Four days in a pocket, Doc. I have opinions about the fridge.",
     "LUNA: First: Kerr wants your program, tests, and the same answer twice.",
     "LUNA: Start with cat HEARING, then cat /srv/recovery/nav7/README. Your files are in carried/.",
     "LUNA: hint if you need me. talk if you just want to talk. Check me if I sound certain.",

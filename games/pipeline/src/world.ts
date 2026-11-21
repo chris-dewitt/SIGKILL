@@ -88,7 +88,7 @@ function objective(spec: Spec, requires: string[]): Objective {
     nearMisses: spec.misses.map((commands, i) => ({ name: ['incomplete output', 'plausible but wrong'][i]!, commands, because: 'The required data or tested behavior is absent.' })),
     steps: [{ id: 'produce', label: spec.title, pending: w => !spec.done(w), rungs: [
       { tier: 'nudge', lines: [spec.hint] },
-      { tier: 'direction', lines: ['cat ~/README lists each file contract. Preserve the source, and compare what your next stage produces.'] },
+      { tier: 'direction', lines: ['cat ~/DESK lists each file contract. Preserve the source, and compare what your next stage produces.'] },
       { tier: 'command', lines: ['One working route:'], command: spec.routes[0]!.join('; ') },
     ] }],
     onComplete: spec.beat,
@@ -180,7 +180,12 @@ export function bootPipeline() {
     'Only rows with numeric units are valid. Keep the bad row; ask its sender to correct it.',
     'Canonical output: id,time,claim,units. No header. One row per event.',
     'Repeated ids in these batches carry the same payload. Conflicting revisions would need a revision policy, not sort -u.',
-    '\nWork files (the intake desk reads these names):',
+    '\nThe names the intake desk reads, step by step: cat ~/DESK',
+    '\nUseful: man grep, man cut, man sort, man uniq, man chmod. Editors: nano or vi.',
+    'objectives shows the work. hint gives working commands. talk when you need company.',
+  ].join('\n')+'\n', ROOT_USER);
+  fs.writeText('/home/dewitt/DESK', [
+    'WORK FILES — the intake desk reads these names\n',
     'work/raw.csv — untouched 001 copy',
     'work/valid.csv and work/rejects.csv — separate 001 without losing rows',
     'work/normalized.csv — valid rows from both batches, first four fields, including repeats',
@@ -191,8 +196,6 @@ export function bootPipeline() {
     'work/counts.txt — unique event counts per claim (uniq -c format)',
     '/srv/outbox/current.csv — complete canonical export; checkpoint contains last received batch id, 004.',
     'work/HANDOVER — recipe command, rehearse command, reject handling, checkpoint rule.',
-    '\nUseful: man grep, man cut, man sort, man uniq, man chmod. Editors: nano or vi.',
-    'objectives shows the work. hint gives working commands. talk when you need company.',
   ].join('\n')+'\n', ROOT_USER);
   machine.shell.cwd='/home/dewitt'; machine.shell.env['PWD']='/home/dewitt';
   return attach(machine, questbook);

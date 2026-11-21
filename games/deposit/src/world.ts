@@ -251,7 +251,7 @@ export function coldOpen(): BeatLine[] {
     "",
     "  PELL DEPOSIT OFFICE — MACHINE FLOOR",
     "",
-    "PELL: Four machines. I kept them up by restarting things. Nobody wrote down why.",
+    "PELL: Four machines. I kept them up by restarting things.",
     "PELL: The check is green. The tribunal cannot get its manifest. Both facts are on your desk.",
     "PELL: cat ~/PELL, then cat ~/REQUEST. I am out at eight.",
     "PELL: Some of that evidence is yours. You have root. Make it available. Do not make it convenient.",
