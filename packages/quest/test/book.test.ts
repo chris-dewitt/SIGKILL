@@ -493,3 +493,24 @@ describe('optional objectives', () => {
     expect(b.current(w)).toBeUndefined();
   });
 });
+
+describe('the command a phone may put on a chip', () => {
+  it('is nothing until the ladder has given it, then the command it gave', () => {
+    const book = new Questbook(OBJECTIVES);
+    const w = world();
+    expect(book.offered(w)).toBeUndefined();
+    book.hint(w);
+    book.hint(w);
+    expect(book.offered(w)).toBeUndefined();
+    book.hint(w);
+    expect(book.offered(w)).toBe('touch /key');
+  });
+
+  it('is withdrawn the moment the step moves on', async () => {
+    const book = new Questbook(OBJECTIVES);
+    const w = world();
+    for (let i = 0; i < 3; i++) book.hint(w);
+    w.vfs.writeText('/key', '', ROOT_USER);
+    expect(book.offered(w)).toBeUndefined();
+  });
+});

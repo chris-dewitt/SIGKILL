@@ -328,6 +328,11 @@ export class CrtPass {
   /** When the tube was switched on. See the constructor. */
   private readonly born: number;
 
+  /** The barrel in use, so a tap can be traced back through it. */
+  get curvature(): number {
+    return this.options.curvature;
+  }
+
   configure(options: CrtOptions): void {
     this.options = { ...this.options, ...options };
   }

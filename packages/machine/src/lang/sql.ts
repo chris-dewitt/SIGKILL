@@ -1,6 +1,7 @@
 import type { CommandSpec, ShellContext } from '../shell/exec.js';
 import { FsError } from '../errors.js';
 import { emit } from '../coreutils/helpers.js';
+import { schemaOf, sqlNext } from './sqlcomplete.js';
 
 /**
  * SQLite, supplied from outside.
@@ -326,5 +327,65 @@ export function sqlCommands(getRuntime: () => SqlRuntime | undefined): CommandSp
     'The file is a normal file. You can cp it before you change anything,\n' +
     'which is the cheapest insurance there is.';
 
-  return [{ name: 'sqlite3', summary: 'run SQL against a database file', manual, plain, run }];
+  /*
+   * The next word, for a player tapping instead of typing.
+   *
+   * First the database: files ending .db here, and anywhere under /srv and
+   * home a few levels down, since the games keep their archives there. Then
+   * the opening of a statement. Then whatever sqlcomplete.ts says follows the
+   * last keyword, with this database's own tables and columns.
+   */
+  const complete: CommandSpec['complete'] = (ctx, args) => {
+    const words = args.filter((a) => !a.startsWith('-') || a.startsWith('"') || a.startsWith("'"));
+    if (words.length <= 1) return databases(ctx);
+    const file = words[0]!;
+    const rest = words.slice(1);
+    const typed = rest.slice(0, -1).join(' ');
+    if (rest.length === 1) return ['"SELECT', '.tables', '.schema'];
+    if (/^["']?\.schema$/.test(rest[0]!)) return rest.length === 2 ? [...schemaAt(ctx, file).tables.keys()] : [];
+    // Not a quoted statement, or one already closed: nothing SQL-shaped to offer.
+    if (!/^["']/.test(rest[0]!) || /["']/.test(typed.slice(1))) return [];
+    return sqlNext(schemaAt(ctx, file), typed);
+  };
+
+  return [{ name: 'sqlite3', summary: 'run SQL against a database file', manual, plain, run, complete }];
+}
+
+/** The schema of a database file, read from its bytes. Empty if unreadable. */
+function schemaAt(ctx: ShellContext, file: string) {
+  try {
+    return schemaOf(new TextDecoder('latin1').decode(ctx.vfs.read(ctx.resolve(file), ctx.user)));
+  } catch {
+    return schemaOf('');
+  }
+}
+
+/** Database files a player is likely to want: here, and under /srv and home. */
+function databases(ctx: ShellContext): string[] {
+  const found = new Set<string>();
+  const seen = new Set<string>();
+  const walk = (dir: string, depth: number, relative: boolean): void => {
+    let names: string[];
+    try {
+      names = ctx.vfs.readdir(dir, ctx.user);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const path = `${dir === '/' ? '' : dir}/${name}`;
+      if (name.endsWith('.db') && !seen.has(path)) {
+        seen.add(path);
+        found.add(relative && dir === ctx.cwd ? name : path);
+      }
+      else if (depth > 0) {
+        try {
+          if (ctx.vfs.stat(path, ctx.user).kind === 'dir') walk(path, depth - 1, relative);
+        } catch { /* unreadable */ }
+      }
+    }
+  };
+  walk(ctx.cwd, 0, true);
+  walk('/srv', 3, false);
+  walk(ctx.home, 2, false);
+  return [...found].sort((a, b) => Number(a.startsWith('/')) - Number(b.startsWith('/')) || a.localeCompare(b));
 }

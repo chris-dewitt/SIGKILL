@@ -80,6 +80,17 @@ export function storeCommands(): CommandSpec[] {
         '  deposit get 7719/manifest\n' +
         'Every read it serves goes in the access log, under your name, and a\n' +
         'copy goes to the tribunal, where nobody here can change it.',
+      // `list` and `get`, then the matters `deposit list` would print. Not
+      // the files inside them: which file to ask for is the reading.
+      complete: (ctx, args) => {
+        if (args.length <= 1) return ['list', 'get'];
+        if (args.length > 2 || args[0] !== 'get') return [];
+        try {
+          return ctx.vfs.readdir(DEPOSIT_ROOT, ROOT_USER).sort().map((m) => `${m}/`);
+        } catch {
+          return [];
+        }
+      },
       run: (ctx, argv, io) => {
         const [sub, target] = argv.slice(1);
 

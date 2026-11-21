@@ -510,3 +510,20 @@ html.keyboard #line {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* Recall: the one key on the row that is a verb, not a character. */
+.symbol.recall {
+  color: var(--phosphor);
+  border-color: var(--phosphor-dim);
+}
+
+/* The command hint has already shown. Brighter, and capped so it never pushes
+   the rest of the bar off a phone. */
+.chip.given {
+  color: var(--phosphor-hot);
+  border-color: var(--phosphor);
+  max-width: 70vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

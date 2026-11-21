@@ -75,6 +75,17 @@ A `CommandSpec` is the unit of extension:
 Commands read and write the VFS **as `ctx.user`**; they never check
 permissions by hand.
 
+A spec may also carry `complete(ctx, args)`: the words that could come next,
+for the phone's chip bar. `args` is everything after the command name, the
+last entry being the half-typed word (empty after a space). Return candidates
+unfiltered; the host keeps the ones that match what is typed. A command
+without one gets the files in front of the player. Shared grammars for the
+commonly typed coreutils live in `src/coreutils/completions.ts`; SQL's is
+`src/lang/sqlcomplete.ts`, which reads table and column names straight out of
+the database file, as the player, so it never offers a name they could not
+`.schema` for themselves. Completers that read as root (`agent`, `deposit`)
+offer only names their own command already prints.
+
 ## Before you change anything
 
 - [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — the map, and a

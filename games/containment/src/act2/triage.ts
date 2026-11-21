@@ -470,6 +470,8 @@ function readHome(ctx: ShellContext, path: string): string | undefined {
   }
 }
 
+const AGENT_SUBCOMMANDS = ['tools', 'runs', 'trace', 'prompt', 'run', 'eval'];
+
 export function triageCommands(): CommandSpec[] {
   const agent: CommandSpec = {
     name: 'agent',
@@ -576,6 +578,30 @@ export function triageCommands(): CommandSpec[] {
         default:
           io.err('usage: agent tools | runs | trace RUN | prompt RUN | run FILING | eval DIR\n');
           return 2;
+      }
+    },
+    // What comes next, for a thumb: the subcommand, then the runs or filings
+    // that exist. Names only -- `agent runs` and `ls` already show them.
+    complete: (ctx, args) => {
+      if (args.length <= 1) return AGENT_SUBCOMMANDS;
+      if (args.length > 2) return [];
+      const names = (dir: string): string[] => {
+        try {
+          return ctx.vfs.readdir(dir, ROOT_USER).sort();
+        } catch {
+          return [];
+        }
+      };
+      switch (args[0]) {
+        case 'trace':
+        case 'prompt':
+          return names(RUNS).filter((n) => n.endsWith('.log')).map((n) => n.replace(/\.log$/, ''));
+        case 'run':
+          return names(QUEUE);
+        case 'eval':
+          return [REDTEAM, QUEUE];
+        default:
+          return [];
       }
     },
   };

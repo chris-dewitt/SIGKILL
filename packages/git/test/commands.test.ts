@@ -394,3 +394,28 @@ describe('the manual', () => {
     expect(manual).toContain('It is all just files');
   });
 });
+
+describe('the next word, for a thumb', () => {
+  const next = (machine: Machine, ...args: string[]): readonly string[] =>
+    machine.shell.commands.get('git')!.complete!(machine.shell, args);
+
+  it('offers subcommands, then this repository\'s own branches and tags', async () => {
+    const machine = boot();
+    await machine.exec('git init');
+    await machine.exec('echo one > a.txt');
+    await machine.exec('git add a.txt');
+    await machine.exec("git commit -m 'first'");
+    await machine.exec('git branch spare');
+    await machine.exec('git tag v1');
+    expect(next(machine, '')).toContain('log');
+    expect(next(machine, 'show', '')).toEqual(expect.arrayContaining(['HEAD', 'spare', 'v1']));
+    expect(next(machine, 'add', '')).toEqual(['.', 'a.txt']);
+    expect(next(machine, 'bisect', '')).toContain('start');
+  });
+
+  it('offers no revisions outside a repository, and nothing for a new branch name', () => {
+    const machine = boot();
+    expect(next(machine, 'show', '')).toEqual(['HEAD']);
+    expect(next(machine, 'branch', '')).toEqual([]);
+  });
+});
