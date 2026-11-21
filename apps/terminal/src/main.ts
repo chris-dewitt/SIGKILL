@@ -1335,7 +1335,7 @@ function refreshChips(): void {
     chip.addEventListener('click', () => {
       const value = input.value;
       input.value = insertWord(value, nextWords(machine.shell, value).partial, suggestion);
-      input.setSelectionRange(input.value.length, input.value.length);
+      caretToEnd();
       input.focus();
       refreshChips();
     });
@@ -1367,7 +1367,7 @@ function givenChip(command: string): HTMLButtonElement {
       return;
     }
     input.value = command;
-    input.setSelectionRange(command.length, command.length);
+    caretToEnd();
     input.focus();
     refreshChips();
   });
@@ -1391,12 +1391,21 @@ function holdFocusOnTap(button: HTMLElement): void {
   button.addEventListener('mousedown', (event) => event.preventDefault());
 }
 
+/**
+ * Caret to the end, and the end in view. A one-line field on a phone shows the
+ * start of a long line by default, which hides exactly the word just added.
+ */
+function caretToEnd(): void {
+  input.setSelectionRange(input.value.length, input.value.length);
+  input.scrollLeft = input.scrollWidth;
+}
+
 /** The command before the one showing, with the caret at its end. */
 function recallPrevious(): void {
   if (historyIndex <= 0) return;
   historyIndex--;
   input.value = history[historyIndex] ?? '';
-  input.setSelectionRange(input.value.length, input.value.length);
+  caretToEnd();
   refreshChips();
 }
 
@@ -1643,6 +1652,7 @@ function insertTapped(word: string): void {
   input.value = `${before}${lead}${word}${trail}${after}`;
   const caret = before.length + lead.length + word.length + trail.length;
   input.setSelectionRange(caret, caret);
+  if (after.length === 0) input.scrollLeft = input.scrollWidth;
   input.focus();
   refreshChips();
 }

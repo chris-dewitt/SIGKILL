@@ -52,6 +52,7 @@ describe('the word under a finger', () => {
     expect(wordAt('a  b', 1)).toBeUndefined();
     expect(at('──────', '──')).toBeUndefined();
     expect(at('dewitt@ferryman:~$ ls', 'dewitt')).toBeUndefined();
+    expect(at('dewitt@ferryman:~ $ ls', 'dewitt')).toBeUndefined();
     expect(wordAt('ab', 5)).toBeUndefined();
   });
 });

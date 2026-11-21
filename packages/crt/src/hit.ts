@@ -49,6 +49,7 @@ export function wordAt(text: string, col: number): string | undefined {
   while (end < text.length && !SEPARATOR.test(text[end]!)) end++;
   const word = text.slice(start, end).replace(TRAILING, '');
   if (!/[A-Za-z0-9]/.test(word)) return undefined;
-  if (/[$#]$/.test(word)) return undefined;
+  // `dewitt@ferryman:~$`, with or without the sigil the separator left behind.
+  if (/[$#]$/.test(word) || /^[\w.-]+@[\w.-]+:/.test(word)) return undefined;
   return word;
 }
