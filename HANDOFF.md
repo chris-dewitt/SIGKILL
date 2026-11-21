@@ -1,5 +1,22 @@
 # SIGKILL — handoff
 
+## Flat by default, 2026-11-21
+
+After the phone playtest Chris preferred the plain TEXT copy screen to the
+tube. The screen is now **flat by default**: no curve, glow, scanlines or
+grain, and no edge inset, so a phone gets 44 columns instead of 40. The
+tubes are one command away: `crt clean | classic | worn | failing`, and
+`crt flat` (or the old name `crt off`) to come back.
+
+Two bugs found on the way, both hidden by the tube until now:
+
+- **The flat preset drew NaN.** The shader divided by the curvature, and the
+  preset set it to 0. `curve()` now returns the point untouched at 0.
+- **The last row of output sat under the dock.** The dock's height was
+  measured on window resize only, and the dock grows after that as its chips
+  fill in. A ResizeObserver on the dock keeps the reserve current; the curved
+  tube's bottom inset had been covering the overlap.
+
 ## Strip the boring, 2026-11-21
 
 Measured every game at phone width: the first three were the wordy ones.

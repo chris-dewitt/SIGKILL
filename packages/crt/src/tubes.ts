@@ -11,8 +11,14 @@ import type { CrtOptions } from './crt.js';
  * the point: the ship is dying, and the screen is part of the ship.
  */
 
-/** The shader off entirely. For anybody the motion bothers, and for tests. */
-const OFF: CrtOptions = {
+/**
+ * Flat: crisp text, no tube. The default since 2026-11-21.
+ *
+ * Chris, after a phone playtest: he preferred the plain copy screen to the
+ * tube. On a small screen every effect costs a little sharpness, and the
+ * curve costs columns. The tubes below are still one command away.
+ */
+const FLAT: CrtOptions = {
   curvature: 0,
   scanline: 0,
   bloom: 0,
@@ -98,7 +104,7 @@ const FAILING: CrtOptions = {
 };
 
 export const TUBES = {
-  off: OFF,
+  flat: FLAT,
   clean: CLEAN,
   classic: CLASSIC,
   worn: WORN,
@@ -109,10 +115,12 @@ export type TubeName = keyof typeof TUBES;
 
 export const TUBE_NAMES = Object.keys(TUBES) as TubeName[];
 
-export const DEFAULT_TUBE: TubeName = 'classic';
+export const DEFAULT_TUBE: TubeName = 'flat';
 
 export function tubeByName(name: string | null | undefined): CrtOptions {
-  const key = (name ?? '').toLowerCase() as TubeName;
+  const asked = (name ?? '').toLowerCase();
+  // `off` was the flat preset's name before it was the default; saves keep it.
+  const key = (asked === 'off' ? 'flat' : asked) as TubeName;
   return TUBES[key] ?? TUBES[DEFAULT_TUBE];
 }
 

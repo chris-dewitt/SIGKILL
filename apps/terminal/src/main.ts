@@ -281,25 +281,28 @@ function crtCommand(): CommandSpec {
     manual:
       'crt [NAME]\n\n' +
       'With no argument, list the tubes and show which one is on.\n\n' +
-      '  off       no simulation at all\n' +
+      '  flat      crisp text, no tube (the default)\n' +
       '  clean     a good tube on a good day; holds perfectly still\n' +
       '  classic   scanlines, grille, glow, a slow roll\n' +
       '  worn      a tube that has had a hard life\n' +
       '  failing   the picture is barely holding together\n\n' +
       'Whichever you pick gets less stable the more of this ship is broken,\n' +
-      'and steadies as you repair it -- except off and clean, which never\n' +
+      'and steadies as you repair it -- except flat and clean, which never\n' +
       'move whatever is happening.',
     plain:
       'Changes how much the screen looks like an old monitor.\n\n' +
+      '  crt flat      plain, sharp text (the default)\n' +
       '  crt clean     steady and clear\n' +
       '  crt classic   scanlines and glow\n' +
-      '  crt worn      a screen that has been on far too long\n' +
-      '  crt off       none of it\n\n' +
-      'If flicker bothers you, use  crt clean  or  crt off. Those two never\n' +
+      '  crt worn      a screen that has been on far too long\n\n' +
+      'If flicker bothers you, stay on  crt flat  or use  crt clean. Those never\n' +
       'move, no matter what state the ship is in.',
     run: (_ctx, argv, io) => {
-      const wanted = argv[1]?.toLowerCase();
-      const current = savedTube ?? DEFAULT_TUBE;
+      // `off` was flat's name before flat was the default.
+      const alias = (name: string | null | undefined): string | undefined =>
+        name?.toLowerCase() === 'off' ? 'flat' : name?.toLowerCase();
+      const wanted = alias(argv[1]);
+      const current = alias(savedTube) ?? DEFAULT_TUBE;
 
       if (wanted === undefined) {
         io.out(
@@ -333,6 +336,7 @@ function crtCommand(): CommandSpec {
       io.out(`crt: ${wanted}\n`);
       return 0;
     },
+    complete: (_ctx, args) => (args.length <= 1 ? [...TUBE_NAMES] : []),
   };
 }
 
@@ -1783,6 +1787,14 @@ window.addEventListener('resize', syncViewport);
 window.addEventListener('orientationchange', syncViewport);
 window.visualViewport?.addEventListener('resize', syncViewport);
 window.visualViewport?.addEventListener('scroll', syncViewport);
+/*
+ * And whenever the dock itself changes height: its chips and symbol row fill
+ * in after the first measurement, and the hinted-command chip comes and goes.
+ * A window resize never fires for any of that, so the reserve went stale and
+ * the last row of output sat under the dock -- hidden for months by the curved
+ * tube's bottom inset, and plain to see the day the screen went flat.
+ */
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => syncViewport()).observe(dock);
 syncViewport();
 
 /*
